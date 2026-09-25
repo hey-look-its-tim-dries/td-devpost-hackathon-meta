@@ -1,0 +1,7 @@
+.DS_Store
+.sf/
+.vscode/
+node_modules/
+*.log
+.env
+.env.*

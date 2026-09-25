@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Upwards — Cloud Drift</title>
+    <meta
+      name="description"
+      content="A relaxing cloud exploration game controlled by head movement or pointer drift."
+    />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div class="hud">
+      <div class="brand">UPWARDS</div>
+      <div class="stats">
+        <div class="stat">
+          <span class="label">SCORE</span>
+          <strong id="score">0</strong>
+        </div>
+        <div class="stat">
+          <span class="label">DISTANCE</span>
+          <strong id="distance">0</strong>
+        </div>
+      </div>
+    </div>
+
+    <div class="banner" id="banner">
+      <p class="eyebrow">Cloud Exploration</p>
+      <h1>Upwards</h1>
+      <p>
+        Drift through the azure sky. Tilt your head left and right to navigate
+        the soft currents.
+      </p>
+      <button id="startButton">Begin the drift</button>
+    </div>
+
+    <canvas id="gameCanvas" aria-label="Upwards cloud exploration game"></canvas>
+
+    <script src="./script.js"></script>
+  </body>
+</html>
