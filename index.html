@@ -1,42 +1,36 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Upwards — Cloud Drift</title>
-    <meta
-      name="description"
-      content="A relaxing cloud exploration game controlled by head movement or pointer drift."
-    />
+    <title>Upwards</title>
+    <meta name="description" content="Lie back and drift up through the sky. A mixed reality relaxation journey you steer with a turn of your head." />
+    <link rel="icon" href="data:," />
     <link rel="stylesheet" href="./style.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+        }
+      }
+    </script>
   </head>
   <body>
-    <div class="hud">
-      <div class="brand">UPWARDS</div>
-      <div class="stats">
-        <div class="stat">
-          <span class="label">SCORE</span>
-          <strong id="score">0</strong>
-        </div>
-        <div class="stat">
-          <span class="label">DISTANCE</span>
-          <strong id="distance">0</strong>
-        </div>
+    <div class="banner" id="banner">
+      <div class="banner-inner">
+        <p class="eyebrow">A lie-down sky journey</p>
+        <h1>Upwards</h1>
+        <p>
+          Lie back. Your ceiling opens into an azure sky and you drift up through the clouds, past
+          sunset, into the stars. Turn or tilt your head to follow the lights.
+        </p>
+        <button id="xrButton" class="hidden">Begin in headset</button>
+        <button id="previewButton" class="quiet">Preview in the browser</button>
+        <p class="small">Head or hands steer. No controller needed. Best lying down or reclined.</p>
       </div>
     </div>
-
-    <div class="banner" id="banner">
-      <p class="eyebrow">Cloud Exploration</p>
-      <h1>Upwards</h1>
-      <p>
-        Drift through the azure sky. Tilt your head left and right to navigate
-        the soft currents.
-      </p>
-      <button id="startButton">Begin the drift</button>
-    </div>
-
-    <canvas id="gameCanvas" aria-label="Upwards cloud exploration game"></canvas>
-
-    <script src="./script.js"></script>
+    <p class="hint hidden" id="hint">Move the mouse or hold ← → to drift into the lights</p>
+    <script type="module" src="./src/main.js"></script>
   </body>
 </html>
