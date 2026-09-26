@@ -8,7 +8,7 @@
 A mixed reality relaxation journey for Meta Quest that you steer with a turn of your head.</p>
 
 <p align="center">
-  <a href="https://hey-look-its-tim-dries.github.io/upwards/">Play it</a> ·
+  <a href="https://hey-look-its-tim-dries.github.io/td-devpost-hackathon-meta/">Play it</a> ·
   <a href="https://start-developer-competition-26.devpost.com/">Meta VR Start Developer Competition 2026</a>
 </p>
 
@@ -112,7 +112,7 @@ No build step, no bundler and no asset files. The page is plain HTML and ES modu
 ### Play on a Meta Quest
 
 1. Put on the headset and open the **Meta Quest Browser**.
-2. Go to **https://hey-look-its-tim-dries.github.io/upwards/**
+2. Go to **https://hey-look-its-tim-dries.github.io/td-devpost-hackathon-meta/**
 3. Lie down or recline, then tap **Begin in headset** and allow hand tracking when asked.
 4. Look at the ceiling where you want the sky and hold still (or pinch).
 
@@ -121,8 +121,8 @@ No build step, no bundler and no asset files. The page is plain HTML and ES modu
 Prerequisites: Python 3 (or any static file server) and a recent Chrome. Node 20+ only for the tests.
 
 ```bash
-git clone https://github.com/hey-look-its-tim-dries/upwards.git
-cd upwards
+git clone https://github.com/hey-look-its-tim-dries/td-devpost-hackathon-meta.git
+cd td-devpost-hackathon-meta
 python3 -m http.server 8123
 ```
 

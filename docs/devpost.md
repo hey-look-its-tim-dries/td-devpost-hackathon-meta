@@ -92,8 +92,8 @@ Node.js, Claude Code
 
 ## Try it out
 
-- Live: https://hey-look-its-tim-dries.github.io/upwards/ (TODO: live once Pages is on)
-- Code: https://github.com/hey-look-its-tim-dries/upwards
+- Live: https://hey-look-its-tim-dries.github.io/td-devpost-hackathon-meta/ (TODO: live once Pages is on)
+- Code: https://github.com/hey-look-its-tim-dries/td-devpost-hackathon-meta
 - Video: TODO
 
 ## Track, division, launch
