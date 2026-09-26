@@ -111,3 +111,6 @@ export function chime(pan) {
   out.connect(master);
   out.connect(verb);
 }
+
+// Hidden session or tab: suspend everything, resume on return. Never starts audio by itself.
+export const pauseAudio = (paused) => ctx && (paused ? ctx.suspend() : ctx.resume());

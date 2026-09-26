@@ -57,12 +57,23 @@ Catching lights speeds up your climb a bit. Missing them costs nothing.
 
 ### Your ceiling opens (passthrough)
 
-On a Quest the session starts in mixed reality. The sky appears as a skylight in your ceiling with a
-soft glowing rim, and your room stays visible around it. That keeps the first minutes grounded and
-safe (you can still see your bedside table), then the window slowly widens into full immersion.
-The shot below comes from Meta's WebXR emulator, which shows the page background where your room would be.
+On a Quest the session starts in mixed reality and asks the headset for the room it knows from
+Space Setup (WebXR plane detection). The skylight is cut into **your real ceiling**: a pinhole of blue
+appears where your gaze meets the ceiling, and when you settle it opens outwards until the whole
+ceiling is sky, clipped to its real edges, while your walls stay in passthrough. Every pixel's ray from
+your eye is tested against the ceiling plane, so the hole stays fixed on the ceiling when you move your
+head, like a real window. Later in the climb the room fades and the sky is all around you.
 
-![The skylight opening, seen through the Quest 3 emulator](docs/screenshots/06-xr-emulated.jpg)
+It does not depend on any one room: any plane labelled `ceiling` (or, on runtimes without labels, a
+horizontal plane above your head) is used, beds, desks and shelves never are, and if there is no
+ceiling in view (no Space Setup, sitting upright looking at a wall) the skylight becomes a virtual
+window two metres along your gaze.
+
+| Settling in: a pinhole on the ceiling | Open: the whole ceiling, walls stay real |
+| --- | --- |
+| ![A small round skylight on the ceiling of the emulated living room](docs/screenshots/08-ceiling-pinhole.jpg) | ![The skylight filling the ceiling, clipped straight at the wall](docs/screenshots/06-xr-emulated.jpg) |
+
+Both shots come from Meta's Quest 3 emulator lying on your back in its scanned living room.
 
 ## How you play (head, hands and gaze)
 
@@ -85,13 +96,14 @@ are caught, and it banks as you steer so you can feel the controls working. All 
 | Component | Role | Where |
 | --- | --- | --- |
 | three.js 0.186 (WebGL 2) | Rendering, WebXR session, hand models | [src/main.js](src/main.js) |
-| WebXR `immersive-ar` + `hand-tracking` | Passthrough skylight, pinch input, falls back to `immersive-vr` | [src/main.js](src/main.js) |
+| WebXR `immersive-ar` + `hand-tracking` + `plane-detection` | Passthrough, skylight cut into the detected ceiling, pinch input, falls back to `immersive-vr` | [src/main.js](src/main.js) |
+| Room maths | Which planes count as a ceiling, where your gaze lands on one | [src/room.js](src/room.js) |
 | Head steering math | Turn and tilt relative to the calibrated pose, dead zone, clamp | [src/steer.js](src/steer.js) |
 | Cloud renderer | Procedural fBm puff atlas generated at load, 340 instanced billboards in one draw call, self-shadowing and aerial fade | [src/main.js](src/main.js) |
 | Sky, stars, skylight | One shader dome with sun, portal mask and glowing rim; 3,500 twinkling stars | [src/main.js](src/main.js) |
 | Sound | All generated with Web Audio: wind, a breathing pad, pentatonic chimes with reverb | [src/audio.js](src/audio.js) |
-| IWER (Meta's Immersive Web Emulation Runtime) | Quest 3 emulation on desktop with `?emulate` | [src/main.js](src/main.js) |
-| Unit tests | Steering maths, including "lying down steers exactly like sitting" | [tests/steer.test.mjs](tests/steer.test.mjs) |
+| IWER (Meta's Immersive Web Emulation Runtime) + `@iwer/sem` | Quest 3 emulation on desktop with `?emulate`, in a scanned room with planes and passthrough video | [src/main.js](src/main.js) |
+| Unit tests | Steering maths ("lying down steers exactly like sitting") and ceiling picking | [tests/](tests/) |
 
 No build step, no bundler and no asset files. The page is plain HTML and ES modules, so GitHub Pages serves it as is.
 
@@ -148,13 +160,15 @@ node --test tests/*.test.mjs
 | `?alt=0.6` | Start at an altitude between 0 (noon) and 1 (space) |
 | `?auto` | Autopilot follows the lights (for screenshots and demos) |
 | `?emulate` | Quest 3 emulation with IWER (`&nodevui` hides its panel) |
+| `&room=office_small` | Emulated room: `living_room` (default), `office_small`, `office_large`, `meeting_room`, `music_room` |
 
 ## Competition fit
 
 - **Track:** Entertainment (lean-back, music visualisation, spatial audio). **Division:** New Experience, built from 24 September 2026.
 - **Hands first:** the full experience runs without a controller. Hands, head and controller each cover every action.
 - **Seated or reclined, 2 ft radius:** nothing asks you to move more than your head.
-- **Platform features:** passthrough, hand tracking, head gaze steering, FoV-aware UI.
+- **Platform features:** passthrough with scene understanding (the sky opens in your detected ceiling), hand tracking, head gaze steering, FoV-aware UI.
+- **Pause and resume:** opening the Meta menu hides the session; the sound suspends and the journey picks up where it was.
 - **Accessibility:** eyes and head only play for limited mobility, no fail state, no reading required to play.
 
 ## What's next

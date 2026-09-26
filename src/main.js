@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js';
 import { headSteer, handSteer, angleBetween } from './steer.js';
-import { startAudio, setAltitude, chime } from './audio.js';
+import { extent, rayOnPlane, isCeiling } from './room.js';
+import { startAudio, pauseAudio, setAltitude, chime } from './audio.js';
 
 const params = new URLSearchParams(location.search);
 
@@ -11,6 +12,18 @@ if (params.has('emulate')) {
   const device = new XRDevice(metaQuest3);
   device.installRuntime({ forceInstall: true });
   window.__device = device;
+  // a scanned room (walls, ceiling, passthrough video) so plane detection has something to find
+  try {
+    const { SyntheticEnvironmentModule } = await import('https://esm.sh/@iwer/sem@2.5.0');
+    device.installSEM(SyntheticEnvironmentModule);
+    const room = params.get('room') || 'living_room';
+    fetch(`https://unpkg.com/@iwer/sem@2.5.0/captures/${room}.json`)
+      .then((r) => r.json())
+      .then((json) => device.sem.loadEnvironment(json))
+      .catch((e) => console.warn('IWER room unavailable', e));
+  } catch (e) {
+    console.warn('IWER synthetic environment unavailable', e);
+  }
   if (!params.has('nodevui')) {
     try {
       const { DevUI } = await import('https://esm.sh/@iwer/devui@2.5.0');
@@ -61,8 +74,10 @@ const stageTarget = { position: new THREE.Vector3(), quaternion: new THREE.Quate
 
 const U = {
   uTime: { value: 0 },
-  uPortal: { value: -2 }, // cos of the skylight's half-angle; -2 = the whole sky is open
-  uStageInv: { value: new THREE.Matrix4() },
+  uPlaneInv: { value: new THREE.Matrix4() }, // world → the plane the skylight is cut into
+  uHole: { value: new THREE.Vector3() }, // skylight centre (x, z on the plane) and radius, metres
+  uBox: { value: new THREE.Vector4(-1e4, -1e4, 1e4, 1e4) }, // the plane's extent
+  uOpen: { value: 1 }, // 1 = no room left, the sky is everywhere
   uZenith: { value: new THREE.Color() },
   uHorizon: { value: new THREE.Color() },
   uLit: { value: new THREE.Color() },
@@ -73,24 +88,38 @@ const U = {
   uTex: { value: cloudTexture() },
 };
 
-// In passthrough the sky only shows inside a skylight around your "up"; the room stays outside.
+// In passthrough the sky only shows through a skylight cut into your ceiling (or a virtual one along
+// your gaze); the room stays outside it. Each pixel's ray from the eye is tested against the plane,
+// so the hole stays put on the real ceiling as your head moves. Same maths as rayOnPlane in room.js.
 const PORTAL = /* glsl */ `
-  uniform float uPortal;
-  float portal(vec3 d) { float c = -normalize(d).z; return smoothstep(uPortal - 0.015, uPortal + 0.015, c); }`;
+  uniform mat4 uPlaneInv;
+  uniform vec3 uHole;
+  uniform vec4 uBox;
+  uniform float uOpen;
+  // metres from the skylight's edge on the plane, negative inside; large if the ray misses the plane
+  float holeDist(vec3 world) {
+    vec3 o = (uPlaneInv * vec4(cameraPosition, 1.0)).xyz;
+    vec3 d = (uPlaneInv * vec4(world, 1.0)).xyz - o;
+    if (o.y * d.y >= 0.0) return 1e3;
+    vec2 h = o.xz - d.xz * (o.y / d.y);
+    vec2 q = max(uBox.xy - h, h - uBox.zw);
+    return max(length(h - uHole.xy) - uHole.z, max(q.x, q.y));
+  }
+  float portal(vec3 world) { return uOpen >= 1.0 ? 1.0 : max(uOpen, 1.0 - smoothstep(-0.02, 0.02, holeDist(world))); }`;
 
 const BILLBOARD = /* glsl */ `
-  uniform mat4 uStageInv;
   attribute vec4 aSeed;
   varying vec2 vUv;
-  varying vec3 vStage;
+  varying vec3 vWorld;
   varying float vDist;
   vec4 billboard(float rot) {
     vec4 center = modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
     float size = length(instanceMatrix[0].xyz);
     vec4 mv = viewMatrix * center;
     float c = cos(rot), s = sin(rot);
-    mv.xy += mat2(c, s, -s, c) * position.xy * size;
-    vStage = (uStageInv * center).xyz;
+    vec2 off = mat2(c, s, -s, c) * position.xy * size;
+    mv.xy += off;
+    vWorld = center.xyz + (vec4(off, 0.0, 0.0) * viewMatrix).xyz; // view → world (transpose)
     vDist = length(mv.xyz);
     return projectionMatrix * mv;
   }`;
@@ -105,13 +134,17 @@ const sky = new THREE.Mesh(
     transparent: true,
     depthWrite: false,
     vertexShader: /* glsl */ `
-      varying vec3 vDir;
-      void main() { vDir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+      varying vec3 vDir, vWorld;
+      void main() {
+        vDir = position;
+        vWorld = (modelMatrix * vec4(position, 1.0)).xyz;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }`,
     fragmentShader: /* glsl */ `
       ${PORTAL}
       uniform vec3 uZenith, uHorizon;
       uniform float uSun, uStars;
-      varying vec3 vDir;
+      varying vec3 vDir, vWorld;
       void main() {
         vec3 n = normalize(vDir);
         float up = -n.z;
@@ -120,8 +153,8 @@ const sky = new THREE.Mesh(
         col += uSun * (pow(s, 900.0) * 3.0 + pow(s, 20.0) * 0.22) * mix(vec3(1.0), uHorizon, 0.5);
         float band = dot(n, normalize(vec3(0.8, 0.3, 0.25)));
         col += uStars * 0.07 * exp(-band * band * 40.0) * vec3(0.55, 0.5, 0.95);
-        float a = portal(vDir);
-        float rim = uPortal > -1.5 ? exp(-abs(up - uPortal) * 90.0) : 0.0;
+        float a = portal(vWorld);
+        float rim = uOpen >= 1.0 ? 0.0 : (1.0 - uOpen) * exp(-abs(holeDist(vWorld)) * 40.0);
         gl_FragColor = vec4(col + rim * 0.5, max(a, rim * 0.7));
         #include <colorspace_fragment>
       }`,
@@ -151,10 +184,10 @@ const stars = new THREE.Points(
     vertexShader: /* glsl */ `
       uniform float uTime;
       attribute vec2 aSeed;
-      varying vec3 vDir;
+      varying vec3 vWorld;
       varying float vTwinkle;
       void main() {
-        vDir = position;
+        vWorld = (modelMatrix * vec4(position, 1.0)).xyz;
         vTwinkle = 0.65 + 0.35 * sin(uTime * 1.3 + aSeed.y);
         gl_PointSize = aSeed.x;
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
@@ -162,11 +195,11 @@ const stars = new THREE.Points(
     fragmentShader: /* glsl */ `
       ${PORTAL}
       uniform float uStars;
-      varying vec3 vDir;
+      varying vec3 vWorld;
       varying float vTwinkle;
       void main() {
         float r = length(gl_PointCoord - 0.5) * 2.0;
-        float a = (1.0 - smoothstep(0.2, 1.0, r)) * uStars * vTwinkle * portal(vDir);
+        float a = (1.0 - smoothstep(0.2, 1.0, r)) * uStars * vTwinkle * portal(vWorld);
         gl_FragColor = vec4(vec3(1.0, 0.97, 0.92), a);
         #include <colorspace_fragment>
       }`,
@@ -255,7 +288,7 @@ const clouds = new THREE.InstancedMesh(
       uniform vec3 uLit, uShade, uZenith, uHorizon;
       uniform float uClouds;
       varying vec2 vUv, vLight;
-      varying vec3 vStage;
+      varying vec3 vWorld;
       varying float vDist, vShade, vAlpha;
       void main() {
         float d = texture2D(uTex, vUv).r;
@@ -263,7 +296,7 @@ const clouds = new THREE.InstancedMesh(
         float light = clamp(0.62 + (d - toward) * 4.0, 0.0, 1.0) * mix(0.55, 1.0, vShade);
         vec3 col = mix(uShade, uLit, light);
         col = mix(col, mix(uHorizon, uZenith, 0.5), smoothstep(40.0, 230.0, vDist) * 0.45);
-        gl_FragColor = vec4(col, d * vAlpha * uClouds * portal(vStage));
+        gl_FragColor = vec4(col, d * vAlpha * uClouds * portal(vWorld));
         #include <colorspace_fragment>
       }`,
   }),
@@ -334,11 +367,11 @@ const motesMesh = new THREE.InstancedMesh(
     fragmentShader: /* glsl */ `
       ${PORTAL}
       varying vec2 vUv;
-      varying vec3 vStage;
+      varying vec3 vWorld;
       varying float vFade;
       void main() {
         float r = length(vUv - 0.5) * 2.0;
-        float a = (exp(-r * r * 22.0) + exp(-r * r * 2.5) * 0.5) * (1.0 - smoothstep(0.8, 1.0, r)) * vFade * portal(vStage);
+        float a = (exp(-r * r * 22.0) + exp(-r * r * 2.5) * 0.5) * (1.0 - smoothstep(0.8, 1.0, r)) * vFade * portal(vWorld);
         gl_FragColor = vec4(mix(vec3(1.0, 0.78, 0.38), vec3(1.0), exp(-r * r * 40.0)), a); // gold, white-hot core
         #include <colorspace_fragment>
       }`,
@@ -424,6 +457,10 @@ const tmp = new THREE.Vector3();
 let mode = 'idle'; // idle (title) → waiting (in headset, settling) → opening → flying
 let passthrough = false, still = 0, opening = 0, alt = clamp(+params.get('alt') || 0, 0, 1);
 let caught = 0, steer = 0, grab = null, lastPinch = -1, ringPulse = 0, recentre = false, reachedTop = alt >= 1;
+let ceiling = null; // the real ceiling plane the skylight is cut into, when the headset knows the room
+const planeWorld = new THREE.Matrix4(), planeInv = new THREE.Matrix4(), holeAt = new THREE.Vector2(), tmp2 = new THREE.Vector2();
+const planeQuat = new THREE.Quaternion(), ONE = new THREE.Vector3(1, 1, 1);
+const gaze = new THREE.Vector3(), UP_TO_Y = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2);
 const keys = { left: 0, right: 0 };
 let pointerSteer = null;
 
@@ -441,7 +478,7 @@ function calibrate() {
   if (mode === 'waiting' || mode === 'idle') {
     mode = 'opening';
     opening = 0;
-    say(passthrough ? 'Your ceiling opens' : 'Breathe out', 'Turn or tilt your head to drift. Follow the lights.', 9);
+    say(ceiling ? 'Your ceiling opens' : passthrough ? 'The sky opens' : 'Breathe out', 'Turn or tilt your head to drift. Follow the lights.', 9);
   }
 }
 
@@ -522,7 +559,7 @@ async function enterHeadset() {
   startAudio();
   const ar = await navigator.xr.isSessionSupported('immersive-ar');
   const session = await navigator.xr.requestSession(ar ? 'immersive-ar' : 'immersive-vr', {
-    optionalFeatures: ['hand-tracking'],
+    optionalFeatures: ['hand-tracking', 'plane-detection'],
   });
   await renderer.xr.setSession(session);
   passthrough = ar && session.environmentBlendMode !== 'opaque';
@@ -532,9 +569,12 @@ async function enterHeadset() {
   say('Settle in', 'Look where you want your sky. Hold still, or pinch.', 1e9);
   // the system recentre (hold the Meta button) moves the origin: take the new pose as neutral
   renderer.xr.getReferenceSpace()?.addEventListener('reset', () => (recentre = true));
+  // the Meta menu or a notification hides the session: hush, and pick up where you were after
+  session.addEventListener('visibilitychange', () => pauseAudio(session.visibilityState === 'hidden'));
   session.addEventListener('end', () => {
     mode = 'idle';
     passthrough = false;
+    ceiling = null;
     grab = null;
     stageTarget.position.set(0, 0, 0);
     stageTarget.quaternion.identity();
@@ -552,6 +592,7 @@ if (navigator.xr) {
     .catch(() => {});
 }
 if (params.has('play')) preview();
+document.addEventListener('visibilitychange', () => pauseAudio(document.hidden));
 
 // ---------- the loop ----------
 
@@ -568,9 +609,42 @@ function paint(a) {
   U.uStars.value = THREE.MathUtils.smoothstep(a, 0.58, 0.86);
 }
 
+// Find the ceiling you are looking at among the planes the headset detected (Quest: Space Setup).
+// Returns the plane and where your gaze lands on it, or null: then a virtual plane stands in.
+function lookForCeiling(xrFrame) {
+  const planes = xrFrame?.detectedPlanes, ref = renderer.xr.getReferenceSpace();
+  if (!planes || !ref) return null;
+  gaze.set(0, 0, -1).applyQuaternion(headQuat);
+  let best = null;
+  for (const plane of planes) {
+    const pose = xrFrame.getPose(plane.planeSpace, ref);
+    if (!pose || !isCeiling(plane.semanticLabel, plane.orientation, pose.transform.position.y - headPos.y)) continue;
+    const inv = new THREE.Matrix4().fromArray(pose.transform.matrix).invert();
+    const hit = rayOnPlane(inv.elements, headPos.toArray(), gaze.toArray(), extent(plane.polygon));
+    if (hit && hit.dist < 8 && (!best || hit.dist < best.hit.dist)) best = { plane, hit };
+  }
+  return best;
+}
+
+// Put the skylight's plane in the shader: the real ceiling (pose refreshed every frame, planes get
+// refined as the headset looks around) or a virtual one 2 m out along the sky's "up".
+function placePlane(xrFrame) {
+  const pose = ceiling && xrFrame?.getPose(ceiling.planeSpace, renderer.xr.getReferenceSpace());
+  if (pose) {
+    planeWorld.fromArray(pose.transform.matrix);
+    U.uBox.value.fromArray(extent(ceiling.polygon));
+  } else if (!ceiling) {
+    planeWorld.compose(tmp.set(0, 0, -2).applyQuaternion(stage.quaternion).add(stage.position),
+      planeQuat.copy(stage.quaternion).multiply(UP_TO_Y), ONE);
+    U.uBox.value.set(-1e4, -1e4, 1e4, 1e4);
+    holeAt.set(0, 0);
+  }
+  U.uPlaneInv.value.copy(planeInv.copy(planeWorld).invert());
+}
+
 let speed = 2;
 
-function frame() {
+function frame(time, xrFrame) {
   const dt = Math.min(clock.getDelta(), 0.05);
   U.uTime.value = clock.elapsedTime;
   readHead();
@@ -583,6 +657,10 @@ function frame() {
     // the sky follows your gaze until you settle, then stays put
     stageTarget.position.copy(headPos);
     stageTarget.quaternion.copy(headQuat);
+    const found = lookForCeiling(xrFrame);
+    if (found && found.plane !== ceiling) holeAt.set(found.hit.x, found.hit.z);
+    ceiling = found?.plane ?? null;
+    if (found) holeAt.lerp(tmp2.set(found.hit.x, found.hit.z), 1 - Math.exp(-dt * 6));
     still = angleBetween(lastQuat.toArray(), headQuat.toArray()) / dt < 0.07 ? still + dt : 0;
     if (still > 3) calibrate();
   }
@@ -641,14 +719,17 @@ function frame() {
   paint(alt);
   setAltitude(alt);
 
-  // the skylight: a pinhole while you settle, a window as it opens, then the whole sky
-  let half = 180;
+  // the skylight: a pinhole while you settle, a window as it opens, then the whole ceiling (the walls
+  // stay real), and finally the room fades and the sky is all around you
+  let radius = 0, open = 1;
   if (passthrough) {
-    if (mode === 'waiting') half = 7;
-    else if (mode === 'opening') half = 7 + 48 * THREE.MathUtils.smootherstep(opening, 0, 6);
-    else half = 55 + 125 * THREE.MathUtils.smoothstep(alt, 0.03, 0.22);
+    if (mode === 'waiting') radius = 0.25;
+    else if (mode === 'opening') radius = 0.25 + 2.6 * THREE.MathUtils.smootherstep(opening, 0, 6);
+    else radius = 2.85 + 12 * THREE.MathUtils.smoothstep(alt, 0.03, 0.2);
+    open = THREE.MathUtils.smoothstep(alt, 0.14, 0.3);
   }
-  U.uPortal.value = half >= 179.5 ? -2 : Math.cos(THREE.MathUtils.degToRad(half));
+  U.uHole.value.set(holeAt.x, holeAt.y, radius);
+  U.uOpen.value = open;
 
   ringPulse = Math.max(0, ringPulse - dt * 1.5);
   ring.rotation.z = -steer * 0.35;
@@ -659,7 +740,7 @@ function frame() {
   panel.material.opacity = clamp(panelLife, 0, 1);
 
   stage.updateMatrixWorld();
-  U.uStageInv.value.copy(stage.matrixWorld).invert();
+  placePlane(xrFrame);
   writeMotes();
   renderer.render(scene, camera);
 }
@@ -668,6 +749,6 @@ renderer.setAnimationLoop(frame);
 // read-only peek for tests and curious players: window.__upwards.state
 window.__upwards = {
   get state() {
-    return { mode, alt, caught, steer, passthrough, portal: U.uPortal.value, x: P.x };
+    return { mode, alt, caught, steer, passthrough, ceiling: !!ceiling, hole: U.uHole.value.z, open: U.uOpen.value, x: P.x };
   },
 };
