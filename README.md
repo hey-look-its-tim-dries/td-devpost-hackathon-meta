@@ -33,11 +33,14 @@ ridge, the way real fingerprints form before birth.
 - **Wake the birds.** Each landmark you pass wakes a bird: the ridge lifts off the land, folds into a
   V and flies, leaving a gap in the wall. Its wings keep the exact curve of that ridge and it sings
   that curve, so no two birds are alike.
-- **Fly.** Lift your hand off the land, palm down, fingers spread. You shrink to bird size, the room
-  gives way to a warm sky, and you glide over the skin-coloured desert between the prints, steering
-  by tilting your hand.
-- **Visit other people.** Another player's land rises on the horizon in a different ink. Fly into the
-  ring above its summit and you land there: their land now lies on your table, and one of their
+- **Build a city.** Little ink houses rise on the ridges beside every path you walk, and a tower
+  stands on the summit once you reach the core. The city stays, so tomorrow your land shows where you
+  went today.
+- **Fly.** Lift your hand off the land, palm down, fingers spread. Your hand becomes a wire bird
+  (drawn from the ridge at your own print's delta), you shrink to bird size, the room gives way to a
+  warm sky, and you glide over the skin-coloured desert with your flock, steering by tilting your hand.
+- **Visit other people.** Another player's land rises on the horizon in a different ink. Fly through the
+  hoop above its summit and you land there: their land now lies on your table, and one of their
   birds joins your flock.
 
 There is nothing to fail, no timer and no score. Your land and your flock are remembered for next time.
@@ -62,10 +65,10 @@ ridges, the seed decides the landmarks. These six were all grown by the game:
 | --- | --- |
 | ![Six printed plates float above the table with the question "Which one is yours?"](docs/screenshots/02-choose.jpg) | ![The land growing across the table from where the fingertip pressed](docs/screenshots/04-growing.jpg) |
 | Which one is yours? | The land grows from your fingertip |
-| ![A whorl land on the table, a wire bird peeling off its ridge](docs/screenshots/05-first-bird.jpg) | ![Flying low over the land at bird size, the skin desert and another land ahead](docs/screenshots/06-flying.jpg) |
-| A ridge wakes as a bird | Bird-sized, over your own land |
-
-![Another player's land on the horizon of the skin desert, with its landing ring](docs/screenshots/07-another-land.jpg)
+| ![A whorl land on the table, a wire bird peeling off its ridge](docs/screenshots/05-first-bird.jpg) | ![A loop land with small ink houses along the walked paths and a tower near the core](docs/screenshots/11-city.jpg) |
+| A ridge wakes as a bird | Your city grows where you walk |
+| ![Your hand as a wire bird, flying over your land towards another land and its hoop](docs/screenshots/06-flying.jpg) | ![The flock flying with you over the skin desert towards another player's land](docs/screenshots/07-another-land.jpg) |
+| Your hand becomes a bird | Your flock, flying to someone else's land |
 
 ### In the headset
 
@@ -88,7 +91,7 @@ Everything works with hands alone. Every action also has an easier alternative.
 | Walk the paths | Fingertip touching or hovering within 4 cm | Point a controller at the land |
 | Take off | Lift one hand, palm down, fingers spread (or cross your hands into a shadow bird) | Squeeze the grip |
 | Steer | Tilt your palm: bank to turn, fingers up to climb | Turn or tilt your head |
-| Land | Fly into the ring over a summit | Same |
+| Land | Fly through the hoop over a summit | Same |
 
 Quest hand tracking is steadiest at the wrist and knuckles and weakest when hands overlap. So steering
 reads the tilt of your palm, walking forgives about 2.5 cm, and the two-hand shadow bird is a loose
@@ -119,6 +122,7 @@ Fingerprints are biometric data, so the game is built so it never needs yours:
 | Flight | Shrinks you, not the world; sky and skin desert | [src/flight.js](src/flight.js) |
 | Table finding | Detected table planes, then your flat hand, otherwise a sensible default | [src/room.js](src/room.js), [src/main.js](src/main.js) |
 | Sound | Generated with Web Audio: sand, wind, pentatonic terraces, bird songs | [src/audio.js](src/audio.js) |
+| City | Ink houses along the walked paths, a tower at the summit, kept per land | [src/city.js](src/city.js) |
 | Atlas and memory | Other players' lands (bundled for now), local save | [src/atlas.js](src/atlas.js) |
 
 No build step and no asset files: plain HTML and ES modules, served as they are.
@@ -182,5 +186,4 @@ node --test tests/*.test.mjs
   atlas as the fallback
 - An optional phone page that reads your real fingertip's class, core, delta and ridge count, deletes
   the photo, and sends only those few numbers
-- Cities growing along your paths as you walk them, visible from one session to the next
 - Your palm as the desert: its three big creases as canyons between your five fingertip lands

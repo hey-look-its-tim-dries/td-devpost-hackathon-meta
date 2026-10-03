@@ -4,8 +4,9 @@ import { headSteer } from './steer.js';
 import { extent, isTable, landSpot } from './room.js';
 import { startAudio, pauseAudio, setWind, setSand, tone, chirp, swell } from './audio.js';
 import { createTerrain, LAND } from './terrain.js';
-import { createWalker, nearby, route } from './walk.js';
-import { createFlock } from './birds.js';
+import { createWalker, nearby, route, houseSpot } from './walk.js';
+import { createFlock, wingShape } from './birds.js';
+import { createCity } from './city.js';
 import { createChooser, PLATES } from './chooser.js';
 import { createFlight, SHRINK } from './flight.js';
 import { createHandGuide } from './guide.js';
@@ -94,7 +95,9 @@ scene.add(room);
 // ---------- the pieces ----------
 
 const home = { id: 'home', terrain: createTerrain({ size: 256 }), land: null, cls: null, seed: 0, woken: new Set() };
+home.city = createCity(home.terrain);
 worldRoot.add(home.terrain.mesh);
+scene.add(home.city.mesh);
 let lands = [home];
 let current = home;
 
@@ -140,6 +143,7 @@ PLATES.forEach(([cls], i) => growLand(cls, 101 + i * 37, 96).then((l) => chooser
 // ---------- memory ----------
 
 const save = (!params.has('fresh') && loadSave()) || { v: 1, fingers: {}, birds: [], visited: [] };
+save.cities ||= {};
 const remember = () => {
   save.birds = flock.birds.map(flock.memory);
   storeSave(save);
@@ -287,6 +291,8 @@ function beginGrowth(px, py, cls, seed, speed = 0.16) {
   growLand(cls, seed, 256, (ridge) => home.terrain.grow(ridge)).then((land) => {
     home.land = land;
     home.terrain.set(land);
+    const same = save.fingers.index?.cls === cls && save.fingers.index?.seed === seed;
+    home.city.load(same ? save.cities.home : []);
     save.fingers.index = { cls, seed };
     if (!flock.birds.length) for (const b of save.birds) flock.revive(b, anchor.getWorldPosition(new THREE.Vector3()));
     remember();
@@ -300,7 +306,9 @@ function growNeighbours() {
     t.mesh.position.set(SPOTS[k][0], 0, SPOTS[k][1]);
     t.mesh.visible = false;
     worldRoot.add(t.mesh);
-    const land = { id: l.id, terrain: t, land: null, cls: l.cls, seed: l.seed, woken: new Set() };
+    const land = { id: l.id, terrain: t, land: null, cls: l.cls, seed: l.seed, woken: new Set(), city: createCity(t) };
+    scene.add(land.city.mesh);
+    land.city.load(save.cities[l.id]);
     lands.push(land);
     growLand(l.cls, l.seed, 192).then((r) => {
       land.land = r;
@@ -329,12 +337,12 @@ function takeOff(h) {
   const inside = px && px[0] > 0 && px[1] > 0 && px[0] < current.terrain.size && px[1] < current.terrain.size;
   current.terrain.worldOf(inside ? px[0] : current.terrain.size / 2, inside ? px[1] : current.terrain.size * 0.7, ground);
   tookOffWith = h;
+  avatar = null;
   steerRef = h?.frame ? JSON.parse(JSON.stringify(h.frame)) : null; // the pose you took off in
   headNeutral = headQuat.toArray();
   walker?.lift();
   setSand(0);
   panel.hide();
-  for (const l of lands) l.terrain.mesh.visible = true;
   flight.takeOff(headWorld, ground);
   tone(9, 0, 0.12);
   setMode('fly');
@@ -465,7 +473,7 @@ function defaultAnchor() {
 // ---------- the loop ----------
 
 const clock = new THREE.Clock();
-const tmpV = new THREE.Vector3(), anchorWorld = new THREE.Vector3();
+const tmpV = new THREE.Vector3(), anchorWorld = new THREE.Vector3(), headVel = new THREE.Vector3(), lastHead = new THREE.Vector3();
 let lastLevel = -1;
 
 function frame(time, xrFrame) {
@@ -558,6 +566,17 @@ function frame(time, xrFrame) {
         lastLevel = walker.level;
       }
       for (const i of nearby(current.land.landmarks, walker.x, walker.y, 0.03 * scale, current.woken)) wake(i);
+      // the city grows along the paths you walk; the summit gets a tower
+      if (walked.length) {
+        const spot = houseSpot(current.land, walker.x, walker.y, current.city.houses, 14);
+        if (spot && current.city.add(spot[0], spot[1])) { tone(2 + (current.city.count % 5), 0, 0.04); keepCity(); }
+        const core = current.land.cores[0];
+        if (core && !current.city.houses.some((h) => h[2] === 1) && (core[0] - walker.x) ** 2 + (core[1] - walker.y) ** 2 < 100) {
+          current.city.add(Math.round(core[0]), Math.round(core[1]), 1);
+          [0, 4, 7, 9].forEach((n, k) => setTimeout(() => tone(n + 5, 0, 0.08), k * 180));
+          keepCity();
+        }
+      }
     } else {
       walker.lift();
       setSand(0);
@@ -597,28 +616,48 @@ function frame(time, xrFrame) {
 
   // the birds, the rings, the text, the plates
   const inFlight = flight.flying;
+  headVel.subVectors(headWorld, lastHead).divideScalar(Math.max(dt, 1e-3));
+  if (headVel.length() > 1) headVel.set(0, 0, 0); // a re-root or a jump, not a motion
+  lastHead.copy(headWorld);
   const spread = rig.scale.x; // world metres per felt metre
   flock.update(dt, t, {
     fingertip: mode === 'walk' ? tipWorld : null,
     center: anchorWorld,
-    follow: inFlight ? { point: headWorld.clone().addScaledVector(flight.forward(tmpV), 1.2 * spread), forward: flight.forward(new THREE.Vector3()), spread } : null,
+    follow: inFlight ? { point: headWorld.clone().addScaledVector(flight.forward(tmpV), 1.2 * spread), forward: flight.forward(new THREE.Vector3()), spread, velocity: headVel } : null,
   });
-  flock.draw(t, inFlight ? THREE.MathUtils.lerp(1, (0.4 * spread) / 0.06, flight.amount) : 1);
+  // Ink widths are felt sizes: a pen line at the table, a rope once you are bird-sized. The headset
+  // puts your shrink into its view matrices; three.js keeps scale out of a plain camera's view, so
+  // the browser preview converts felt sizes and clip distances itself.
+  const amt = inFlight ? flight.amount : 0;
+  const view = renderer.xr.isPresenting ? 1 : spread;
+  if (!renderer.xr.isPresenting && Math.abs(camera.near - 0.02 * spread) > 1e-6) {
+    camera.near = 0.02 * spread;
+    camera.far = 2000 * spread;
+    camera.updateProjectionMatrix();
+  }
+  flock.draw(t, inFlight ? THREE.MathUtils.lerp(1, (0.4 * spread) / 0.06, amt) : 1, THREE.MathUtils.lerp(0.0016, 0.012, amt) * view, handBird(t, amt, spread));
+  for (const l of lands) {
+    if (!l.city) continue;
+    l.city.width = THREE.MathUtils.lerp(0.0009, 0.01, amt) * view;
+    l.city.update();
+  }
+  // every other land gets an upright hoop over its summit, turned to face you, with a beacon above
   rings.begin();
   if (flight.mode === 'flying') {
-    rings.width = 0.02 * spread * 4;
+    rings.width = 0.08 * view;
     for (const l of lands) {
       if (l === current || !l.land) continue;
       const c = ringAt(l), r = 0.06 + Math.sin(t * 2) * 0.004;
-      for (let k = 0; k < 48; k++) {
-        const a0 = (k / 48) * Math.PI * 2, a1 = ((k + 1) / 48) * Math.PI * 2;
-        rings.segment({ x: c.x + Math.cos(a0) * r, y: c.y, z: c.z + Math.sin(a0) * r }, { x: c.x + Math.cos(a1) * r, y: c.y, z: c.z + Math.sin(a1) * r });
-      }
+      const side = new THREE.Vector3(c.z - flight.head.z, 0, flight.head.x - c.x).normalize();
+      const at = (a) => ({ x: c.x + side.x * Math.cos(a) * r, y: c.y + r + Math.sin(a) * r, z: c.z + side.z * Math.cos(a) * r });
+      for (let k = 0; k < 48; k++) rings.segment(at((k / 48) * Math.PI * 2), at(((k + 1) / 48) * Math.PI * 2));
+      rings.segment({ x: c.x, y: c.y + 2 * r, z: c.z }, { x: c.x, y: c.y + 2 * r + 0.25, z: c.z });
     }
   }
   rings.end();
 
   room.visible = !passthrough && flight.amount < 0.02; // the preview room would tower over a bird
+  for (const l of lands) if (l !== current) l.terrain.mesh.visible = flight.amount > 0.05; // only under the sky
   if (!renderer.xr.isPresenting) {
     // the browser view looks down at the table, and up at the horizon while flying
     camera.rotation.set(THREE.MathUtils.lerp(-0.68, -0.12, flight.amount), 0, 0);
@@ -627,10 +666,55 @@ function frame(time, xrFrame) {
     l.terrain.uniforms.uLift.value = 1 + 3 * flight.amount; // deeper valleys once you are bird-sized
     l.terrain.update(dt);
   }
+  lampCheck(dt, t);
   guide.update(dt);
   chooser.update(dt);
   panel.update(dt, headLocal, headQuat);
   renderer.render(scene, camera);
+}
+
+// Your own bird: the ridge at your print's delta, worn on the hand you took off with (or held
+// just below your view in the browser), its wings growing as you shrink.
+let avatar = null;
+const palmWorld = new THREE.Vector3(), palmFwd = new THREE.Vector3(), rigQuat = new THREE.Quaternion();
+function handBird(t, amount, spread) {
+  if (amount < 0.02) return null;
+  if (!avatar) {
+    const m = home.land?.landmarks.find((q) => q.kind === 'delta') || home.land?.landmarks[0];
+    const shape = wingShape(m ? m.ridge : [[0, 0], [10, 2], [20, 0]]);
+    avatar = { curve: shape.curve, pos: new THREE.Vector3(), heading: new THREE.Vector3(), phase: 0, flap: 3.2, span: 0 };
+  }
+  const h = tookOffWith?.frame ? tookOffWith : null;
+  rig.getWorldQuaternion(rigQuat);
+  if (h) {
+    rig.localToWorld(palmWorld.set(...h.frame.center));
+    palmFwd.set(...h.frame.forward).applyQuaternion(rigQuat).setY(0).normalize();
+  } else {
+    const fwd = flight.forward(palmFwd);
+    camera.getWorldPosition(palmWorld).addScaledVector(fwd, 0.7 * spread);
+    palmWorld.y -= 0.24 * spread;
+  }
+  avatar.pos.copy(palmWorld);
+  avatar.heading.copy(palmFwd);
+  avatar.span = 0.26 * spread * amount;
+  return avatar;
+}
+
+// hands that vanish for a while in a dark room: ask for light, not more than twice a minute
+let handsSeen = false, handGone = 0, lampAsked = -60;
+function lampCheck(dt, t) {
+  if (!renderer.xr.isPresenting || hands.some((h) => h.controller)) return;
+  if (hands.some((h) => h.joints)) { handsSeen = true; handGone = 0; return; }
+  handGone += dt;
+  if (handsSeen && handGone > 4 && t - lampAsked > 30 && ['hand', 'choose', 'press', 'walk'].includes(mode)) {
+    lampAsked = t;
+    panel.say('A lamp helps me see your hands', 5);
+  }
+}
+
+function keepCity() {
+  save.cities[current.id] = current.city.houses;
+  storeSave(save);
 }
 
 // the autopilot walks the real paths to the nearest sleeping landmark
@@ -652,9 +736,19 @@ function autoWalk() {
     }
     autoRoute = best ? best.r : [];
     autoTarget = best ? best.i : null;
+    if (!best && close.length) {
+      // the paths here do not connect to any sleeping landmark: lift the finger, put it down near one
+      const m = land.landmarks[close[0][0]];
+      walker.lift();
+      for (let r = 2; r < 40 && !walker.placed; r += 3) walker.place(m.x, m.y, r);
+      return [walker.x, walker.y];
+    }
   }
-  while (autoRoute.length && (autoRoute[0][0] - walker.x) ** 2 + (autoRoute[0][1] - walker.y) ** 2 < 2) autoRoute.shift();
-  return autoRoute[Math.min(4, autoRoute.length - 1)] ?? null;
+  // drop the route up to wherever the walker is now (it can step several pixels in one frame)
+  const here = autoRoute.findIndex(([x, y]) => (x - walker.x) ** 2 + (y - walker.y) ** 2 < 2);
+  if (here >= 0) autoRoute.splice(0, here + 1);
+  // a target only two pixels ahead keeps the greedy walker on the route through tight bends
+  return autoRoute[Math.min(2, autoRoute.length - 1)] ?? null;
 }
 
 // ---------- start / stop ----------
@@ -714,9 +808,9 @@ window.__pwc = {
     return {
       mode, flight: flight.mode, cls: home.cls, seed: home.seed, birds: flock.birds.length,
       woken: current.woken.size, land: current.id, lands: lands.length, landmarks: current.land?.landmarks.length ?? 0,
-      walker: walker?.placed ? [walker.x, walker.y] : null, panel: panel.text,
+      walker: walker?.placed ? [walker.x, walker.y] : null, panel: panel.text, city: current.city?.count ?? 0,
     };
   },
   takeOff: () => takeOff(null),
-  debug: { flock, rings, rig, anchor, flight, hands, terrain: () => current.terrain },
+  debug: { flock, rings, rig, anchor, flight, hands, terrain: () => current.terrain, auto: () => ({ route: autoRoute.slice(0, 4), left: autoRoute.length, target: autoTarget, walker: walker && [walker.x, walker.y], land: current.land && current.land.landmarks.length }) },
 };

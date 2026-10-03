@@ -92,3 +92,20 @@ export function route(land, x, y, tx, ty, maxSteps = 60000) {
   for (let i = best; i !== start; i = prev[i]) out.push([i % N, (i / N) | 0]);
   return out.reverse();
 }
+
+// Where a new house goes as you walk: on the ridge beside the path, never closer than `gap` pixels
+// to another house. Returns [x, y] on a ridge pixel, or null.
+export function houseSpot(land, x, y, houses, gap, reach = 7) {
+  for (const [hx, hy] of houses) if ((hx - x) ** 2 + (hy - y) ** 2 < gap * gap) return null;
+  const N = land.size;
+  let best = null, bd = Infinity;
+  for (let dy = -reach; dy <= reach; dy++) {
+    for (let dx = -reach; dx <= reach; dx++) {
+      const qx = x + dx, qy = y + dy, d = dx * dx + dy * dy;
+      if (qx < 0 || qy < 0 || qx >= N || qy >= N || d > reach * reach || d >= bd) continue;
+      const i = qy * N + qx;
+      if (land.ridge[i] > 0.3 && land.mask[i] > 0.6) { bd = d; best = [qx, qy]; }
+    }
+  }
+  return best;
+}

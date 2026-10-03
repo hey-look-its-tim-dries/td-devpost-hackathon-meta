@@ -42,9 +42,12 @@ export function createPanel() {
       life -= dt;
       mesh.material.opacity = Math.max(0, Math.min(1, life * 2));
       mesh.visible = mesh.material.opacity > 0;
-      fwd.set(0, 0, -1).applyQuaternion(headQuat).setY(0).normalize();
+      // a little above where you look, but never lower than 35 degrees down: when you look at the
+      // table the card floats just above the land instead of at the top edge of your view
+      fwd.set(0, 0, -1).applyQuaternion(headQuat);
+      const pitch = Math.max(-0.6, Math.min(0, Math.asin(Math.max(-1, Math.min(1, fwd.y))))) + 0.2;
+      fwd.setY(0).normalize().multiplyScalar(Math.cos(pitch)).setY(Math.sin(pitch));
       target.copy(headPos).addScaledVector(fwd, 0.7);
-      target.y -= 0.04; // just under eye level, above anything on the table
       mesh.position.lerp(target, mesh.userData.placed ? 1 - Math.exp(-dt * 3) : 1);
       mesh.userData.placed = true;
       mesh.lookAt(headPos);

@@ -137,6 +137,7 @@ export function createFlock() {
             speed = 7 * spread; // spread = world metres per felt metre while you are bird-sized
           }
           desired.subVectors(tmp, b.pos).multiplyScalar(2.2);
+          if (b.mode === 'follow' && ctx.follow.velocity) desired.add(ctx.follow.velocity); // lead, don't trail
           if (desired.length() > speed) desired.setLength(speed);
         }
         b.vel.lerp(desired, 1 - Math.exp(-dt * 3.5));
@@ -148,9 +149,15 @@ export function createFlock() {
       });
     },
 
-    draw(time, scale = 1) {
+    // width is in felt metres (the ribbons widen in view space), scale shrinks the birds when you
+    // are bird-sized; avatar is the bird your own hand became, drawn with the flock
+    draw(time, scale = 1, width = 0.0016, avatar = null) {
       ink.begin();
-      ink.width = 0.0016 * scale;
+      ink.width = width;
+      if (avatar) {
+        shapeInto(avatar, time, 1);
+        ink.polyline(pts);
+      }
       for (const b of birds) {
         shapeInto(b, time, scale);
         if (b.mode === 'peel') {

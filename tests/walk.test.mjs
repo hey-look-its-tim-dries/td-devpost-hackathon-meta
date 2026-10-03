@@ -49,3 +49,15 @@ test('route walks the paths to the pixel nearest the target', () => {
   assert.equal(r.length, 12 + 1 + 9); // 8-connected: the corner is one diagonal step
   assert.deepEqual(route(lLand(), 0, 0, 5, 5), []);
 });
+
+test('houses go on the ridge beside the path, spaced apart', async () => {
+  const { houseSpot } = await import('../src/walk.js');
+  const N = 20, ridge = new Float32Array(N * N).fill(-1), mask = new Float32Array(N * N).fill(1);
+  for (let x = 0; x < N; x++) ridge[8 * N + x] = 1; // a ridge along row 8, the path runs along row 5
+  const land = { size: N, ridge, mask };
+  const spot = houseSpot(land, 4, 5, [], 6);
+  assert.deepEqual(spot, [4, 8]);
+  assert.equal(houseSpot(land, 6, 5, [spot], 6), null); // too close to the first house
+  assert.deepEqual(houseSpot(land, 12, 5, [spot], 6), [12, 8]);
+  assert.equal(houseSpot({ size: N, ridge: new Float32Array(N * N).fill(-1), mask }, 4, 5, [], 6), null); // no ridge near
+});
