@@ -1,18 +1,33 @@
 import * as THREE from 'three';
 import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js';
-import { headSteer, handSteer, angleBetween } from './steer.js';
-import { extent, rayOnPlane, isCeiling } from './room.js';
-import { startAudio, pauseAudio, setAltitude, chime } from './audio.js';
+import { headSteer } from './steer.js';
+import { extent, isTable, landSpot } from './room.js';
+import { startAudio, pauseAudio, setWind, setSand, tone, chirp, swell } from './audio.js';
+import { createTerrain, LAND } from './terrain.js';
+import { createWalker, nearby, route } from './walk.js';
+import { createFlock } from './birds.js';
+import { createChooser, PLATES } from './chooser.js';
+import { createFlight, SHRINK } from './flight.js';
+import { createHandGuide } from './guide.js';
+import { createPanel } from './panel.js';
+import { createInk } from './ink.js';
+import { SPOTS, neighbours, loadSave, storeSave } from './atlas.js';
+import { JOINTS, palmFrame, createPalmDown, createTouch, palmTilt, createShadowBird, OneEuro } from './gesture.js';
+
+// Palm Whorl Cities. You read your own fingertip, a land grows on your table in that pattern, you
+// walk its white paths with your finger, its ridges peel off as wire birds, and you fly out as a bird
+// yourself to other people's lands.
 
 const params = new URLSearchParams(location.search);
+const AUTO = params.has('auto'); // autopilot for demos and headless tests
 
-// ?emulate: a Meta Quest 3 in a desktop browser (IWER, Meta's WebXR emulator) plus its dev UI
+// ?emulate: a Meta Quest 3 in a desktop browser (IWER, Meta's WebXR emulator), a scanned room so
+// plane detection finds a real table, and the emulator's dev UI
 if (params.has('emulate')) {
   const { XRDevice, metaQuest3 } = await import('https://esm.sh/iwer@2.5.0');
   const device = new XRDevice(metaQuest3);
   device.installRuntime({ forceInstall: true });
   window.__device = device;
-  // a scanned room (walls, ceiling, passthrough video) so plane detection has something to find
   try {
     const { SyntheticEnvironmentModule } = await import('https://esm.sh/@iwer/sem@2.5.0');
     device.installSEM(SyntheticEnvironmentModule);
@@ -34,505 +49,169 @@ if (params.has('emulate')) {
   }
 }
 
-const SPEED = 4; // m/s upward: slow enough to stay calm lying down
-const SIDE = 3; // m/s sideways at full steer
-const CATCH = 6; // metres ahead where lights are caught (the ring)
-const JOURNEY = 720; // seconds from noon to space if you never catch a light
-const rand = (a, b) => a + Math.random() * (b - a);
-const clamp = THREE.MathUtils.clamp;
-
-// Sky palette by altitude: [altitude, zenith, horizon, cloud lit, cloud shade]
-const SKY = [
-  [0.0, '#1a78dc', '#c4e6ff', '#ffffff', '#a3b9d8'],
-  [0.35, '#3a78c8', '#ffd2a1', '#fff1de', '#c49aa0'],
-  [0.6, '#29307a', '#ff9db3', '#ffd3de', '#6d5a92'],
-  [0.8, '#090e2c', '#3a2b6c', '#8f8ab9', '#2b2952'],
-  [1.0, '#010208', '#0b1236', '#8f8ab9', '#2b2952'],
-];
+// ---------- renderer, rig (you), anchor (the table) ----------
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.setClearColor(0x000000, 0);
 renderer.xr.enabled = true;
-renderer.xr.setReferenceSpaceType('local'); // no floor needed: you may be lying in bed
+renderer.xr.setReferenceSpaceType('local'); // seated: the origin is where your head starts
 renderer.xr.setFoveation(1);
 document.body.prepend(renderer.domElement);
 
 const scene = new THREE.Scene();
-scene.add(new THREE.HemisphereLight(0xeaf6ff, 0x6a88b0, 2.2)); // only the hand models are lit
-const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.05, 2000);
-scene.add(camera);
+scene.add(new THREE.HemisphereLight(0xfff1e6, 0x6b4a3a, 2.2));
+const lamp = new THREE.DirectionalLight(0xffe2c4, 1.6);
+lamp.position.set(-1, 2, 0.5);
+scene.add(lamp);
 
-// The stage is the sky's frame, captured from your head at calibration: -Z is "up", wherever that
-// is for your body. The world inside it scrolls past as you rise.
-const stage = new THREE.Group();
-const world = new THREE.Group();
-stage.add(world);
-scene.add(stage);
-const stageTarget = { position: new THREE.Vector3(), quaternion: new THREE.Quaternion() };
+// The rig is you: camera, hands and controllers. Flying shrinks it (see flight.js).
+const rig = new THREE.Group();
+scene.add(rig);
+const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.02, 2000);
+rig.add(camera);
 
-const U = {
-  uTime: { value: 0 },
-  uPlaneInv: { value: new THREE.Matrix4() }, // world → the plane the skylight is cut into
-  uHole: { value: new THREE.Vector3() }, // skylight centre (x, z on the plane) and radius, metres
-  uBox: { value: new THREE.Vector4(-1e4, -1e4, 1e4, 1e4) }, // the plane's extent
-  uOpen: { value: 1 }, // 1 = no room left, the sky is everywhere
-  uZenith: { value: new THREE.Color() },
-  uHorizon: { value: new THREE.Color() },
-  uLit: { value: new THREE.Color() },
-  uShade: { value: new THREE.Color() },
-  uSun: { value: 1 },
-  uClouds: { value: 1 },
-  uStars: { value: 0 },
-  uTex: { value: cloudTexture() },
+// The anchor is the spot on your table where the land lies, turned to face you.
+const anchor = new THREE.Group();
+scene.add(anchor);
+const worldRoot = new THREE.Group(); // lands and the desert; moves when you land somewhere new
+anchor.add(worldRoot);
+
+// A plain room for the browser preview and for headsets without passthrough.
+const room = new THREE.Group();
+{
+  const wood = new THREE.MeshStandardMaterial({ color: '#5d3f2c', roughness: 0.75 });
+  const top = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.04, 0.85), wood);
+  top.position.set(0, 0.73, 0.05);
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(8, 8).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: '#2b211c' }));
+  const wall = new THREE.Mesh(new THREE.PlaneGeometry(8, 3), new THREE.MeshStandardMaterial({ color: '#3a2c25' }));
+  wall.position.set(0, 1.5, -1.6);
+  room.add(top, floor, wall);
+}
+scene.add(room);
+
+// ---------- the pieces ----------
+
+const home = { id: 'home', terrain: createTerrain({ size: 256 }), land: null, cls: null, seed: 0, woken: new Set() };
+worldRoot.add(home.terrain.mesh);
+let lands = [home];
+let current = home;
+
+const flock = createFlock();
+scene.add(flock.mesh);
+const rings = createInk(600, { width: 0.0025, color: '#16100e' });
+scene.add(rings.mesh);
+const flight = createFlight({ rig, worldRoot });
+const guide = createHandGuide();
+guide.mesh.visible = false;
+anchor.add(guide.mesh);
+const panel = createPanel();
+rig.add(panel.mesh);
+const chooser = createChooser();
+rig.add(chooser.group);
+
+// ---------- the land grower (a worker, so the headset never drops a frame) ----------
+
+const worker = new Worker(new URL('./print/worker.js', import.meta.url), { type: 'module' });
+const jobs = new Map();
+let jobId = 0;
+worker.onmessage = ({ data }) => {
+  const job = jobs.get(data.id);
+  if (!job) return;
+  if (data.type === 'progress') job.progress?.(data.ridge);
+  else if (data.type === 'done') {
+    jobs.delete(data.id);
+    job.resolve(data.land);
+  }
+};
+worker.onerror = (e) => console.error('land worker failed', e);
+function growLand(cls, seed, size, progress = null) {
+  return new Promise((resolve) => {
+    const id = ++jobId;
+    jobs.set(id, { resolve, progress });
+    worker.postMessage({ id, cls, seed, size, ridges: 22 });
+  });
+}
+
+// the six plates show real grown prints, one fixed seed per class
+PLATES.forEach(([cls], i) => growLand(cls, 101 + i * 37, 96).then((l) => chooser.thumb(cls, l.ridge, l.mask, 96)));
+
+// ---------- memory ----------
+
+const save = (!params.has('fresh') && loadSave()) || { v: 1, fingers: {}, birds: [], visited: [] };
+const remember = () => {
+  save.birds = flock.birds.map(flock.memory);
+  storeSave(save);
 };
 
-// In passthrough the sky only shows through a skylight cut into your ceiling (or a virtual one along
-// your gaze); the room stays outside it. Each pixel's ray from the eye is tested against the plane,
-// so the hole stays put on the real ceiling as your head moves. Same maths as rayOnPlane in room.js.
-const PORTAL = /* glsl */ `
-  uniform mat4 uPlaneInv;
-  uniform vec3 uHole;
-  uniform vec4 uBox;
-  uniform float uOpen;
-  // metres from the skylight's edge on the plane, negative inside; large if the ray misses the plane
-  float holeDist(vec3 world) {
-    vec3 o = (uPlaneInv * vec4(cameraPosition, 1.0)).xyz;
-    vec3 d = (uPlaneInv * vec4(world, 1.0)).xyz - o;
-    if (o.y * d.y >= 0.0) return 1e3;
-    vec2 h = o.xz - d.xz * (o.y / d.y);
-    vec2 q = max(uBox.xy - h, h - uBox.zw);
-    return max(length(h - uHole.xy) - uHole.z, max(q.x, q.y));
-  }
-  float portal(vec3 world) { return uOpen >= 1.0 ? 1.0 : max(uOpen, 1.0 - smoothstep(-0.02, 0.02, holeDist(world))); }`;
-
-const BILLBOARD = /* glsl */ `
-  attribute vec4 aSeed;
-  varying vec2 vUv;
-  varying vec3 vWorld;
-  varying float vDist;
-  vec4 billboard(float rot) {
-    vec4 center = modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
-    float size = length(instanceMatrix[0].xyz);
-    vec4 mv = viewMatrix * center;
-    float c = cos(rot), s = sin(rot);
-    vec2 off = mat2(c, s, -s, c) * position.xy * size;
-    mv.xy += off;
-    vWorld = center.xyz + (vec4(off, 0.0, 0.0) * viewMatrix).xyz; // view → world (transpose)
-    vDist = length(mv.xyz);
-    return projectionMatrix * mv;
-  }`;
-
-// ---------- sky dome, stars, catch ring ----------
-
-const sky = new THREE.Mesh(
-  new THREE.SphereGeometry(1000, 64, 32),
-  new THREE.ShaderMaterial({
-    uniforms: U,
-    side: THREE.BackSide,
-    transparent: true,
-    depthWrite: false,
-    vertexShader: /* glsl */ `
-      varying vec3 vDir, vWorld;
-      void main() {
-        vDir = position;
-        vWorld = (modelMatrix * vec4(position, 1.0)).xyz;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      }`,
-    fragmentShader: /* glsl */ `
-      ${PORTAL}
-      uniform vec3 uZenith, uHorizon;
-      uniform float uSun, uStars;
-      varying vec3 vDir, vWorld;
-      void main() {
-        vec3 n = normalize(vDir);
-        float up = -n.z;
-        vec3 col = mix(uHorizon, uZenith, smoothstep(-0.15, 0.95, up));
-        float s = max(dot(n, normalize(vec3(0.25, 0.55, -0.8))), 0.0);
-        col += uSun * (pow(s, 900.0) * 3.0 + pow(s, 20.0) * 0.22) * mix(vec3(1.0), uHorizon, 0.5);
-        float band = dot(n, normalize(vec3(0.8, 0.3, 0.25)));
-        col += uStars * 0.07 * exp(-band * band * 40.0) * vec3(0.55, 0.5, 0.95);
-        float a = portal(vWorld);
-        float rim = uOpen >= 1.0 ? 0.0 : (1.0 - uOpen) * exp(-abs(holeDist(vWorld)) * 40.0);
-        gl_FragColor = vec4(col + rim * 0.5, max(a, rim * 0.7));
-        #include <colorspace_fragment>
-      }`,
-  }),
-);
-sky.renderOrder = -2;
-stage.add(sky);
-
-const STARS = 3500;
-const starPos = new Float32Array(STARS * 3);
-const starSeed = new Float32Array(STARS * 2);
-for (let i = 0; i < STARS; i++) {
-  const v = new THREE.Vector3().randomDirection().multiplyScalar(900);
-  starPos.set([v.x, v.y, v.z], i * 3);
-  starSeed.set([rand(1.2, 3.4) * (Math.random() < 0.05 ? 1.8 : 1), rand(0, 6.28)], i * 2);
-}
-const starGeo = new THREE.BufferGeometry();
-starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
-starGeo.setAttribute('aSeed', new THREE.BufferAttribute(starSeed, 2));
-const stars = new THREE.Points(
-  starGeo,
-  new THREE.ShaderMaterial({
-    uniforms: U,
-    transparent: true,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending,
-    vertexShader: /* glsl */ `
-      uniform float uTime;
-      attribute vec2 aSeed;
-      varying vec3 vWorld;
-      varying float vTwinkle;
-      void main() {
-        vWorld = (modelMatrix * vec4(position, 1.0)).xyz;
-        vTwinkle = 0.65 + 0.35 * sin(uTime * 1.3 + aSeed.y);
-        gl_PointSize = aSeed.x;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      }`,
-    fragmentShader: /* glsl */ `
-      ${PORTAL}
-      uniform float uStars;
-      varying vec3 vWorld;
-      varying float vTwinkle;
-      void main() {
-        float r = length(gl_PointCoord - 0.5) * 2.0;
-        float a = (1.0 - smoothstep(0.2, 1.0, r)) * uStars * vTwinkle * portal(vWorld);
-        gl_FragColor = vec4(vec3(1.0, 0.97, 0.92), a);
-        #include <colorspace_fragment>
-      }`,
-  }),
-);
-stars.renderOrder = -1;
-stage.add(stars);
-
-// Where lights are caught. It banks with your steering, so you can feel the controls working.
-const ring = new THREE.Mesh(
-  new THREE.RingGeometry(1.1, 1.135, 96),
-  new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.2, depthWrite: false }),
-);
-ring.position.z = -CATCH;
-stage.add(ring);
-
-// ---------- clouds: clusters of soft billboards, one draw call ----------
-
-function cloudTexture() {
-  // Four hand-rolled fBm puffs in a 2x2 atlas. Generated at load, so there is nothing to download.
-  const S = 256, W = S * 2, data = new Uint8Array(W * W * 4);
-  const hash = (x, y, s) => {
-    const h = Math.sin(x * 127.1 + y * 311.7 + s * 74.7) * 43758.5453;
-    return h - Math.floor(h);
-  };
-  const noise = (x, y, s) => {
-    const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
-    const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
-    const a = hash(xi, yi, s), b = hash(xi + 1, yi, s), c = hash(xi, yi + 1, s), d = hash(xi + 1, yi + 1, s);
-    return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
-  };
-  const fbm = (x, y, s) => {
-    let v = 0, amp = 0.5;
-    for (let o = 0; o < 5; o++, x *= 2.03, y *= 2.03, amp *= 0.5) v += amp * noise(x, y, s + o * 13);
-    return v;
-  };
-  const smooth = THREE.MathUtils.smoothstep;
-  for (let cell = 0; cell < 4; cell++) {
-    const ox = (cell % 2) * S, oy = Math.floor(cell / 2) * S;
-    for (let j = 0; j < S; j++) {
-      for (let i = 0; i < S; i++) {
-        const x = (i / S) * 2 - 1, y = (j / S) * 2 - 1;
-        const r = Math.hypot(x, y * 1.2);
-        const lumpy = r + (fbm(x * 2.2 + cell * 5, y * 2.2, cell) - 0.5) * 0.8;
-        const shape = (1 - smooth(lumpy, 0.3, 1)) * (1 - smooth(r, 0.82, 1));
-        const v = clamp(shape * (0.55 + 0.6 * fbm(x * 3.5 + 40, y * 3.5, cell + 9)) * 1.2 - 0.06, 0, 1);
-        const k = ((oy + j) * W + ox + i) * 4;
-        data[k] = data[k + 1] = data[k + 2] = v * 255;
-        data[k + 3] = 255;
-      }
-    }
-  }
-  const tex = new THREE.DataTexture(data, W, W);
-  tex.generateMipmaps = true;
-  tex.minFilter = THREE.LinearMipmapLinearFilter;
-  tex.magFilter = THREE.LinearFilter;
-  tex.needsUpdate = true;
-  return tex;
-}
-
-const CLUSTERS = 34, PUFFS = 10;
-const cloudGeo = new THREE.PlaneGeometry(1, 1);
-const cloudSeed = new THREE.InstancedBufferAttribute(new Float32Array(CLUSTERS * PUFFS * 4), 4);
-cloudGeo.setAttribute('aSeed', cloudSeed);
-const clouds = new THREE.InstancedMesh(
-  cloudGeo,
-  new THREE.ShaderMaterial({
-    uniforms: U,
-    transparent: true,
-    depthWrite: false,
-    vertexShader: /* glsl */ `
-      ${BILLBOARD}
-      varying float vShade, vAlpha;
-      varying vec2 vLight;
-      void main() {
-        gl_Position = billboard(aSeed.y);
-        vUv = (uv + vec2(mod(aSeed.x, 2.0), floor(aSeed.x / 2.0))) * 0.5;
-        vLight = vec2(sin(aSeed.y), cos(aSeed.y)) * 0.022; // towards the top of your view
-        vShade = aSeed.z;
-        // appear out of the distance, dissolve before a puff fills your face
-        vAlpha = aSeed.w * smoothstep(9.0, 32.0, vDist) * (1.0 - smoothstep(170.0, 235.0, vDist));
-      }`,
-    fragmentShader: /* glsl */ `
-      ${PORTAL}
-      uniform sampler2D uTex;
-      uniform vec3 uLit, uShade, uZenith, uHorizon;
-      uniform float uClouds;
-      varying vec2 vUv, vLight;
-      varying vec3 vWorld;
-      varying float vDist, vShade, vAlpha;
-      void main() {
-        float d = texture2D(uTex, vUv).r;
-        float toward = texture2D(uTex, vUv + vLight).r;
-        float light = clamp(0.62 + (d - toward) * 4.0, 0.0, 1.0) * mix(0.55, 1.0, vShade);
-        vec3 col = mix(uShade, uLit, light);
-        col = mix(col, mix(uHorizon, uZenith, 0.5), smoothstep(40.0, 230.0, vDist) * 0.45);
-        gl_FragColor = vec4(col, d * vAlpha * uClouds * portal(vWorld));
-        #include <colorspace_fragment>
-      }`,
-  }),
-  CLUSTERS * PUFFS,
-);
-clouds.frustumCulled = false;
-clouds.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-world.add(clouds);
-
-const P = { x: 0, z: 0, vx: 0 }; // you, in sky coordinates
-const clusters = [];
-
-function placeCluster(c, z) {
-  const cx = P.x + rand(-48, 48);
-  let cy = rand(-32, 32);
-  if (Math.abs(cx - P.x) < 12 && Math.abs(cy) < 9) cy = Math.sign(cy || 1) * rand(9, 32); // keep the flight line open
-  const w = rand(9, 20);
-  c.z = z;
-  c.puffs = Array.from({ length: PUFFS }, () => {
-    const ox = rand(-1, 1) * w, oy = rand(-0.35, 0.6) * w * 0.5;
-    return {
-      x: cx + ox, y: cy + oy, z: z + rand(-1, 1) * w * 0.5,
-      size: rand(7, 15) * (1 - (Math.abs(ox) / w) * 0.45),
-      seed: [Math.floor(Math.random() * 4), rand(0, 6.283), clamp(oy / (w * 0.3) * 0.5 + 0.5, 0, 1), rand(0.55, 0.95)],
-    };
-  });
-}
-
-const m4 = new THREE.Matrix4();
-function writeClouds() {
-  // Instances draw in buffer order, so write them far to near once per respawn (cheap, and it
-  // keeps the soft edges blending the right way round).
-  let k = 0;
-  for (const c of [...clusters].sort((a, b) => a.z - b.z)) {
-    for (const p of [...c.puffs].sort((a, b) => a.z - b.z)) {
-      clouds.setMatrixAt(k, m4.makeScale(p.size, p.size, p.size).setPosition(p.x, p.y, p.z));
-      cloudSeed.array.set(p.seed, k * 4);
-      k++;
-    }
-  }
-  clouds.instanceMatrix.needsUpdate = true;
-  cloudSeed.needsUpdate = true;
-}
-
-for (let i = 0; i < CLUSTERS; i++) {
-  const c = {};
-  placeCluster(c, P.z - rand(0, 235));
-  clusters.push(c);
-}
-writeClouds();
-
-// ---------- lights: trails you follow, each catch is a note ----------
-
-const MOTES = 40;
-const moteGeo = new THREE.PlaneGeometry(1, 1);
-const moteSeed = new THREE.InstancedBufferAttribute(new Float32Array(MOTES * 4), 4);
-moteGeo.setAttribute('aSeed', moteSeed);
-const motesMesh = new THREE.InstancedMesh(
-  moteGeo,
-  new THREE.ShaderMaterial({
-    uniforms: U,
-    transparent: true,
-    depthWrite: false,
-    vertexShader: /* glsl */ `
-      ${BILLBOARD}
-      varying float vFade;
-      void main() { gl_Position = billboard(0.0); vUv = uv; vFade = aSeed.x; }`,
-    fragmentShader: /* glsl */ `
-      ${PORTAL}
-      varying vec2 vUv;
-      varying vec3 vWorld;
-      varying float vFade;
-      void main() {
-        float r = length(vUv - 0.5) * 2.0;
-        float a = (exp(-r * r * 22.0) + exp(-r * r * 2.5) * 0.5) * (1.0 - smoothstep(0.8, 1.0, r)) * vFade * portal(vWorld);
-        gl_FragColor = vec4(mix(vec3(1.0, 0.78, 0.38), vec3(1.0), exp(-r * r * 40.0)), a); // gold, white-hot core
-        #include <colorspace_fragment>
-      }`,
-  }),
-  MOTES,
-);
-motesMesh.frustumCulled = false;
-motesMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-world.add(motesMesh);
-const motes = Array.from({ length: MOTES }, () => ({ on: false }));
-let trailTimer = 1;
-let firstTrail = true;
-
-function spawnTrail() {
-  const dist = firstTrail ? 36 : 70; // the first lights arrive within seconds
-  firstTrail = false;
-  const n = 5 + Math.floor(Math.random() * 4), x0 = P.x + rand(-3.5, 3.5);
-  const amp = rand(0.8, 2.6), phase = rand(0, 6.28), y = rand(-0.4, 0.4);
-  for (let k = 0; k < n; k++) {
-    const m = motes.find((m) => !m.on);
-    if (!m) break;
-    Object.assign(m, { on: true, passed: false, burst: -1, x: x0 + amp * Math.sin(phase + k * 0.55), y, z: P.z - dist - k * 5 });
-  }
-  return (n * 5) / SPEED + rand(1.5, 4);
-}
-
-function writeMotes() {
-  motes.forEach((m, i) => {
-    let s = 0, fade = 0;
-    if (m.on) {
-      const ahead = P.z - m.z;
-      s = 0.55 + Math.max(0, ahead - CATCH) * 0.02; // stay visible far away
-      fade = clamp((80 - ahead) / 12, 0, 1) * clamp((ahead + 6) / 6, 0, 1);
-      if (m.burst >= 0) {
-        s *= 1 + m.burst * 5;
-        fade = 1 - m.burst;
-      } else if (m.passed) fade *= 0.35;
-    }
-    motesMesh.setMatrixAt(i, m4.makeScale(s, s, s).setPosition(m.x ?? 0, m.y ?? 0, m.z ?? 0));
-    moteSeed.array[i * 4] = fade;
-  });
-  motesMesh.instanceMatrix.needsUpdate = true;
-  moteSeed.needsUpdate = true;
-}
-
-// ---------- the floating text panel (works in the headset, where the page is invisible) ----------
-
-const panelCanvas = Object.assign(document.createElement('canvas'), { width: 1024, height: 300 });
-const panelTex = new THREE.CanvasTexture(panelCanvas);
-panelTex.colorSpace = THREE.SRGBColorSpace;
-const panel = new THREE.Mesh(
-  new THREE.PlaneGeometry(1.1, 0.32),
-  new THREE.MeshBasicMaterial({ map: panelTex, transparent: true, depthTest: false, depthWrite: false, opacity: 0 }),
-);
-panel.renderOrder = 10;
-panel.position.set(0, 0.3, -2); // ~30° wide: inside every headset's comfortable field of view
-stage.add(panel);
-let panelLife = 0;
-
-function say(title, sub, seconds = 8) {
-  const g = panelCanvas.getContext('2d');
-  g.clearRect(0, 0, 1024, 300);
-  g.fillStyle = 'rgba(6, 22, 46, 0.5)';
-  g.beginPath();
-  g.roundRect(8, 8, 1008, 284, 60);
-  g.fill();
-  g.textAlign = 'center';
-  g.fillStyle = '#ffffff';
-  g.font = '600 76px Inter, system-ui, sans-serif';
-  g.fillText(title, 512, 128);
-  g.fillStyle = 'rgba(235, 247, 255, 0.86)';
-  g.font = '40px Inter, system-ui, sans-serif';
-  g.fillText(sub, 512, 212);
-  panelTex.needsUpdate = true;
-  panelLife = seconds;
-}
-
-// ---------- input: head, hands (pinch), controllers, and a desktop fallback ----------
-
-const headPos = new THREE.Vector3(), headQuat = new THREE.Quaternion(), lastQuat = new THREE.Quaternion();
-const neutral = new THREE.Quaternion();
-const tmp = new THREE.Vector3();
-let mode = 'idle'; // idle (title) → waiting (in headset, settling) → opening → flying
-let passthrough = false, still = 0, opening = 0, alt = clamp(+params.get('alt') || 0, 0, 1);
-let caught = 0, steer = 0, grab = null, lastPinch = -1, ringPulse = 0, recentre = false, reachedTop = alt >= 1;
-let ceiling = null; // the real ceiling plane the skylight is cut into, when the headset knows the room
-const planeWorld = new THREE.Matrix4(), planeInv = new THREE.Matrix4(), holeAt = new THREE.Vector2(), tmp2 = new THREE.Vector2();
-const planeQuat = new THREE.Quaternion(), ONE = new THREE.Vector3(1, 1, 1);
-const gaze = new THREE.Vector3(), UP_TO_Y = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2);
-const keys = { left: 0, right: 0 };
-let pointerSteer = null;
-
-function readHead() {
-  const cam = renderer.xr.isPresenting ? renderer.xr.getCamera() : camera;
-  headPos.copy(cam.position);
-  headQuat.copy(cam.quaternion);
-}
-
-function calibrate() {
-  readHead();
-  neutral.copy(headQuat);
-  stageTarget.position.copy(headPos);
-  stageTarget.quaternion.copy(headQuat);
-  if (mode === 'waiting' || mode === 'idle') {
-    mode = 'opening';
-    opening = 0;
-    say(ceiling ? 'Your ceiling opens' : passthrough ? 'The sky opens' : 'Breathe out', 'Turn or tilt your head to drift. Follow the lights.', 9);
-  }
-}
-
-const sideways = (obj) => stage.worldToLocal(tmp.copy(obj.position)).x;
-
-function onPinch(ctrl) {
-  startAudio();
-  const now = clock.elapsedTime;
-  if (mode === 'waiting') return calibrate();
-  if (now - lastPinch < 0.45) {
-    lastPinch = -1;
-    grab = null;
-    calibrate();
-    return say('Recentred', 'The sky is wherever you look now', 3);
-  }
-  lastPinch = now;
-  grab = { ctrl, x0: sideways(ctrl) }; // pinch and pull sideways: steering for hands
-}
+// ---------- hands ----------
 
 const handFactory = new XRHandModelFactory();
-for (let i = 0; i < 2; i++) {
+const hands = [0, 1].map((i) => {
   const hand = renderer.xr.getHand(i);
   hand.add(handFactory.createHandModel(hand, 'mesh'));
-  scene.add(hand);
-  const ctrl = renderer.xr.getController(i); // a pinch is a "select" for hands, the trigger for controllers
-  ctrl.addEventListener('selectstart', () => onPinch(ctrl));
-  ctrl.addEventListener('selectend', () => grab?.ctrl === ctrl && (grab = null));
-  scene.add(ctrl);
+  rig.add(hand);
+  const ctrl = renderer.xr.getController(i);
+  rig.add(ctrl);
+  const h = {
+    hand, ctrl, handedness: i ? 'right' : 'left', joints: null, frame: null, seen: 0,
+    palmDown: createPalmDown(), touch: createTouch(), state: 'none',
+    tip: new THREE.Vector3(), tipFilter: new OneEuro({ minCutoff: 1.2, beta: 0.35 }), still: 0, last: new THREE.Vector3(),
+  };
+  hand.addEventListener('connected', (e) => { h.handedness = e.data.handedness || h.handedness; });
+  hand.addEventListener('disconnected', () => { h.joints = h.frame = null; });
+  ctrl.addEventListener('selectstart', () => onSelect(h));
+  ctrl.addEventListener('squeezestart', () => mode === 'walk' && takeOff(null));
+  return h;
+});
+const shadowBird = createShadowBird();
+const jointStore = hands.map(() => Object.fromEntries(JOINTS.map((n) => [n, [0, 0, 0]])));
+
+// hand joints in rig space (what the hand really did), the fingertip also in world space
+function readHands(dt) {
+  hands.forEach((h, i) => {
+    const j = h.hand.joints;
+    const ok = renderer.xr.isPresenting && j && j.wrist && j.wrist.visible && JOINTS.every((n) => j[n]);
+    if (!ok) { h.joints = h.frame = null; h.seen = 0; return; }
+    const store = jointStore[i];
+    for (const n of JOINTS) j[n].position.toArray(store[n]);
+    h.joints = store;
+    h.frame = palmFrame(store, h.handedness);
+    h.seen += dt;
+    const tip = h.tipFilter.filter(store['index-finger-tip'], dt);
+    rig.localToWorld(h.tip.set(tip[0], tip[1], tip[2]));
+  });
 }
 
-function autopilot() {
-  const next = motes.filter((m) => m.on && !m.passed).sort((a, b) => b.z - a.z)[0];
-  return next ? clamp((next.x - P.x) * 1.2, -1, 1) : 0;
+// ---------- head ----------
+
+const headLocal = new THREE.Vector3(), headQuat = new THREE.Quaternion(), headWorld = new THREE.Vector3();
+function readHead() {
+  const cam = renderer.xr.isPresenting ? renderer.xr.getCamera() : camera;
+  headLocal.copy(cam.position);
+  headQuat.copy(cam.quaternion);
+  rig.localToWorld(headWorld.copy(headLocal));
 }
 
-function readSteer() {
-  if (grab) return handSteer(sideways(grab.ctrl) - grab.x0);
-  if (params.has('auto')) return autopilot();
-  if (renderer.xr.isPresenting) return mode === 'waiting' ? 0 : headSteer(neutral.toArray(), headQuat.toArray());
-  if (keys.left || keys.right) return keys.right - keys.left;
-  return pointerSteer ?? 0;
-}
+// ---------- desktop pointer and keys ----------
 
+const raycaster = new THREE.Raycaster(), ndc = new THREE.Vector2(-9, -9);
+const pointer = { down: false, point: new THREE.Vector3(), onTable: false };
+const tablePlane = new THREE.Plane();
+const keys = new Set();
+renderer.domElement.addEventListener('pointermove', (e) => ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1));
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  pointer.down = true;
+  onClick();
+});
+addEventListener('pointerup', () => (pointer.down = false));
 addEventListener('keydown', (e) => {
-  if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = 1;
-  if (e.key === 'ArrowRight' || e.key === 'd') keys.right = 1;
+  keys.add(e.key.toLowerCase());
+  if (e.key.toLowerCase() === 'f' && mode === 'walk') takeOff(null);
 });
-addEventListener('keyup', (e) => {
-  if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = 0;
-  if (e.key === 'ArrowRight' || e.key === 'd') keys.right = 0;
-});
-addEventListener('pointermove', (e) => {
-  if (mode !== 'idle') pointerSteer = clamp((e.clientX / innerWidth - 0.5) * 2.4, -1, 1);
-});
+addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()));
 addEventListener('resize', () => {
   if (renderer.xr.isPresenting) return;
   camera.aspect = innerWidth / innerHeight;
@@ -540,20 +219,432 @@ addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight);
 });
 
+function aimPointer() {
+  raycaster.setFromCamera(ndc, camera);
+  tablePlane.setFromNormalAndCoplanarPoint(new THREE.Vector3(0, 1, 0), anchor.getWorldPosition(new THREE.Vector3()));
+  pointer.onTable = !!raycaster.ray.intersectPlane(tablePlane, pointer.point);
+}
+
+// ---------- the story, one mode at a time ----------
+
+// title → hand (lay your hand on the outline) → choose (which pattern is yours?) → press
+// (fingertip on the table) → grow → walk ⇄ fly
+let mode = 'title', modeT = 0, walker = null, woken = home.woken, pickedCls = null, passthrough = false;
+let tookOffWith = null, steerRef = null, headNeutral = null, autoRoute = [], autoTarget = null, landingGoal = null;
+const setMode = (m) => { mode = m; modeT = 0; };
+
+function start() {
+  startAudio();
+  document.getElementById('banner').classList.add('hidden');
+  room.visible = !passthrough;
+  scene.background = passthrough ? null : new THREE.Color('#231a16');
+  guide.mesh.visible = true;
+  guide.filled = 0;
+  setMode('hand');
+}
+
+function acceptTable() {
+  if (mode !== 'hand') return;
+  setMode('wait');
+  guide.filled = 1;
+  tone(4, 0, 0.1);
+  setTimeout(() => {
+    guide.mesh.visible = false;
+    const saved = save.fingers.index;
+    const forced = params.get('cls');
+    if (forced || (saved && !params.has('fresh'))) {
+      pickedCls = forced || saved.cls;
+      const seed = +(params.get('seed') ?? (forced ? Math.floor(Math.random() * 1e9) : saved.seed));
+      if (!forced) panel.say('Welcome back', 3);
+      beginGrowth(128, 200, pickedCls, seed, forced ? 0.16 : 0.5);
+    } else {
+      chooser.show(headLocal, headQuat);
+      panel.say('Which one is yours?', 1e9);
+      setMode('choose');
+    }
+  }, 700);
+}
+
+function pickClass(cls) {
+  pickedCls = cls;
+  chooser.hide();
+  tone(7, 0, 0.12);
+  panel.say('Press that fingertip here', 1e9);
+  setMode('press');
+}
+
+function beginGrowth(px, py, cls, seed, speed = 0.16) {
+  panel.hide();
+  home.cls = cls;
+  home.seed = seed;
+  home.terrain.begin(px, py, speed);
+  swell(speed > 0.3 ? 3 : 8);
+  setMode('grow');
+  growLand(cls, seed, 256, (ridge) => home.terrain.grow(ridge)).then((land) => {
+    home.land = land;
+    home.terrain.set(land);
+    save.fingers.index = { cls, seed };
+    if (!flock.birds.length) for (const b of save.birds) flock.revive(b, anchor.getWorldPosition(new THREE.Vector3()));
+    remember();
+    growNeighbours();
+  });
+}
+
+function growNeighbours() {
+  neighbours({ cls: home.cls, seed: home.seed }).forEach((l, k) => {
+    const t = createTerrain({ size: 192, ink: l.ink });
+    t.mesh.position.set(SPOTS[k][0], 0, SPOTS[k][1]);
+    t.mesh.visible = false;
+    worldRoot.add(t.mesh);
+    const land = { id: l.id, terrain: t, land: null, cls: l.cls, seed: l.seed, woken: new Set() };
+    lands.push(land);
+    growLand(l.cls, l.seed, 192).then((r) => {
+      land.land = r;
+      t.set(r, { instant: true });
+    });
+  });
+}
+
+// a ridge at landmark i of the current land lifts off and becomes a bird
+function wake(i) {
+  const m = current.land.landmarks[i];
+  current.woken.add(i);
+  const ridge = (m.ridge.length > 1 ? m.ridge : [[m.x - 6, m.y], [m.x + 6, m.y]]).map(([x, y]) => current.terrain.worldOf(x, y));
+  const bird = flock.add({ ridge, origin: current.id, rare: current !== home || m.kind === 'delta' || m.kind === 'core' });
+  current.terrain.carve(m.ridge);
+  chirp(bird.song, 0);
+  remember();
+  if (current.woken.size === 3) setTimeout(() => mode === 'walk' && panel.say('Lift your hand, palm down', 6), 2500);
+}
+
+function takeOff(h) {
+  if (mode !== 'walk' || !current.land) return;
+  const ground = new THREE.Vector3();
+  const at = h?.frame ? rig.localToWorld(new THREE.Vector3(...h.frame.center)) : null;
+  const px = at ? current.terrain.pixelOf(at) : null;
+  const inside = px && px[0] > 0 && px[1] > 0 && px[0] < current.terrain.size && px[1] < current.terrain.size;
+  current.terrain.worldOf(inside ? px[0] : current.terrain.size / 2, inside ? px[1] : current.terrain.size * 0.7, ground);
+  tookOffWith = h;
+  steerRef = h?.frame ? JSON.parse(JSON.stringify(h.frame)) : null; // the pose you took off in
+  headNeutral = headQuat.toArray();
+  walker?.lift();
+  setSand(0);
+  panel.hide();
+  for (const l of lands) l.terrain.mesh.visible = true;
+  flight.takeOff(headWorld, ground);
+  tone(9, 0, 0.12);
+  setMode('fly');
+}
+
+function steering(dt) {
+  if (AUTO) return autoSteer();
+  if (!renderer.xr.isPresenting) {
+    const turn = (keys.has('arrowright') || keys.has('d') ? 1 : 0) - (keys.has('arrowleft') || keys.has('a') ? 1 : 0);
+    const climb = (keys.has('arrowup') || keys.has('w') ? 1 : 0) - (keys.has('arrowdown') || keys.has('s') ? 1 : 0);
+    return { turn: turn || (pointer.down ? THREE.MathUtils.clamp(ndc.x * 1.4, -1, 1) : 0), climb };
+  }
+  const h = tookOffWith?.frame ? tookOffWith : hands.find((q) => q.frame);
+  if (h?.frame && steerRef) {
+    const { roll, pitch } = palmTilt(h.frame, steerRef);
+    return { turn: THREE.MathUtils.clamp(roll / 0.45, -1, 1), climb: THREE.MathUtils.clamp(pitch / 0.45, -1, 1) };
+  }
+  // no hand in view: the head steers (turn or tilt it), as in Upwards
+  return { turn: headSteer(headNeutral, headQuat.toArray()), climb: 0 };
+}
+
+// every land but the one you took off from gets a ring over its summit: fly into it to land there
+const ringAt = (l) => {
+  const c = l.land?.cores?.[0] ?? [l.terrain.size / 2, l.terrain.size / 2];
+  return l.terrain.worldOf(c[0], c[1], new THREE.Vector3(), 0.03);
+};
+function autoSteer() {
+  const goal = lands.filter((l) => l !== current && l.land).map(ringAt)[0];
+  if (!goal) return { turn: 0, climb: 0 };
+  const fwd = flight.forward(new THREE.Vector3());
+  const to = goal.clone().sub(flight.head).setY(0).normalize();
+  const cross = fwd.x * to.z - fwd.z * to.x;
+  return { turn: THREE.MathUtils.clamp(cross * 3, -1, 1), climb: 0 };
+}
+
+function groundAt(p) {
+  let y = anchor.getWorldPosition(new THREE.Vector3()).y - 0.003;
+  for (const l of lands) {
+    if (!l.land || !l.terrain.mesh.visible) continue;
+    const [px, py] = l.terrain.pixelOf(p);
+    if (px < 0 || py < 0 || px >= l.terrain.size || py >= l.terrain.size) continue;
+    y = Math.max(y, l.terrain.worldOf(px, py, new THREE.Vector3()).y);
+  }
+  return y;
+}
+
+function landOn(target) {
+  // re-root: move the world so the target land sits on your table, and move you and the birds with
+  // it, so nothing you see changes; then grow back to your real size over it
+  const before = target.terrain.mesh.getWorldPosition(new THREE.Vector3());
+  worldRoot.position.copy(target.terrain.mesh.position).negate();
+  worldRoot.updateMatrixWorld(true);
+  const delta = target.terrain.mesh.getWorldPosition(new THREE.Vector3()).sub(before);
+  flight.shift(delta);
+  flock.shift(delta);
+  current = target;
+  landingGoal = target;
+  flight.land();
+  save.visited = [...new Set([...save.visited, target.id])];
+  remember();
+}
+
+// pinch or trigger: a universal "yes" in every step, for anyone who cannot do the gesture
+function onSelect(h) {
+  startAudio();
+  if (mode === 'hand') acceptTable();
+  else if (mode === 'choose') {
+    const gaze = new THREE.Vector3(0, 0, -1).applyQuaternion(headQuat);
+    raycaster.set(headWorld, gaze);
+    const cls = chooser.pickRay(raycaster) || chooser.nearest(headWorld, gaze);
+    if (cls) pickClass(cls);
+  } else if (mode === 'press') {
+    const px = h?.tip ? current.terrain.pixelOf(h.tip) : null;
+    const inside = px && px[0] > 8 && px[1] > 8 && px[0] < 248 && px[1] < 248;
+    beginGrowth(inside ? px[0] : 128, inside ? px[1] : 190, pickedCls, Math.floor(Math.random() * 1e9));
+  }
+}
+
+function onClick() {
+  if (renderer.xr.isPresenting) return;
+  startAudio();
+  aimPointer();
+  if (mode === 'hand') acceptTable();
+  else if (mode === 'choose') {
+    const cls = chooser.pickRay(raycaster);
+    if (cls) pickClass(cls);
+  } else if (mode === 'press' && pointer.onTable) {
+    const [px, py] = current.terrain.pixelOf(pointer.point);
+    beginGrowth(THREE.MathUtils.clamp(px, 8, 248), THREE.MathUtils.clamp(py, 8, 248), pickedCls, Math.floor(Math.random() * 1e9));
+  }
+}
+
+// ---------- the table: a detected plane, then your flat hand refines it ----------
+
+let tableLocked = false;
+function findTable(xrFrame) {
+  const planes = xrFrame?.detectedPlanes, ref = renderer.xr.getReferenceSpace();
+  if (!planes || !ref) return null;
+  let best = null;
+  for (const plane of planes) {
+    const pose = xrFrame.getPose(plane.planeSpace, ref);
+    if (!pose) continue;
+    const m = new THREE.Matrix4().fromArray(pose.transform.matrix);
+    const at = new THREE.Vector3().setFromMatrixPosition(m);
+    if (!isTable(plane.semanticLabel, plane.orientation, headLocal.y - at.y)) continue;
+    const inv = m.clone().invert();
+    const h = headLocal.clone().applyMatrix4(inv);
+    const spot = landSpot(extent(plane.polygon), [h.x, h.z], LAND);
+    const world = new THREE.Vector3(spot.x, 0, spot.z).applyMatrix4(m);
+    const d = Math.hypot(world.x - headLocal.x, world.z - headLocal.z);
+    if (d < 1.2 && (!best || d < best.d)) best = { world, size: spot.size, d };
+  }
+  return best;
+}
+
+function placeAnchor(point, size = LAND) {
+  const dir = point.clone().sub(headWorld).setY(0);
+  anchor.position.copy(point);
+  if (dir.lengthSq() > 1e-4) anchor.rotation.set(0, Math.atan2(-dir.x, -dir.z), 0);
+  anchor.scale.setScalar(Math.max(0.55, size / LAND));
+}
+
+function defaultAnchor() {
+  const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(headQuat).setY(0).normalize();
+  placeAnchor(headWorld.clone().addScaledVector(fwd, 0.42).add(new THREE.Vector3(0, -0.48, 0)));
+}
+
+// ---------- the loop ----------
+
+const clock = new THREE.Clock();
+const tmpV = new THREE.Vector3(), anchorWorld = new THREE.Vector3();
+let lastLevel = -1;
+
+function frame(time, xrFrame) {
+  const dt = Math.min(clock.getDelta(), 0.05);
+  const t = clock.elapsedTime;
+  modeT += dt;
+  readHead();
+  readHands(dt);
+  if (!renderer.xr.isPresenting) aimPointer();
+
+  // the table
+  if (mode === 'hand' && renderer.xr.isPresenting && !tableLocked) {
+    const found = findTable(xrFrame);
+    if (found) placeAnchor(found.world, found.size);
+    else if (modeT < 0.2) defaultAnchor();
+    // your flat hand on the outline settles the height and the spot exactly (used live, never kept)
+    for (const h of hands) {
+      if (!h.frame || h.frame.normal[1] > -0.8 || h.frame.extension < 0.7) { h.still = 0; continue; }
+      const c = rig.localToWorld(tmpV.set(...h.frame.center));
+      // on the detected table, or at least at desk height below your head: never a hand in mid-air
+      const near = found ? Math.abs(c.y - anchor.position.y) < 0.07 : c.y < headWorld.y - 0.3;
+      h.still = near && c.distanceTo(h.last) < 0.004 + 0.03 * dt ? h.still + dt : 0; // under ~3 cm/s
+      h.last.copy(c);
+      guide.filled = Math.min(1, h.still);
+      if (h.still > 1) {
+        tableLocked = true;
+        placeAnchor(c.clone().setY(c.y - 0.012), anchor.scale.x * LAND);
+        acceptTable();
+      }
+    }
+  }
+  if (mode === 'hand' && AUTO && modeT > 1) acceptTable();
+  if (mode === 'choose' && AUTO && modeT > 1.5) pickClass(params.get('cls') || 'loop');
+  if (mode === 'press' && AUTO && modeT > 1) beginGrowth(128, 200, pickedCls, +(params.get('seed') ?? 7));
+
+  anchor.getWorldPosition(anchorWorld);
+  const tableY = anchorWorld.y;
+
+  // fingertips: touching or hovering the land
+  let tipWorld = null, tipState = 'none';
+  if (renderer.xr.isPresenting) {
+    for (const h of hands) {
+      if (!h.joints) { h.state = 'none'; continue; }
+      const px = current.terrain.pixelOf(h.tip);
+      const surface = current.land ? current.terrain.worldOf(px[0], px[1], tmpV).y : tableY;
+      h.state = h.touch.update(h.tip.toArray(), surface, dt);
+      if (h.state !== 'none' && (!tipWorld || h.state === 'touch')) { tipWorld = h.tip; tipState = h.state; }
+    }
+    if (mode === 'choose') for (const h of hands) if (h.joints) { const c = chooser.poke(h.tip); if (c) { pickClass(c); break; } }
+    if (mode === 'press') {
+      const h = hands.find((q) => q.state === 'touch');
+      if (h) {
+        const [px, py] = current.terrain.pixelOf(h.tip);
+        beginGrowth(THREE.MathUtils.clamp(px, 8, 248), THREE.MathUtils.clamp(py, 8, 248), pickedCls, Math.floor(Math.random() * 1e9));
+      }
+    }
+  } else if (pointer.onTable && mode !== 'fly') {
+    tipWorld = pointer.point.clone().setY(pointer.point.y + (pointer.down ? 0.004 : 0.015));
+    tipState = pointer.down ? 'touch' : 'hover';
+  }
+
+  if (mode === 'grow' && current.terrain.born) setMode('walk');
+
+  // walking
+  if (mode === 'walk' && current.land) {
+    walker = walker?.land === current.land ? walker : Object.assign(createWalker(current.land), { land: current.land });
+    const N = current.terrain.size, scale = N / (LAND * anchor.scale.x);
+    let target = null;
+    if (AUTO) target = autoWalk();
+    else if (tipWorld) target = current.terrain.pixelOf(tipWorld);
+    if (target) {
+      if (!walker.placed) walker.place(target[0], target[1], 0.025 * scale);
+      const walked = walker.step(target[0], target[1], dt);
+      for (const [x, y] of walked) current.terrain.mark(x, y);
+      setSand(walked.length / Math.max(1, 110 * dt));
+      if (walker.placed && walker.level !== lastLevel) {
+        if (lastLevel >= 0) tone(Math.min(11, walker.level), 0, 0.09);
+        lastLevel = walker.level;
+      }
+      for (const i of nearby(current.land.landmarks, walker.x, walker.y, 0.03 * scale, current.woken)) wake(i);
+    } else {
+      walker.lift();
+      setSand(0);
+      lastLevel = -1;
+    }
+    // take off: one hand lifted palm down, fingers spread (or the two-hand shadow bird)
+    for (const h of hands) if (h.palmDown.update(h.frame, tableY, dt) && h.seen > 0.5) takeOff(h);
+    const [l, r] = [hands.find((h) => h.handedness === 'left'), hands.find((h) => h.handedness === 'right')];
+    if (mode === 'walk' && shadowBird.update(l?.frame, r?.frame, l?.joints, r?.joints, tableY, dt)) takeOff(r?.frame ? r : l);
+    if (AUTO && current.woken.size >= +(params.get('birds') ?? 3) && modeT > 2) takeOff(null);
+  }
+
+  // flying
+  if (mode === 'fly') {
+    const steer = flight.mode === 'flying' ? steering(dt) : { turn: 0, climb: 0 };
+    flight.update(dt, headLocal, steer, groundAt);
+    setWind(flight.amount);
+    if (flight.mode === 'flying') {
+      for (const l of lands) {
+        if (l === current || !l.land) continue;
+        const ring = ringAt(l);
+        if (Math.hypot(ring.x - flight.head.x, ring.z - flight.head.z) < 0.12) { landOn(l); break; }
+      }
+    }
+    if (flight.mode === 'table') {
+      for (const l of lands) l.terrain.mesh.visible = l === current;
+      setWind(0);
+      if (landingGoal?.land) {
+        const m = landingGoal.land.landmarks.find((q) => q.kind === 'delta') || landingGoal.land.landmarks[0];
+        if (m) wake(landingGoal.land.landmarks.indexOf(m));
+      }
+      landingGoal = null;
+      walker = null;
+      setMode('walk');
+    }
+  }
+
+  // the birds, the rings, the text, the plates
+  const inFlight = flight.flying;
+  const spread = rig.scale.x; // world metres per felt metre
+  flock.update(dt, t, {
+    fingertip: mode === 'walk' ? tipWorld : null,
+    center: anchorWorld,
+    follow: inFlight ? { point: headWorld.clone().addScaledVector(flight.forward(tmpV), 1.2 * spread), forward: flight.forward(new THREE.Vector3()), spread } : null,
+  });
+  flock.draw(t, inFlight ? THREE.MathUtils.lerp(1, (0.4 * spread) / 0.06, flight.amount) : 1);
+  rings.begin();
+  if (flight.mode === 'flying') {
+    rings.width = 0.02 * spread * 4;
+    for (const l of lands) {
+      if (l === current || !l.land) continue;
+      const c = ringAt(l), r = 0.06 + Math.sin(t * 2) * 0.004;
+      for (let k = 0; k < 48; k++) {
+        const a0 = (k / 48) * Math.PI * 2, a1 = ((k + 1) / 48) * Math.PI * 2;
+        rings.segment({ x: c.x + Math.cos(a0) * r, y: c.y, z: c.z + Math.sin(a0) * r }, { x: c.x + Math.cos(a1) * r, y: c.y, z: c.z + Math.sin(a1) * r });
+      }
+    }
+  }
+  rings.end();
+
+  room.visible = !passthrough && flight.amount < 0.02; // the preview room would tower over a bird
+  if (!renderer.xr.isPresenting) {
+    // the browser view looks down at the table, and up at the horizon while flying
+    camera.rotation.set(THREE.MathUtils.lerp(-0.68, -0.12, flight.amount), 0, 0);
+  }
+  for (const l of lands) {
+    l.terrain.uniforms.uLift.value = 1 + 3 * flight.amount; // deeper valleys once you are bird-sized
+    l.terrain.update(dt);
+  }
+  guide.update(dt);
+  chooser.update(dt);
+  panel.update(dt, headLocal, headQuat);
+  renderer.render(scene, camera);
+}
+
+// the autopilot walks the real paths to the nearest sleeping landmark
+function autoWalk() {
+  const land = current.land;
+  if (!walker.placed) {
+    const c = land.cores[0] ?? [land.size / 2, land.size / 2];
+    for (let r = 4; r < land.size && !walker.placed; r += 6) walker.place(c[0], c[1] + r, 6);
+  }
+  if (!autoRoute.length || autoTarget === null || current.woken.has(autoTarget)) {
+    let best = null;
+    const close = land.landmarks.map((m, i) => [i, (m.x - walker.x) ** 2 + (m.y - walker.y) ** 2])
+      .filter(([i]) => !current.woken.has(i)).sort((a, b) => a[1] - b[1]).slice(0, 8);
+    for (const [i] of close) {
+      const m = land.landmarks[i];
+      const r = route(land, walker.x, walker.y, m.x, m.y, 30000);
+      const end = r[r.length - 1];
+      if (r.length && end && (end[0] - m.x) ** 2 + (end[1] - m.y) ** 2 < 100 && (!best || r.length < best.r.length)) best = { r, i };
+    }
+    autoRoute = best ? best.r : [];
+    autoTarget = best ? best.i : null;
+  }
+  while (autoRoute.length && (autoRoute[0][0] - walker.x) ** 2 + (autoRoute[0][1] - walker.y) ** 2 < 2) autoRoute.shift();
+  return autoRoute[Math.min(4, autoRoute.length - 1)] ?? null;
+}
+
 // ---------- start / stop ----------
 
-const banner = document.getElementById('banner');
 const xrButton = document.getElementById('xrButton');
 const previewButton = document.getElementById('previewButton');
-const hint = document.getElementById('hint');
-
-function preview() {
-  startAudio();
-  banner.classList.add('hidden');
-  hint.classList.remove('hidden');
-  setTimeout(() => hint.classList.add('hidden'), 9000);
-  calibrate();
-}
 
 async function enterHeadset() {
   startAudio();
@@ -563,25 +654,26 @@ async function enterHeadset() {
   });
   await renderer.xr.setSession(session);
   passthrough = ar && session.environmentBlendMode !== 'opaque';
-  banner.classList.add('hidden');
-  mode = 'waiting';
-  still = 0;
-  say('Settle in', 'Look where you want your sky. Hold still, or pinch.', 1e9);
-  // the system recentre (hold the Meta button) moves the origin: take the new pose as neutral
-  renderer.xr.getReferenceSpace()?.addEventListener('reset', () => (recentre = true));
-  // the Meta menu or a notification hides the session: hush, and pick up where you were after
+  tableLocked = false;
+  start();
   session.addEventListener('visibilitychange', () => pauseAudio(session.visibilityState === 'hidden'));
   session.addEventListener('end', () => {
-    mode = 'idle';
     passthrough = false;
-    ceiling = null;
-    grab = null;
-    stageTarget.position.set(0, 0, 0);
-    stageTarget.quaternion.identity();
-    camera.position.set(0, 0, 0); // the headset left its last pose on the page camera
-    camera.quaternion.identity();
-    banner.classList.remove('hidden');
+    room.visible = true;
+    scene.background = new THREE.Color('#231a16');
+    camera.position.set(0, 1.18, 0.5);
+    camera.lookAt(0, 0.75, -0.02);
+    document.getElementById('banner').classList.remove('hidden');
+    setMode('title');
   });
+}
+document.addEventListener('visibilitychange', () => pauseAudio(document.hidden));
+
+function preview() {
+  passthrough = false;
+  anchor.position.set(0, 0.752, 0);
+  anchor.rotation.set(0, 0, 0);
+  start();
 }
 
 xrButton.addEventListener('click', () => enterHeadset().catch((e) => console.error(e)));
@@ -591,164 +683,24 @@ if (navigator.xr) {
     .then(([ar, vr]) => (ar || vr) && xrButton.classList.remove('hidden'))
     .catch(() => {});
 }
-if (params.has('play')) preview();
-document.addEventListener('visibilitychange', () => pauseAudio(document.hidden));
 
-// ---------- the loop ----------
-
-const clock = new THREE.Clock();
-const colA = new THREE.Color();
-
-function paint(a) {
-  let i = 0;
-  while (i < SKY.length - 2 && a > SKY[i + 1][0]) i++;
-  const t = THREE.MathUtils.smoothstep(a, SKY[i][0], SKY[i + 1][0]);
-  [U.uZenith, U.uHorizon, U.uLit, U.uShade].forEach((u, k) => u.value.set(SKY[i][k + 1]).lerp(colA.set(SKY[i + 1][k + 1]), t));
-  U.uSun.value = 1 - THREE.MathUtils.smoothstep(a, 0.5, 0.78);
-  U.uClouds.value = 1 - THREE.MathUtils.smoothstep(a, 0.55, 0.82);
-  U.uStars.value = THREE.MathUtils.smoothstep(a, 0.58, 0.86);
-}
-
-// Find the ceiling you are looking at among the planes the headset detected (Quest: Space Setup).
-// Returns the plane and where your gaze lands on it, or null: then a virtual plane stands in.
-function lookForCeiling(xrFrame) {
-  const planes = xrFrame?.detectedPlanes, ref = renderer.xr.getReferenceSpace();
-  if (!planes || !ref) return null;
-  gaze.set(0, 0, -1).applyQuaternion(headQuat);
-  let best = null;
-  for (const plane of planes) {
-    const pose = xrFrame.getPose(plane.planeSpace, ref);
-    if (!pose || !isCeiling(plane.semanticLabel, plane.orientation, pose.transform.position.y - headPos.y)) continue;
-    const inv = new THREE.Matrix4().fromArray(pose.transform.matrix).invert();
-    const hit = rayOnPlane(inv.elements, headPos.toArray(), gaze.toArray(), extent(plane.polygon));
-    if (hit && hit.dist < 8 && (!best || hit.dist < best.hit.dist)) best = { plane, hit };
-  }
-  return best;
-}
-
-// Put the skylight's plane in the shader: the real ceiling (pose refreshed every frame, planes get
-// refined as the headset looks around) or a virtual one 2 m out along the sky's "up".
-function placePlane(xrFrame) {
-  const pose = ceiling && xrFrame?.getPose(ceiling.planeSpace, renderer.xr.getReferenceSpace());
-  if (pose) {
-    planeWorld.fromArray(pose.transform.matrix);
-    U.uBox.value.fromArray(extent(ceiling.polygon));
-  } else if (!ceiling) {
-    planeWorld.compose(tmp.set(0, 0, -2).applyQuaternion(stage.quaternion).add(stage.position),
-      planeQuat.copy(stage.quaternion).multiply(UP_TO_Y), ONE);
-    U.uBox.value.set(-1e4, -1e4, 1e4, 1e4);
-    holeAt.set(0, 0);
-  }
-  U.uPlaneInv.value.copy(planeInv.copy(planeWorld).invert());
-}
-
-let speed = 2;
-
-function frame(time, xrFrame) {
-  const dt = Math.min(clock.getDelta(), 0.05);
-  U.uTime.value = clock.elapsedTime;
-  readHead();
-  if (recentre) {
-    recentre = false;
-    if (mode !== 'waiting') calibrate();
-  }
-
-  if (mode === 'waiting') {
-    // the sky follows your gaze until you settle, then stays put
-    stageTarget.position.copy(headPos);
-    stageTarget.quaternion.copy(headQuat);
-    const found = lookForCeiling(xrFrame);
-    if (found && found.plane !== ceiling) holeAt.set(found.hit.x, found.hit.z);
-    ceiling = found?.plane ?? null;
-    if (found) holeAt.lerp(tmp2.set(found.hit.x, found.hit.z), 1 - Math.exp(-dt * 6));
-    still = angleBetween(lastQuat.toArray(), headQuat.toArray()) / dt < 0.07 ? still + dt : 0;
-    if (still > 3) calibrate();
-  }
-  lastQuat.copy(headQuat);
-  const k = 1 - Math.exp(-dt * (mode === 'waiting' ? 6 : 3));
-  stage.position.lerp(stageTarget.position, k);
-  stage.quaternion.slerp(stageTarget.quaternion, k);
-
-  const playing = mode === 'opening' || mode === 'flying';
-  steer = playing ? readSteer() : 0;
-  speed += ((mode === 'idle' ? 2 : mode === 'waiting' ? 1 : SPEED) - speed) * (1 - Math.exp(-dt * 0.6));
-  P.vx += (steer * SIDE - P.vx) * (1 - Math.exp(-dt * 3));
-  P.x += P.vx * dt;
-  P.z -= speed * dt;
-  world.position.set(-P.x, 0, -P.z);
-
-  // clouds that slipped behind you are reborn far ahead
-  let moved = false;
-  for (const c of clusters) {
-    if (c.z - P.z > 25) {
-      placeCluster(c, P.z - rand(200, 235));
-      moved = true;
-    }
-  }
-  if (moved) writeClouds();
-
-  trailTimer -= dt * (speed / SPEED);
-  if (trailTimer <= 0) trailTimer = spawnTrail();
-  for (const m of motes) {
-    if (!m.on) continue;
-    const ahead = P.z - m.z;
-    if (m.burst >= 0) {
-      m.z = P.z - CATCH; // bursts hang in the ring
-      m.burst += dt / 0.8;
-      if (m.burst >= 1) m.on = false;
-    } else if (ahead < CATCH && !m.passed) {
-      m.passed = true;
-      if (playing && Math.abs(m.x - P.x) < 1.15) {
-        m.burst = 0;
-        caught++;
-        alt += 0.004;
-        ringPulse = 1;
-        chime((m.x - P.x) / 1.15);
-      }
-    } else if (ahead < -8) m.on = false;
-  }
-
-  if (playing) {
-    alt = Math.min(1, alt + dt / JOURNEY);
-    if (mode === 'opening' && (opening += dt) > 6) mode = 'flying';
-    if (alt >= 1 && !reachedTop) {
-      reachedTop = true;
-      say('The quiet', `${caught} lights gathered. Stay as long as you like.`, 12);
-    }
-  }
-  paint(alt);
-  setAltitude(alt);
-
-  // the skylight: a pinhole while you settle, a window as it opens, then the whole ceiling (the walls
-  // stay real), and finally the room fades and the sky is all around you
-  let radius = 0, open = 1;
-  if (passthrough) {
-    if (mode === 'waiting') radius = 0.25;
-    else if (mode === 'opening') radius = 0.25 + 2.6 * THREE.MathUtils.smootherstep(opening, 0, 6);
-    else radius = 2.85 + 12 * THREE.MathUtils.smoothstep(alt, 0.03, 0.2);
-    open = THREE.MathUtils.smoothstep(alt, 0.14, 0.3);
-  }
-  U.uHole.value.set(holeAt.x, holeAt.y, radius);
-  U.uOpen.value = open;
-
-  ringPulse = Math.max(0, ringPulse - dt * 1.5);
-  ring.rotation.z = -steer * 0.35;
-  ring.scale.setScalar(1 + ringPulse * 0.08);
-  ring.material.opacity = mode === 'waiting' ? 0.15 + 0.5 * clamp(still / 3, 0, 1) : mode === 'idle' ? 0 : 0.16 + ringPulse * 0.5;
-
-  panelLife -= dt;
-  panel.material.opacity = clamp(panelLife, 0, 1);
-
-  stage.updateMatrixWorld();
-  placePlane(xrFrame);
-  writeMotes();
-  renderer.render(scene, camera);
-}
+// the browser view: seated at the table, looking down at where the land will be
+camera.position.set(0, 1.18, 0.5);
+camera.lookAt(0, 0.75, -0.02);
+anchor.position.set(0, 0.752, 0);
+scene.background = new THREE.Color('#231a16');
+if (params.has('play') || AUTO) preview();
 renderer.setAnimationLoop(frame);
 
-// read-only peek for tests and curious players: window.__upwards.state
-window.__upwards = {
+// read-only peek for tests and curious players
+window.__pwc = {
   get state() {
-    return { mode, alt, caught, steer, passthrough, ceiling: !!ceiling, hole: U.uHole.value.z, open: U.uOpen.value, x: P.x };
+    return {
+      mode, flight: flight.mode, cls: home.cls, seed: home.seed, birds: flock.birds.length,
+      woken: current.woken.size, land: current.id, lands: lands.length, landmarks: current.land?.landmarks.length ?? 0,
+      walker: walker?.placed ? [walker.x, walker.y] : null, panel: panel.text,
+    };
   },
+  takeOff: () => takeOff(null),
+  debug: { flock, rings, rig, anchor, flight },
 };

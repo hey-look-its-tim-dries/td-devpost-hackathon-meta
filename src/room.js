@@ -31,3 +31,17 @@ export function rayOnPlane(inv, origin, dir, box) {
 // plane above your head. Desks, beds and floors never qualify.
 export const isCeiling = (label, orientation, heightAboveHead) =>
   label ? label === 'ceiling' : orientation === 'horizontal' && heightAboveHead > 0.3;
+
+// Which detected planes can carry the land: anything labelled table, or an unlabelled horizontal
+// plane at desk height below your head. Beds, couches and floors never qualify.
+export const isTable = (label, orientation, belowHead) =>
+  label ? label === 'table' : orientation === 'horizontal' && belowHead > 0.25 && belowHead < 1.1;
+
+// Where the land sits on a table (plane space): as close to you as fits, so your fingertip reaches
+// every path. box = [minX, minZ, maxX, maxZ], head = [x, z] projected onto the plane, land in metres.
+export function landSpot(box, head, land) {
+  const size = Math.min(land, box[2] - box[0], box[3] - box[1]); // a small table shrinks the land
+  const half = size / 2;
+  const at = (v, lo, hi) => Math.min(Math.max(v, lo + half), hi - half);
+  return { x: at(head[0], box[0], box[2]), z: at(head[1], box[1], box[3]), size };
+}
