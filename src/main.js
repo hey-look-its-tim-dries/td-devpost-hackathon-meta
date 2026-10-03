@@ -160,6 +160,10 @@ const hands = [0, 1].map((i) => {
     tip: new THREE.Vector3(), tipFilter: new OneEuro({ minCutoff: 1.2, beta: 0.35 }), still: 0, last: new THREE.Vector3(),
   };
   hand.addEventListener('connected', (e) => { h.handedness = e.data.handedness || h.handedness; });
+  ctrl.addEventListener('connected', (e) => { h.controller = !e.data.hand; });
+  ctrl.addEventListener('disconnected', () => { h.controller = false; });
+  ctrl.addEventListener('selectstart', () => (h.pressing = true));
+  ctrl.addEventListener('selectend', () => (h.pressing = false));
   hand.addEventListener('disconnected', () => { h.joints = h.frame = null; });
   ctrl.addEventListener('selectstart', () => onSelect(h));
   ctrl.addEventListener('squeezestart', () => mode === 'walk' && takeOff(null));
@@ -504,6 +508,18 @@ function frame(time, xrFrame) {
   let tipWorld = null, tipState = 'none';
   if (renderer.xr.isPresenting) {
     for (const h of hands) {
+      // a controller points at the land: where its ray meets the table is the fingertip
+      if (!h.joints && h.controller && current.land) {
+        h.ctrl.getWorldPosition(tmpV);
+        const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(h.ctrl.getWorldQuaternion(new THREE.Quaternion()));
+        tablePlane.setFromNormalAndCoplanarPoint(new THREE.Vector3(0, 1, 0), anchorWorld);
+        if (new THREE.Ray(tmpV, dir).intersectPlane(tablePlane, h.tip)) {
+          h.tip.y += h.pressing ? 0.004 : 0.015;
+          h.state = h.pressing ? 'touch' : 'hover';
+          if (!tipWorld || h.state === 'touch') { tipWorld = h.tip; tipState = h.state; }
+          continue;
+        }
+      }
       if (!h.joints) { h.state = 'none'; continue; }
       const px = current.terrain.pixelOf(h.tip);
       const surface = current.land ? current.terrain.worldOf(px[0], px[1], tmpV).y : tableY;
@@ -702,5 +718,5 @@ window.__pwc = {
     };
   },
   takeOff: () => takeOff(null),
-  debug: { flock, rings, rig, anchor, flight },
+  debug: { flock, rings, rig, anchor, flight, hands, terrain: () => current.terrain },
 };

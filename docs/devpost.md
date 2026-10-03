@@ -1,88 +1,78 @@
-# Upwards: Devpost submission copy
+# Palm Whorl Cities: Devpost submission copy
 
 Paste-ready text for the Meta VR Start Developer Competition 2026 form.
-Fill in the two `TODO` links once the repo is public and the video is up.
+Fill in the `TODO` links once Pages is on and the video is up.
 
 ## Tagline (140 characters max)
 
-Lie back and your real ceiling opens into the sky. Drift up through the clouds into the stars, steered by a turn of your head.
+Your fingerprint becomes a land on your real table. Walk its paths with a fingertip, wake its wire birds, fly to other people's lands.
 
 ## About the project
 
 ## Inspiration
 
-Almost every VR experience assumes you are upright. A lot of quiet time is spent lying down, though: in
-bed before sleep, on the sofa after a long day, in a hospital bed, or with a back that will not let you
-sit for long. For those moments a headset mostly does not fit. We wanted something made for lying on
-your back, and the thing you see from there is the ceiling. So we made the ceiling open.
+A fingerprint already looks like a map. We kept staring at the old Henry classification plates (arch,
+loop, whorl) and seeing contour lines, mountain passes and winding roads. Everyone carries ten of
+these maps around, and almost nobody has really looked at one. Hand tracking finally lets the hand be
+the whole game: the controller, the creatures and the world.
 
 ## What it does
 
-Upwards starts in passthrough. You lie down, recline or sit, and look up. A pinhole of blue appears where
-your gaze meets your real ceiling. Hold still or pinch, and it opens outwards until the whole ceiling is
-sky, cut off cleanly at your real walls, which stay in view. Then you rise: through noon cumulus, into
-golden hour, dusk and night, until the clouds are gone and you are among the stars.
+You sit at a table in passthrough. An ink outline of a hand appears on your real table and you lay
+your hand in it. Six printed plates ask "Which one is yours?". You look at your own fingertip, touch
+the matching pattern, then press that fingertip on the table, and a land grows out from the spot,
+ridge by ridge.
 
-Trails of golden light drift along your path. You follow them by turning or tilting your head a little,
-or by pinching and pulling sideways. Every light you catch plays a note on a pentatonic scale, so a trail
-becomes a small melody. There is no score and no way to fail. Missing a light costs nothing.
+The ridges are walls, the white furrows between them are paths, and the ridge count towards the core
+is the height, so every land is a terraced hill. You walk the paths with your fingertip like a finger
+labyrinth. Every fork and ending in the print is a landmark: walk past it and its ridge peels off,
+folds into a V and flies away as a black wire bird that sings the curve of its own ridge.
 
-| Usual VR | Upwards |
-| --- | --- |
-| Stand up, clear a room, hold controllers | Lie down where you are, no controller needed |
-| Content floats at eye height in front of you | The sky opens in your own ceiling |
-| Arm movement is the main input | A small turn or tilt of the head, or a pinch |
-| Score, timers, fail states | No fail. The lights you catch become music |
+Lift your hand palm down and you shrink to bird size. The room gives way to a warm sky and you glide
+over a skin-coloured desert, steering by tilting your palm, to another player's land on the horizon.
+Fly into the ring over its summit and their land lies on your table, and one of their birds joins
+your flock. No timer, no score, nothing to fail.
 
 ## How we built it
 
-Upwards is a WebXR page: plain three.js and ES modules, no build step and no asset files. It requests an
-`immersive-ar` session with `hand-tracking` and `plane-detection`. Among the planes from the Quest's Space
-Setup it picks the ceiling your gaze lands on, and each pixel of the sky tests its ray from your eye
-against that plane. That is why the skylight stays fixed on the ceiling when you move your head, like a
-real window. The clouds are 340 soft billboards in one draw call, with a noise texture generated at load.
-The wind, the breathing pad and the chimes are all synthesised with Web Audio. We developed against
-Meta's Immersive Web Emulation Runtime and its scanned rooms, so the whole flow runs on a laptop.
+Plain three.js and WebXR in the Quest Browser, no build step. The lands come from our own fingerprint
+engine: an orientation field per class (the Sherlock-Monro zero-pole model), then SFinGe-style
+oriented Gabor filtering of random seeds, so ridges grow and minutiae appear where growing fronts
+meet. From the grown print we compute ridge-count terraces, a thinned path skeleton and the minutiae.
+It runs in a worker in about 150 ms. Flight shrinks the player rig 40 times instead of growing the
+world, which keeps stereo depth and head motion right. Sound is all generated with Web Audio.
 
 ## Challenges we ran into
 
-Lying down breaks the idea of "forward". Steering is therefore measured against the pose you had when you
-settled in, so the same small turn works flat on your back, reclined or sitting, and nodding does nothing.
-The second challenge was rooms we will never see. Only planes labelled as a ceiling count (beds, desks
-and shelves never do), and if no ceiling is in view the skylight becomes a virtual window two metres
-along your gaze instead of failing.
+Quest hand tracking is weakest exactly where our first ideas lived: crossed hands and interlaced
+thumbs. So the two-hand shadow bird became a loose bonus, and the main take-off is one flat hand.
+Real ridges are half a millimetre apart, far below fingertip precision, so lands regrow at a stylised
+density with paths 2 to 3 cm wide.
 
 ## Accomplishments that we're proud of
 
-It needs nothing from you but your head. There is nothing to download beyond a web page, and a player can
-go from a link to lying under an open sky in under a minute.
+Six fingerprint classes that look right, grown from nothing, each a different kind of landscape.
+And a privacy story we can stand behind: we never need your real fingerprint.
 
 ## What we learned
 
-Comfort lying down is mostly about what does not happen: no sudden motion, no text outside a 30 degree
-panel, nothing that asks you to lift your arms. Scene understanding is most convincing when it is quiet.
-A hole that stays exactly on your ceiling sells the illusion more than any effect.
+Fingerprints are biometric data and hand-tracking data identifies people too. Designing around that
+from day one (choose your class, grow the rest from a seed, use hand data live only) made the game
+simpler, not weaker.
 
-## What's next for Upwards
+## What's next for Palm Whorl Cities
 
-Cloud watching (rest your gaze on a cloud and it slowly takes a shape), a night-sky ending where the
-lights you gathered become your own constellation, a spatial anchor so your sky returns to the same spot
-every evening, and a sleep mode where the journey slows and the session ends itself.
+A shared atlas of everyone's lands, an optional phone page that reads your real print's class and
+ridge count without keeping the photo, cities that grow along the paths you walk, and your palm as
+the desert between your five fingertip lands.
 
 ## How hand interactions are implemented
 
-Every action works with hands alone, and also without hands:
-
-| Action | Hands | Head only |
-| --- | --- | --- |
-| Place the sky | Pinch | Look at the ceiling and hold still for 3 seconds |
-| Drift left or right | Pinch and pull sideways (15 cm is a full turn) | Turn or tilt your head |
-| Recentre | Double pinch | System recentre is picked up automatically |
-
-Hands come from the WebXR `hand-tracking` feature and are drawn as three.js hand meshes. A pinch arrives
-as the input source's `select` event. While pinched, the hand's sideways travel in the sky's frame is the
-steering amount, so it works the same whichever way you are lying. The pinch-and-pull stays low and close
-to the body, so nobody has to hold their arms up.
+Everything is hands first: lay your hand on the outline to place the land, poke a plate to choose
+your pattern, press a fingertip to grow it, hover or touch to walk (a One Euro filtered fingertip
+with touch hysteresis, snapped to the path within 2.5 cm), lift one hand palm down to fly, tilt the
+palm to steer. Pinch works as "yes" at every step, the grip takes off, and the head steers when no
+hand is in view. Hand data is used live only and never stored or sent.
 
 ## Built With
 
@@ -98,6 +88,6 @@ Node.js, Claude Code
 
 ## Track, division, launch
 
-- Track: Entertainment. Division: New Experience (built from 24 September 2026).
-- Also in the running for: Accessibility, Boldest Concept.
+- Track: Gaming. Division: New Experience (built from 24 September 2026).
+- Also in the running for: Boldest Original Concept, Best First Five Minutes.
 - Target launch date: live on the web at submission (November 2026). Being a WebXR page, the submission is the launch.

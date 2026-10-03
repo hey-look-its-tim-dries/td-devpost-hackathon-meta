@@ -1,120 +1,135 @@
+<h1 align="center">Palm Whorl Cities</h1>
+
+<p align="center"><b>Your fingerprint is a world.</b><br/>
+Look at your fingertip and a land grows on your real table in its pattern. Walk its white paths with
+your finger, free the wire birds sleeping in its ridges, then lift your hand and fly to the lands of
+other people.</p>
+
 <p align="center">
-  <img src="docs/screenshots/01-title.jpg" alt="Upwards title screen: an azure sky full of soft clouds" width="820" />
+  <img src="docs/screenshots/08-landed.jpg" alt="A fingerprint land lying on a table, with black wire birds flying above it" width="820" />
 </p>
-
-<h1 align="center">Upwards</h1>
-
-<p align="center"><b>Lie back. Your ceiling opens into the sky, and you drift up through the clouds into the stars.</b><br/>
-A mixed reality relaxation journey for Meta Quest that you steer with a turn of your head.</p>
 
 <p align="center">
   <a href="https://hey-look-its-tim-dries.github.io/td-devpost-hackathon-meta/">Play it</a> ·
-  <a href="https://start-developer-competition-26.devpost.com/">Meta VR Start Developer Competition 2026</a>
+  <a href="https://start-developer-competition-26.devpost.com/">Meta VR Start Developer Competition 2026</a><br/>
+  A mixed reality game for Meta Quest, hands only, played seated at a table
 </p>
 
 ## Project description
 
-Almost every VR experience assumes you are upright. Standing, or at least sitting straight with your
-hands up in front of you. But a lot of people spend their quiet time lying down: in bed before sleep,
-on the sofa after a long day, in a hospital bed, or at home with a back that will not let them sit for
-long. For them a headset is mostly a thing that does not fit.
+A fingerprint already looks like a map. Its ridges are contour lines, the white furrows between them
+are roads, and the little quirks a fingerprint expert looks for (a ridge that forks, a ridge that ends,
+a lonely dot) are landmarks. Palm Whorl Cities takes that literally.
 
-Upwards is built for exactly that position. You lie on your back (or recline, or sit if you prefer),
-look at the ceiling and settle in. A small hole of blue appears where you are looking. When you hold
-still, or pinch, it opens into a skylight: your real room stays around the edges in passthrough, and
-above you is an azure sky with drifting clouds. Over the next minutes the skylight widens until the
-sky is all around you, and you rise slowly through the cloud layers, into golden hour, dusk, night and
-finally the quiet of space.
+You sit at a table with the headset on. An ink outline of a hand appears on your real table, and you
+lay your hand in it. Six small printed plates ask "Which one is yours?": arch, tented arch, loop,
+central pocket loop, whorl and double loop. You look at your own fingertip and touch the one that
+matches. Then you press that fingertip on the table, and the land grows out from the spot, ridge by
+ridge, the way real fingerprints form before birth.
 
-There is nothing to fail. Trails of golden light float along your path, and you follow them by turning
-or tilting your head a little. Every light you catch plays a note, so a trail becomes a small melody.
-Catching lights speeds up your climb a bit. Missing them costs nothing.
+- **Walk.** Slide your fingertip into a white path and walk it like a finger labyrinth. The walker
+  can never cross a ridge, the path lights up behind you, and every terrace you climb towards the
+  core rings one note higher.
+- **Wake the birds.** Each landmark you pass wakes a bird: the ridge lifts off the land, folds into a
+  V and flies, leaving a gap in the wall. Its wings keep the exact curve of that ridge and it sings
+  that curve, so no two birds are alike.
+- **Fly.** Lift your hand off the land, palm down, fingers spread. You shrink to bird size, the room
+  gives way to a warm sky, and you glide over the skin-coloured desert between the prints, steering
+  by tilting your hand.
+- **Visit other people.** Another player's land rises on the horizon in a different ink. Fly into the
+  ring above its summit and you land there: their land now lies on your table, and one of their
+  birds joins your flock.
 
-| Usual VR | Upwards |
+There is nothing to fail, no timer and no score. Your land and your flock are remembered for next time.
+
+| Usual hand-tracking games | Palm Whorl Cities |
 | --- | --- |
-| Stand up, clear a room, hold controllers | Lie down where you are. No controllers needed |
-| Content is placed in front of you at eye height | The sky is wherever you looked when you settled in |
-| Arm movement is the main input | A small turn or tilt of the head is enough. Hands are optional |
-| Score, timers, fail states | No score, no fail. Lights you catch become music |
+| Hands hold virtual tools | Your hand is the controller, the creature and the map |
+| Levels are made by designers | Every land is a player's own fingerprint pattern |
+| The room is a backdrop | Your real table is the ground the land grows on |
+| Score and fail states | Calm: every path leads somewhere, every landmark is a bird |
 
-### The journey
+### Six fingerprint classes, six kinds of land
 
-**Noon.** Soft cumulus all around, the sun off to the side, the first trail of lights arriving within seconds.
+Every land is grown from scratch from its class and a random seed. The class decides the flow of the
+ridges, the seed decides the landmarks. These six were all grown by the game:
 
-![Noon: soft clouds, a trail of golden lights and the catch ring](docs/screenshots/02-noon.jpg)
+![The six grown fingerprint classes: arch, tented arch, loop, central pocket loop, whorl and double loop, with their paths in white and landmarks as coloured dots](docs/screenshots/03-six-classes.jpg)
 
-**Golden hour.** The clouds warm up and the horizon turns peach.
+### The first minutes
 
-![Golden hour](docs/screenshots/03-golden.jpg)
-
-**Dusk.** Pink and violet light. The clouds start to thin out below you.
-
-![Dusk](docs/screenshots/04-dusk.jpg)
-
-**Space.** The clouds are gone, the stars come out, and the lights keep coming for as long as you want to stay.
-
-![Space](docs/screenshots/05-space.jpg)
-
-### Your ceiling opens (passthrough)
-
-On a Quest the session starts in mixed reality and asks the headset for the room it knows from
-Space Setup (WebXR plane detection). The skylight is cut into **your real ceiling**: a pinhole of blue
-appears where your gaze meets the ceiling, and when you settle it opens outwards until the whole
-ceiling is sky, clipped to its real edges, while your walls stay in passthrough. Every pixel's ray from
-your eye is tested against the ceiling plane, so the hole stays fixed on the ceiling when you move your
-head, like a real window. Later in the climb the room fades and the sky is all around you.
-
-It does not depend on any one room: any plane labelled `ceiling` (or, on runtimes without labels, a
-horizontal plane above your head) is used, beds, desks and shelves never are, and if there is no
-ceiling in view (no Space Setup, sitting upright looking at a wall) the skylight becomes a virtual
-window two metres along your gaze.
-
-| Settling in: a pinhole on the ceiling | Open: the whole ceiling, walls stay real |
+| | |
 | --- | --- |
-| ![A small round skylight on the ceiling of the emulated living room](docs/screenshots/08-ceiling-pinhole.jpg) | ![The skylight filling the ceiling, clipped straight at the wall](docs/screenshots/06-xr-emulated.jpg) |
+| ![Six printed plates float above the table with the question "Which one is yours?"](docs/screenshots/02-choose.jpg) | ![The land growing across the table from where the fingertip pressed](docs/screenshots/04-growing.jpg) |
+| Which one is yours? | The land grows from your fingertip |
+| ![A whorl land on the table, a wire bird peeling off its ridge](docs/screenshots/05-first-bird.jpg) | ![Flying low over the land at bird size, the skin desert and another land ahead](docs/screenshots/06-flying.jpg) |
+| A ridge wakes as a bird | Bird-sized, over your own land |
 
-Both shots come from Meta's Quest 3 emulator lying on your back in its scanned living room.
+![Another player's land on the horizon of the skin desert, with its landing ring](docs/screenshots/07-another-land.jpg)
 
-## How you play (head, hands and gaze)
+### In the headset
 
-The whole experience works without a controller, and also without hands. Every input has an alternative.
+Seen through Meta's Quest 3 emulator (IWER), which renders a scanned sample room where your real
+room would be:
 
-| Action | Head | Hands | Controller |
-| --- | --- | --- | --- |
-| Start (place the sky) | Look where you want the sky and hold still for 3 s | Pinch | Trigger |
-| Drift left or right | Turn your head, or tilt it ear to shoulder | Pinch and pull sideways | Trigger and pull |
-| Recentre | System recentre (hold the Meta button) is picked up automatically | Double pinch | Double trigger |
+| | |
+| --- | --- |
+| ![The pattern plates and the question card in the emulated room, with tracked hands](docs/screenshots/09-headset-choose.jpg) | ![Flying over the desert towards another land, seen in the emulator](docs/screenshots/10-headset-flight.jpg) |
 
-Steering is always measured against the pose you had when you settled in, so the same small movement
-works whether you are lying flat, reclined or sitting. Turning and tilting both count, so everyone can
-use whatever their neck and pillow allow. Nodding does nothing. A thin ring 6 m ahead shows where lights
-are caught, and it banks as you steer so you can feel the controls working. All text sits inside a
-30 degree panel, well inside the field of view of every Meta headset.
+## Hands first
+
+Everything works with hands alone. Every action also has an easier alternative.
+
+| Action | Hands | Alternative |
+| --- | --- | --- |
+| Place the land | Lay your hand flat in the outline on the table | Pinch, or the trigger |
+| Pick your pattern | Touch the plate with your fingertip | Look at it and pinch |
+| Grow the land | Press your fingertip on the table | Pinch |
+| Walk the paths | Fingertip touching or hovering within 4 cm | Point a controller at the land |
+| Take off | Lift one hand, palm down, fingers spread (or cross your hands into a shadow bird) | Squeeze the grip |
+| Steer | Tilt your palm: bank to turn, fingers up to climb | Turn or tilt your head |
+| Land | Fly into the ring over a summit | Same |
+
+Quest hand tracking is steadiest at the wrist and knuckles and weakest when hands overlap. So steering
+reads the tilt of your palm, walking forgives about 2.5 cm, and the two-hand shadow bird is a loose
+bonus move rather than the only way up. The lands are regrown at a stylised ridge density, so the
+paths are 2 to 3 cm wide and a fingertip fits.
+
+## Your hand, not your data
+
+Fingerprints are biometric data, so the game is built so it never needs yours:
+
+- The land comes from the pattern class you choose plus a random seed. Real minutiae, the details
+  that identify a person, never exist anywhere in the game.
+- Hand tracking is used live for interaction only. Nothing measured from your hand (sizes, joint
+  positions, shape) is stored, sent or used to shape a land, as Meta's hand-data policy requires.
+- What the headset remembers is your chosen class, the seed, and the wire shapes of your birds.
 
 ## Components and tech
 
 | Component | Role | Where |
 | --- | --- | --- |
-| three.js 0.186 (WebGL 2) | Rendering, WebXR session, hand models | [src/main.js](src/main.js) |
-| WebXR `immersive-ar` + `hand-tracking` + `plane-detection` | Passthrough, skylight cut into the detected ceiling, pinch input, falls back to `immersive-vr` | [src/main.js](src/main.js) |
-| Room maths | Which planes count as a ceiling, where your gaze lands on one | [src/room.js](src/room.js) |
-| Head steering math | Turn and tilt relative to the calibrated pose, dead zone, clamp | [src/steer.js](src/steer.js) |
-| Cloud renderer | Procedural fBm puff atlas generated at load, 340 instanced billboards in one draw call, self-shadowing and aerial fade | [src/main.js](src/main.js) |
-| Sky, stars, skylight | One shader dome with sun, portal mask and glowing rim; 3,500 twinkling stars | [src/main.js](src/main.js) |
-| Sound | All generated with Web Audio: wind, a breathing pad, pentatonic chimes with reverb | [src/audio.js](src/audio.js) |
-| IWER (Meta's Immersive Web Emulation Runtime) + `@iwer/sem` | Quest 3 emulation on desktop with `?emulate`, in a scanned room with planes and passthrough video | [src/main.js](src/main.js) |
-| Unit tests | Steering maths ("lying down steers exactly like sitting") and ceiling picking | [tests/](tests/) |
+| three.js 0.186 + WebXR | Rendering, `immersive-ar` passthrough, hand tracking, plane detection | [src/main.js](src/main.js) |
+| Fingerprint engine | Orientation fields per class (Sherlock-Monro zero-pole model), SFinGe-style oriented Gabor growth, ridge-count terraces, path skeletons, minutiae landmarks | [src/print/land.js](src/print/land.js) |
+| Land worker | Grows lands off the main thread and streams the growth to the table | [src/print/worker.js](src/print/worker.js) |
+| Terrain | The land as a relief: ink ridges, terraces, walked paths, birth animation | [src/terrain.js](src/terrain.js) |
+| Gestures | Palm frame, palm-down take-off, touch hysteresis, palm tilt, shadow bird | [src/gesture.js](src/gesture.js) |
+| Walking | Path following that never crosses a ridge, autopilot routes | [src/walk.js](src/walk.js) |
+| Wire birds | Ridges as wings, flocking, ink ribbons in one draw call | [src/birds.js](src/birds.js), [src/ink.js](src/ink.js) |
+| Flight | Shrinks you, not the world; sky and skin desert | [src/flight.js](src/flight.js) |
+| Table finding | Detected table planes, then your flat hand, otherwise a sensible default | [src/room.js](src/room.js), [src/main.js](src/main.js) |
+| Sound | Generated with Web Audio: sand, wind, pentatonic terraces, bird songs | [src/audio.js](src/audio.js) |
+| Atlas and memory | Other players' lands (bundled for now), local save | [src/atlas.js](src/atlas.js) |
 
-No build step, no bundler and no asset files. The page is plain HTML and ES modules, so GitHub Pages serves it as is.
+No build step and no asset files: plain HTML and ES modules, served as they are.
 
 ## Setup
 
 ### Play on a Meta Quest
 
-1. Put on the headset and open the **Meta Quest Browser**.
-2. Go to **https://hey-look-its-tim-dries.github.io/td-devpost-hackathon-meta/**
-3. Lie down or recline, then tap **Begin in headset** and allow hand tracking when asked.
-4. Look at the ceiling where you want the sky and hold still (or pinch).
+1. Open the **Meta Quest Browser** and go to https://hey-look-its-tim-dries.github.io/td-devpost-hackathon-meta/
+2. Sit at a table with a lamp on (Quest 3 hand tracking needs some light).
+3. Tap **Begin in headset**, allow hand tracking, and lay your hand on the outline on your table.
 
 ### Run it locally
 
@@ -126,25 +141,15 @@ cd td-devpost-hackathon-meta
 python3 -m http.server 8123
 ```
 
-Then open http://localhost:8123/ and choose **Preview in the browser**. Move the mouse or hold the
-arrow keys to drift.
+Open http://localhost:8123/ and choose **Preview in the browser**. Click the table to place the hand,
+click a plate, click the table to grow the land, then hover the mouse over the land to walk (hold the
+button to press down). **F** takes off, the arrow keys steer.
 
 ### Try the headset flow without a headset
 
-Open http://localhost:8123/?emulate. This loads Meta's IWER emulator with a virtual Quest 3 and its
-dev UI, so you can enter the XR session, move the head and pinch with emulated hands.
-
-![The IWER dev UI driving an emulated Quest 3](docs/screenshots/07-devui.jpg)
-
-### Test on your own Quest from your laptop
-
-WebXR needs a secure page. The easiest way from a dev machine is USB and `adb`:
-
-```bash
-adb reverse tcp:8123 tcp:8123
-```
-
-Then open http://localhost:8123/ in the Quest Browser.
+Open http://localhost:8123/?emulate for Meta's IWER emulator with a virtual Quest 3, tracked hands and
+a scanned sample room. To test on your own Quest from your laptop, connect it over USB, run
+`adb reverse tcp:8123 tcp:8123`, then open http://localhost:8123/ in the Quest Browser.
 
 ### Tests
 
@@ -157,23 +162,25 @@ node --test tests/*.test.mjs
 | Parameter | Effect |
 | --- | --- |
 | `?play` | Skip the title and start the browser preview |
-| `?alt=0.6` | Start at an altitude between 0 (noon) and 1 (space) |
-| `?auto` | Autopilot follows the lights (for screenshots and demos) |
-| `?emulate` | Quest 3 emulation with IWER (`&nodevui` hides its panel) |
-| `&room=office_small` | Emulated room: `living_room` (default), `office_small`, `office_large`, `meeting_room`, `music_room` |
+| `?cls=whorl&seed=7` | Grow a specific land straight away |
+| `?auto` | Autopilot: walks to the landmarks, takes off and flies to the next land |
+| `?fresh` | Ignore what this browser remembers |
+| `?emulate` | Quest 3 emulation with IWER (`&nodevui` hides its panel, `&room=office_small` changes the room) |
 
 ## Competition fit
 
-- **Track:** Entertainment (lean-back, music visualisation, spatial audio). **Division:** New Experience, built from 24 September 2026.
-- **Hands first:** the full experience runs without a controller. Hands, head and controller each cover every action.
-- **Seated or reclined, 2 ft radius:** nothing asks you to move more than your head.
-- **Platform features:** passthrough with scene understanding (the sky opens in your detected ceiling), hand tracking, head gaze steering, FoV-aware UI.
-- **Pause and resume:** opening the Meta menu hides the session; the sound suspends and the journey picks up where it was.
-- **Accessibility:** eyes and head only play for limited mobility, no fail state, no reading required to play.
+- **Track:** Gaming. **Division:** New Experience, conceived and built from 24 September 2026.
+- **Hands first:** the whole game runs without ever pairing a controller.
+- **Purposeful passthrough:** the land grows on your real table, found through scene understanding,
+  with your flat hand as the fallback.
+- **Seated, two-foot radius:** everything happens on the table in front of you.
+- **Boldest original concept:** your own hand is the controller, the creatures and the map.
 
 ## What's next
 
-- Cloud watching: rest your gaze on a cloud and it slowly takes a shape (a whale, a bird) for your sky journal
-- A night-sky ending where the lights you gathered become your own constellation
-- Spatial anchor for "my ceiling", so the sky comes back in the same spot every evening
-- Sleep mode: the journey slows, the music fades, the session ends itself
+- The shared atlas: everyone's lands stitched together through a small server, with the bundled
+  atlas as the fallback
+- An optional phone page that reads your real fingertip's class, core, delta and ridge count, deletes
+  the photo, and sends only those few numbers
+- Cities growing along your paths as you walk them, visible from one session to the next
+- Your palm as the desert: its three big creases as canyons between your five fingertip lands
