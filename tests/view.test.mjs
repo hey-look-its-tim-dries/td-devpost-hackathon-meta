@@ -12,3 +12,7 @@ test('the far plane lies past the point where the fog has hidden everything', ()
   assert.ok(FAR > hidden, `far ${FAR} m, fog closes at ${Math.round(hidden)} m`);
   assert.ok(FAR / NEAR < 5e5, 'keep depth precision for the coasts');
 });
+
+test('you see the wilderness to 30 km before the fog closes', () => {
+  assert.ok(Math.sqrt(Math.log(100)) / FOG_DENSITY >= 29000);
+});
