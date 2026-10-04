@@ -171,7 +171,7 @@ node --test tests/*.test.mjs
 | `?cls=whorl&seed=7` | Grow a specific land straight away |
 | `?auto` | Autopilot: walks to the landmarks, takes off and flies to the next land |
 | `?fresh` | Ignore what this browser remembers |
-| `?emulate` | Quest 3 emulation with IWER (`&nodevui` hides its panel, `&room=office_small` changes the room) |
+| `?emulate` | Quest 3 emulation with IWER (`&device=glasses` for the Meta VR Glasses, `&nodevui` hides its panel, `&room=office_small` changes the room) |
 
 ## Competition fit
 

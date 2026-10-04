@@ -26,8 +26,9 @@ const AUTO = params.has('auto'); // autopilot for demos and headless tests
 // ?emulate: a Meta Quest 3 in a desktop browser (IWER, Meta's WebXR emulator), a scanned room so
 // plane detection finds a real table, and the emulator's dev UI
 if (params.has('emulate')) {
-  const { XRDevice, metaQuest3 } = await import('https://esm.sh/iwer@2.5.0');
-  const device = new XRDevice(metaQuest3);
+  const { XRDevice, metaQuest3, metaVRGlasses } = await import('https://esm.sh/iwer@2.5.0');
+  // &device=glasses: the Meta VR Glasses profile (narrower view) to check nothing essential is cut off
+  const device = new XRDevice(params.get('device') === 'glasses' ? metaVRGlasses : metaQuest3);
   device.installRuntime({ forceInstall: true });
   window.__device = device;
   try {
