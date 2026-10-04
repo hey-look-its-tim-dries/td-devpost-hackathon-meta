@@ -14,6 +14,7 @@ import { createWorldScene } from './world/scene.js';
 import { createSurface } from './world/surface.js';
 import { wildHeight } from './world/wild.js';
 import { WORLD } from './world/units.js';
+import { loadHorizon } from './world/horizon.js';
 import { startWebcamHands } from './webcam-hands.js';
 import { NEAR, FAR } from './view.js';
 
@@ -59,6 +60,8 @@ rig.add(camera);
 const world = createWorldScene();
 const surface = createSurface(world.shared); // the Hands and the endless wilderness, one level-of-detail terrain
 surface.meshes.forEach((m) => scene.add(m));
+// ?horizon=<url of a .spz>: an AI-generated splat world as a distant backdrop (a test)
+if (params.get('horizon')) loadHorizon(scene, renderer, params.get('horizon'), { scale: +(params.get('horizonScale') ?? 500) });
 rig.add(world.sky);
 const panel = createPanel();
 rig.add(panel.mesh);
