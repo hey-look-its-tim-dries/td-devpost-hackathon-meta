@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js';
 import { headSteer } from './steer.js';
 import { startAudio, pauseAudio, setWind } from './audio.js';
-import { JOINTS, palmFrame, createPalmDown, palmTilt, OneEuro, palmDownChecks } from './gesture.js';
+import { JOINTS, palmFrame, OneEuro, createSteer, steerChecks, pointSteer } from './gesture.js';
 import { createGestureCard } from './gesturecard.js';
 import { createPanel } from './panel.js';
 import { createInk } from './ink.js';
@@ -97,7 +97,8 @@ const knots = FOUNDERS.flatMap((f) => f.prints.map(unpackPrint).map((p, j) => {
   const knot = createKnot({ cls: p.cls, seed: p.seed, center: [cx, 70 + j * 7, cz], radius: 15 + j * 2, tilt: 0.35 + j * 0.18 });
   return { knot, line: createScribble({ ...LINE, at: knot.step(0, 0), seed: p.seed }) };
 }));
-const glide = createGlide({ pos: params.get('at')?.split(',').map(Number) ?? [0, 230, 1150] }); // ?at=x,y,z to start elsewhere
+// faster the higher you fly (35 m/s skimming, 120 m/s up high), and diving adds half again
+const glide = createGlide({ pos: params.get('at')?.split(',').map(Number) ?? [0, 230, 1150], turnRate: 0.75, climbRate: 25, speedAt: (h) => Math.min(120, Math.max(35, 35 + 0.35 * h)) }); // ?at=x,y,z to start elsewhere
 const mine = [0, 1, 2, 3, 4].map((j) => createScribble({ ...LINE, at: [glide.pos[0] + (j - 2) * 14, glide.pos[1] - 20, glide.pos[2] - 95], seed: 900 + j }));
 const ink = createInk((knots.length + mine.length) * (LINE.points + 1), { width: 0.32, color: '#16100e' });
 scene.add(ink.mesh);
@@ -109,7 +110,7 @@ const xrHands = [0, 1].map((i) => {
   const hand = renderer.xr.getHand(i);
   hand.add(handFactory.createHandModel(hand, 'mesh'));
   rig.add(hand);
-  const h = { hand, handedness: i ? 'right' : 'left', frame: null, palmDown: createPalmDown({ minHeight: 0 }), ref: null, store: Object.fromEntries(JOINTS.map((n) => [n, [0, 0, 0]])) };
+  const h = { hand, handedness: i ? 'right' : 'left', frame: null, hold: createSteer(), engaged: false, store: Object.fromEntries(JOINTS.map((n) => [n, [0, 0, 0]])) };
   hand.addEventListener('connected', (e) => { h.handedness = e.data.handedness || h.handedness; });
   return h;
 });
@@ -127,7 +128,7 @@ async function useWebcam() {
   if (webcam) return;
   try {
     webcam = await startWebcamHands();
-    panel.say('Relaxed hand, palm down, tilt to steer', 6);
+    panel.say('Raise a hand and point where you want to fly', 6);
   } catch (e) {
     console.error('webcam hands unavailable', e);
     panel.say('No webcam: steer with A D and W S', 5);
@@ -159,8 +160,7 @@ function readHands(dt) {
       if (ok) for (const n of JOINTS) j[n].position.toArray(h.store[n]);
     }
     h.frame = ok ? palmFrame(h.store, h.handedness) : null;
-    if (!h.palmDown.update(h.frame, handFloor(), dt)) h.ref = null;
-    else if (!h.ref && h.frame) h.ref = JSON.parse(JSON.stringify(h.frame)); // the pose you started steering in
+    h.engaged = h.hold.update(h.frame, handFloor(), dt) && !!h.frame; // a raised open hand, held a moment
   }
   handInk.end();
 }
@@ -185,16 +185,12 @@ addEventListener('pointermove', (e) => {
   look.yaw -= e.movementX * 0.003;
   look.pitch = Math.max(-1.3, Math.min(0.6, look.pitch - e.movementY * 0.003));
 });
-const clamp1 = (v) => Math.max(-1, Math.min(1, v));
 let started = false, handSteering = false;
 function steering() {
   if (AUTO || !started) return { turn: 0.12, climb: 0 }; // the title screen is the world, drifting
   if (renderer.xr.isPresenting || webcam) {
-    const h = xrHands.find((q) => q.ref && q.frame);
-    if (h) {
-      const { roll, pitch } = palmTilt(h.frame, h.ref);
-      return { turn: clamp1(roll / 0.45), climb: clamp1(pitch / 0.45) };
-    }
+    const h = xrHands.find((q) => q.engaged); // your fingers are the arrow
+    if (h) return pointSteer(h.frame.forward);
     if (renderer.xr.isPresenting) {
       headNeutral ||= headQuat.toArray();
       return { turn: 0.6 * headSteer(headNeutral, headQuat.toArray()), climb: 0 };
@@ -208,20 +204,23 @@ function steering() {
 
 const clock = new THREE.Clock();
 let t = 0, fps = 60;
+const steer = { turn: 0, climb: 0 }; // eased, so a jittery hand still flies smoothly
 function frame() {
   const dt = Math.min(clock.getDelta(), 0.05);
   t += dt;
   fps += (1 / Math.max(dt, 1e-3) - fps) * 0.05;
   readHead();
   readHands(dt);
-  const steer = steering();
+  const want = steering(), ease = 1 - Math.exp(-dt * 6);
+  steer.turn += (want.turn - steer.turn) * ease;
+  steer.climb += (want.climb - steer.climb) * ease;
   // the gesture card shows the hand that steers, or else the one closest to the steering gesture;
   // the drawn webcam hand turns red while it steers
-  const seen = xrHands.filter((q) => q.frame).map((q) => ({ q, c: palmDownChecks(q.frame, handFloor()) }));
-  const best = seen.find((x) => x.q.ref) ?? seen.sort((a, b) => ['down', 'open', 'raised'].filter((k) => b.c[k].ok).length - ['down', 'open', 'raised'].filter((k) => a.c[k].ok).length)[0];
-  const steeringNow = !!best?.q.ref;
+  const seen = xrHands.filter((q) => q.frame).map((q) => ({ q, c: steerChecks(q.frame, handFloor()) }));
+  const best = seen.find((x) => x.q.engaged) ?? seen.sort((a, b) => ['open', 'raised'].filter((k) => b.c[k].ok).length - ['open', 'raised'].filter((k) => a.c[k].ok).length)[0];
+  const steeringNow = !!best?.q.engaged;
   // shown while hands can steer (webcam or headset), even before a hand is seen
-  card.update(dt, started && (webcam || renderer.xr.isPresenting) ? { checks: best?.c ?? null, progress: best?.q.palmDown.progress ?? 0, steering: steeringNow, turn: steer.turn, climb: steer.climb } : null);
+  card.update(dt, started && (webcam || renderer.xr.isPresenting) ? { checks: best?.c ?? null, progress: best?.q.hold.progress ?? 0, steering: steeringNow, turn: steer.turn, climb: steer.climb } : null);
   if (steeringNow !== handSteering) {
     handSteering = steeringNow;
     handInk.mesh.material.uniforms.uColor.value.set(steeringNow ? '#a8402b' : '#16100e');
@@ -229,7 +228,15 @@ function frame() {
   glide.update(dt, steer, groundAt);
   rig.position.fromArray(glide.pos);
   rig.rotation.y = glide.yaw;
-  if (!renderer.xr.isPresenting) camera.rotation.set(look.pitch, look.yaw, 0, 'YXZ');
+  if (!renderer.xr.isPresenting) {
+    camera.rotation.set(look.pitch, look.yaw, 0, 'YXZ');
+    // on a screen the view widens a little with speed, so you feel it (never in the headset: comfort)
+    const fov = 65 + 12 * Math.min(1, Math.max(0, (glide.speed - 35) / 85));
+    if (Math.abs(camera.fov - fov) > 0.05) {
+      camera.fov += (fov - camera.fov) * (1 - Math.exp(-dt * 2));
+      camera.updateProjectionMatrix();
+    }
+  }
   setWind(started ? 0.25 + 0.35 * Math.abs(steer.turn) : 0);
 
   ink.begin();
@@ -264,7 +271,7 @@ function start() {
   startAudio();
   banner.classList.add('hidden');
   panel.say('Palm Whorl Cities', 4);
-  setTimeout(() => panel.say(renderer.xr.isPresenting ? 'Palm down, tilt it to steer' : 'A D turn · W S climb · drag to look', 6), 4200);
+  setTimeout(() => panel.say(renderer.xr.isPresenting ? 'Raise a hand, point where you want to fly' : 'A D turn · W S climb · drag to look', 6), 4200);
 }
 async function enterHeadset() {
   startAudio();
@@ -299,6 +306,6 @@ renderer.setAnimationLoop(frame);
 // read-only peek for tests and curious players
 window.__pwc = {
   get state() {
-    return { hands: hands.length, pos: glide.pos.map(Math.round), yaw: +glide.yaw.toFixed(2), fps: Math.round(fps), scribbles: knots.length + mine.length, started, webcam: webcam ? webcam.update().map((q) => q.handedness) : null, steering: xrHands.some((q) => q.ref), palm: xrHands.map((q) => q.frame && q.frame.normal.map((v) => +v.toFixed(2))), hand: xrHands.map((q) => q.frame && { down: +(-q.frame.normal[1]).toFixed(2), open: +q.frame.extension.toFixed(2), height: +q.frame.center[1].toFixed(2) }), calls: renderer.info.render.calls, xr: renderer.xr.isPresenting };
+    return { hands: hands.length, pos: glide.pos.map(Math.round), yaw: +glide.yaw.toFixed(2), fps: Math.round(fps), scribbles: knots.length + mine.length, started, webcam: webcam ? webcam.update().map((q) => q.handedness) : null, steering: xrHands.some((q) => q.engaged), palm: xrHands.map((q) => q.frame && q.frame.normal.map((v) => +v.toFixed(2))), hand: xrHands.map((q) => q.frame && { point: q.frame.forward.map((v) => +v.toFixed(2)), open: +q.frame.extension.toFixed(2), height: +q.frame.center[1].toFixed(2) }), speed: Math.round(glide.speed), calls: renderer.info.render.calls, xr: renderer.xr.isPresenting };
   },
 };

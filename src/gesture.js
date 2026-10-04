@@ -98,6 +98,31 @@ export function palmDownChecks(frame, floorY = -Infinity) {
   return { down, open, raised, all: down.ok && open.ok && raised.ok };
 }
 
+// Steering by pointing: your fingers are an arrow. Up climbs, down dives, pointing or leaning left or
+// right turns. forward is the wrist-to-middle-knuckle direction in your own frame (x right, y up, -z
+// ahead); a small dead zone keeps a resting hand from drifting.
+export function pointSteer(forward, gain = 0.45, dead = 0.06) {
+  const axis = (v) => Math.sign(v) * Math.min(1, Math.max(0, Math.abs(v) - dead) / (gain - dead));
+  return { turn: axis(forward[0]), climb: axis(forward[1]) };
+}
+
+// What engages pointing: a hand held up in front of you (not resting on your lap) that is not a fist,
+// whichever way the palm faces. Parts as in palmDownChecks.
+export function steerChecks(frame, floorY = -Infinity) {
+  const { open, raised } = palmDownChecks(frame, floorY);
+  return { open, raised, all: open.ok && raised.ok };
+}
+export function createSteer({ holdOn = 0.4, holdOff = 0.3, dropTolerance = 0.25 } = {}) {
+  const l = latch(holdOn, holdOff, dropTolerance);
+  return {
+    get active() { return l.active; },
+    get progress() { return l.progress; },
+    update(frame, floorY, dt) {
+      return frame ? l.update(steerChecks(frame, floorY).all, dt) : l.update(null, dt);
+    },
+  };
+}
+
 // Steering on: the relaxed palm-down gesture (palmDownChecks) above a floor height, held a moment.
 export function createPalmDown({ holdOn = 0.5, holdOff = 0.3, minHeight = 0.08, dropTolerance = 0.25 } = {}) {
   const l = latch(holdOn, holdOff, dropTolerance);

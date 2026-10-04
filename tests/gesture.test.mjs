@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { JOINTS, palmFrame, OneEuro, createPalmDown, createTouch, palmTilt, createShadowBird, palmDownChecks } from '../src/gesture.js';
+import { JOINTS, palmFrame, OneEuro, createPalmDown, createTouch, palmTilt, createShadowBird, palmDownChecks, steerChecks, createSteer, pointSteer } from '../src/gesture.js';
 
 // A synthetic hand: palm down, fingers pointing away (-z), then rolled, pitched and moved.
 // curl bends the fingers towards the palm; spread fans them out.
@@ -137,4 +137,32 @@ test('palm down shows how far through the hold it is, then 1 while active', () =
   assert.equal(d.progress, 1);
   d.update(palmFrame(hand('right', { curl: 1 }), 'right'), -Infinity, 0.05);
   assert.equal(d.progress, 1); // still active while the release hold runs
+});
+
+test('your hand is the arrow: fingers up climbs, down dives, left and right turn', () => {
+  const near = (a, b) => Math.abs(a - b) < 1e-9;
+  let s = pointSteer([0, 0, -1]); // fingers to the horizon: level, straight on
+  assert.ok(near(s.turn, 0) && near(s.climb, 0));
+  assert.equal(pointSteer([0, 1, 0]).climb, 1);
+  assert.equal(pointSteer([0, -1, 0]).climb, -1);
+  assert.equal(pointSteer([1, 0, 0]).turn, 1);
+  assert.equal(pointSteer([-1, 0, 0]).turn, -1);
+  s = pointSteer([Math.sin(0.3), Math.cos(0.3), 0]); // an upright hand leaning right
+  assert.ok(s.turn > 0.4 && s.climb > 0.9);
+  assert.ok(near(pointSteer([0.03, 0.02, -1]).turn, 0), 'a small wobble does nothing');
+});
+
+test('any raised hand that is not a fist engages after the hold; palm direction does not matter', () => {
+  const upright = palmFrame(hand('right', { pitch: Math.PI / 2 }), 'right'); // fingers up, palm forward
+  assert.ok(steerChecks(upright).all);
+  assert.ok(steerChecks(palmFrame(hand('left', { roll: Math.PI }), 'left')).all, 'palm up is fine too');
+  assert.ok(!steerChecks(palmFrame(hand('right', { curl: 1 }), 'right')).open.ok);
+  assert.ok(!steerChecks(palmFrame(hand('right', { at: [0, -0.7, -0.3] }), 'right'), -0.5).raised.ok);
+  const d = createSteer({ holdOn: 0.4 });
+  for (let i = 0; i < 7; i++) d.update(upright, -Infinity, 0.05);
+  assert.equal(d.active, false);
+  assert.ok(d.progress > 0.8);
+  d.update(upright, -Infinity, 0.05);
+  d.update(upright, -Infinity, 0.05); // eight steps of 0.05 s sum to 0.39999... in floating point
+  assert.equal(d.active, true);
 });

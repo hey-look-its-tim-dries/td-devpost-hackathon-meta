@@ -7,7 +7,7 @@ import * as THREE from 'three';
 const W = 640, H = 240;
 const INK = '#16100e', PAPER = 'rgba(246, 232, 216, 0.95)', SEAL = '#a8402b', MUTED = 'rgba(22, 16, 14, 0.45)';
 const FONT = 'Inter, "Segoe UI", system-ui, sans-serif';
-const PARTS = [['down', 'palm down'], ['open', 'no fist'], ['raised', 'hand up']];
+const PARTS = [['raised', 'hand up'], ['open', 'no fist']];
 
 export function createGestureCard() {
   const canvas = Object.assign(document.createElement('canvas'), { width: W, height: H });
@@ -47,7 +47,7 @@ export function createGestureCard() {
     g.font = `600 30px ${FONT}`;
     g.fillStyle = INK;
     g.textAlign = 'right';
-    g.fillText(s.steering ? 'tilt to turn and climb' : 'relax, palm down', W - 30, 50);
+    g.fillText(s.steering ? 'point where you want to fly' : 'raise a relaxed hand', W - 30, 50);
     g.textAlign = 'left';
     if (s.steering) {
       // turn: a track with a marker; climb: the same, standing up
@@ -69,7 +69,7 @@ export function createGestureCard() {
     }
     // the checklist: a chip per part, filled when good, with how far along it is
     PARTS.forEach(([key, name], k) => {
-      const c = s.checks?.[key], x = 24 + k * 200, y = 96, w = 188, h = 62;
+      const w = (W - 48 - 12 * (PARTS.length - 1)) / PARTS.length, c = s.checks?.[key], x = 24 + k * (w + 12), y = 96, h = 62;
       const ok = !!c?.ok, frac = c ? c.frac : 0;
       g.fillStyle = ok ? INK : 'transparent';
       g.beginPath();

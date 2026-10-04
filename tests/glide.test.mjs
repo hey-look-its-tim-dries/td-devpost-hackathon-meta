@@ -37,3 +37,19 @@ test('minutes over open sea stay finite and above the clearance (Review Focus 4)
   assert.ok(g.pos.every(Number.isFinite));
   assert.ok(g.pos[1] >= 8 && g.pos[1] <= 900);
 });
+
+test('higher is faster: the speed follows your height above the ground', () => {
+  const speedAt = (h) => Math.min(120, Math.max(35, 35 + 0.35 * h));
+  const low = createGlide({ pos: [0, 30, 0], speedAt, clearance: 20 }), high = createGlide({ pos: [0, 250, 0], speedAt, clearance: 20 });
+  low.update(0.1, {}, () => 0);
+  high.update(0.1, {}, () => 0);
+  assert.ok(high.speed > low.speed * 2, `${low.speed} vs ${high.speed}`);
+});
+
+test('diving is faster than gliding level', () => {
+  const speedAt = () => 60;
+  const level = createGlide({ pos: [0, 300, 0], speedAt }), dive = createGlide({ pos: [0, 300, 0], speedAt });
+  level.update(0.1, {}, () => 0);
+  dive.update(0.1, { climb: -1 }, () => 0);
+  assert.ok(dive.speed > level.speed * 1.3);
+});
