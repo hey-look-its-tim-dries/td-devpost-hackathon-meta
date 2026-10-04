@@ -109,7 +109,7 @@ const xrHands = [0, 1].map((i) => {
   const hand = renderer.xr.getHand(i);
   hand.add(handFactory.createHandModel(hand, 'mesh'));
   rig.add(hand);
-  const h = { hand, handedness: i ? 'right' : 'left', frame: null, palmDown: createPalmDown(), ref: null, store: Object.fromEntries(JOINTS.map((n) => [n, [0, 0, 0]])) };
+  const h = { hand, handedness: i ? 'right' : 'left', frame: null, palmDown: createPalmDown({ minHeight: 0 }), ref: null, store: Object.fromEntries(JOINTS.map((n) => [n, [0, 0, 0]])) };
   hand.addEventListener('connected', (e) => { h.handedness = e.data.handedness || h.handedness; });
   return h;
 });
@@ -127,13 +127,16 @@ async function useWebcam() {
   if (webcam) return;
   try {
     webcam = await startWebcamHands();
-    panel.say('Palm down over the keys, tilt it to steer', 6);
+    panel.say('Relaxed hand, palm down, tilt to steer', 6);
   } catch (e) {
     console.error('webcam hands unavailable', e);
     panel.say('No webcam: steer with A D and W S', 5);
   }
 }
 const tmpV = new THREE.Vector3();
+// hands lower than this don't steer (a hand resting on your lap): 60 cm below your eyes, in the
+// frame the joints are in (the rig for headset hands, your eyes for webcam hands)
+const handFloor = () => (!renderer.xr.isPresenting && webcam ? -0.6 : headLocal.y - 0.6);
 function readHands(dt) {
   const cams = !renderer.xr.isPresenting && webcam ? webcam.update() : null;
   handInk.begin();
@@ -156,7 +159,7 @@ function readHands(dt) {
       if (ok) for (const n of JOINTS) j[n].position.toArray(h.store[n]);
     }
     h.frame = ok ? palmFrame(h.store, h.handedness) : null;
-    if (!h.palmDown.update(h.frame, -Infinity, dt)) h.ref = null;
+    if (!h.palmDown.update(h.frame, handFloor(), dt)) h.ref = null;
     else if (!h.ref && h.frame) h.ref = JSON.parse(JSON.stringify(h.frame)); // the pose you started steering in
   }
   handInk.end();
@@ -214,8 +217,8 @@ function frame() {
   const steer = steering();
   // the gesture card shows the hand that steers, or else the one closest to the steering gesture;
   // the drawn webcam hand turns red while it steers
-  const seen = xrHands.filter((q) => q.frame).map((q) => ({ q, c: palmDownChecks(q.frame) }));
-  const best = seen.find((x) => x.q.ref) ?? seen.sort((a, b) => ['down', 'straight', 'spread'].filter((k) => b.c[k].ok).length - ['down', 'straight', 'spread'].filter((k) => a.c[k].ok).length)[0];
+  const seen = xrHands.filter((q) => q.frame).map((q) => ({ q, c: palmDownChecks(q.frame, handFloor()) }));
+  const best = seen.find((x) => x.q.ref) ?? seen.sort((a, b) => ['down', 'open', 'raised'].filter((k) => b.c[k].ok).length - ['down', 'open', 'raised'].filter((k) => a.c[k].ok).length)[0];
   const steeringNow = !!best?.q.ref;
   // shown while hands can steer (webcam or headset), even before a hand is seen
   card.update(dt, started && (webcam || renderer.xr.isPresenting) ? { checks: best?.c ?? null, progress: best?.q.palmDown.progress ?? 0, steering: steeringNow, turn: steer.turn, climb: steer.climb } : null);
@@ -296,6 +299,6 @@ renderer.setAnimationLoop(frame);
 // read-only peek for tests and curious players
 window.__pwc = {
   get state() {
-    return { hands: hands.length, pos: glide.pos.map(Math.round), yaw: +glide.yaw.toFixed(2), fps: Math.round(fps), scribbles: knots.length + mine.length, started, webcam: webcam ? webcam.update().map((q) => q.handedness) : null, steering: xrHands.some((q) => q.ref), palm: xrHands.map((q) => q.frame && q.frame.normal.map((v) => +v.toFixed(2))), hand: xrHands.map((q) => q.frame && { down: +(-q.frame.normal[1]).toFixed(2), straight: +q.frame.extension.toFixed(2), spread: +q.frame.spread.toFixed(2) }), calls: renderer.info.render.calls, xr: renderer.xr.isPresenting };
+    return { hands: hands.length, pos: glide.pos.map(Math.round), yaw: +glide.yaw.toFixed(2), fps: Math.round(fps), scribbles: knots.length + mine.length, started, webcam: webcam ? webcam.update().map((q) => q.handedness) : null, steering: xrHands.some((q) => q.ref), palm: xrHands.map((q) => q.frame && q.frame.normal.map((v) => +v.toFixed(2))), hand: xrHands.map((q) => q.frame && { down: +(-q.frame.normal[1]).toFixed(2), open: +q.frame.extension.toFixed(2), height: +q.frame.center[1].toFixed(2) }), calls: renderer.info.render.calls, xr: renderer.xr.isPresenting };
   },
 };

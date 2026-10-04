@@ -7,7 +7,7 @@ import * as THREE from 'three';
 const W = 640, H = 240;
 const INK = '#16100e', PAPER = 'rgba(246, 232, 216, 0.95)', SEAL = '#a8402b', MUTED = 'rgba(22, 16, 14, 0.45)';
 const FONT = 'Inter, "Segoe UI", system-ui, sans-serif';
-const PARTS = [['down', 'palm down'], ['straight', 'fingers flat'], ['spread', 'fingers apart']];
+const PARTS = [['down', 'palm down'], ['open', 'no fist'], ['raised', 'hand up']];
 
 export function createGestureCard() {
   const canvas = Object.assign(document.createElement('canvas'), { width: W, height: H });
@@ -47,7 +47,7 @@ export function createGestureCard() {
     g.font = `600 30px ${FONT}`;
     g.fillStyle = INK;
     g.textAlign = 'right';
-    g.fillText(s.steering ? 'tilt to turn and climb' : 'palm down to steer', W - 30, 50);
+    g.fillText(s.steering ? 'tilt to turn and climb' : 'relax, palm down', W - 30, 50);
     g.textAlign = 'left';
     if (s.steering) {
       // turn: a track with a marker; climb: the same, standing up
@@ -70,7 +70,7 @@ export function createGestureCard() {
     // the checklist: a chip per part, filled when good, with how far along it is
     PARTS.forEach(([key, name], k) => {
       const c = s.checks?.[key], x = 24 + k * 200, y = 96, w = 188, h = 62;
-      const ok = !!c?.ok, frac = c ? Math.max(0, Math.min(1, c.value / c.need)) : 0;
+      const ok = !!c?.ok, frac = c ? c.frac : 0;
       g.fillStyle = ok ? INK : 'transparent';
       g.beginPath();
       g.roundRect(x, y, w, h, 14);
@@ -109,7 +109,7 @@ export function createGestureCard() {
       mesh.visible = mesh.material.opacity > 0.02;
       if (!s) return;
       const key = JSON.stringify([s.steering, Math.round(s.turn * 20), Math.round(s.climb * 20), Math.round(s.progress * 10),
-        ...PARTS.map(([k]) => s.checks && [s.checks[k].ok, Math.round(Math.min(1, s.checks[k].value / s.checks[k].need) * 10)])]);
+        ...PARTS.map(([k]) => s.checks && [s.checks[k].ok, Math.round(s.checks[k].frac * 10)])]);
       if (key !== drawn) { drawn = key; paint(s); tex.needsUpdate = true; }
     },
   };

@@ -113,16 +113,18 @@ test('shadow bird: crossed close parallel palms after the hold, tolerant of a lo
   assert.ok(!on, 'two hands side by side are not a bird');
 });
 
-test('the steering gesture as a checklist: each part says how far it is and whether it is good', () => {
+test('steering is relaxed: palm down, hand up, anything but a fist; fingers may hang and touch', () => {
   const ok = palmDownChecks(palmFrame(hand('right'), 'right'));
-  assert.ok(ok.down.ok && ok.straight.ok && ok.spread.ok && ok.all);
-  const curled = palmDownChecks(palmFrame(hand('right', { curl: 1 }), 'right'));
-  assert.ok(!curled.straight.ok && curled.down.ok && !curled.all);
+  assert.ok(ok.down.ok && ok.open.ok && ok.raised.ok && ok.all);
+  const hanging = palmDownChecks(palmFrame(hand('right', { curl: 0.35, spread: 0.02 }), 'right'));
+  assert.ok(hanging.all, 'relaxed, hanging fingers close together still steer');
+  const fist = palmDownChecks(palmFrame(hand('right', { curl: 1 }), 'right'));
+  assert.ok(!fist.open.ok && fist.down.ok && !fist.all);
   const up = palmDownChecks(palmFrame(hand('left', { roll: Math.PI }), 'left'));
   assert.ok(!up.down.ok && up.down.value < 0);
-  const closed = palmDownChecks(palmFrame(hand('right', { spread: 0.02 }), 'right'));
-  assert.ok(!closed.spread.ok && closed.down.ok && closed.straight.ok);
-  for (const c of [ok.down, ok.straight, ok.spread]) assert.ok(c.need > 0 && typeof c.value === 'number');
+  const lap = palmDownChecks(palmFrame(hand('right', { at: [0, -0.7, -0.3] }), 'right'), -0.5);
+  assert.ok(!lap.raised.ok && lap.down.ok && !lap.all, 'a hand resting on your lap does not steer');
+  for (const c of [ok.down, ok.open, ok.raised]) assert.ok(c.frac >= 0 && c.frac <= 1);
 });
 
 test('palm down shows how far through the hold it is, then 1 while active', () => {

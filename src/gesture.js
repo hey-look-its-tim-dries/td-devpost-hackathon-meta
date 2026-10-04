@@ -85,16 +85,20 @@ function latch(on, off, drop) {
   };
 }
 
-// The palm-down gesture in parts, each with how far it is (value) and what makes it good (need),
-// so the game can show a player which part is missing.
-export const PALM_DOWN = { down: 0.7, straight: 0.75, spread: 0.12 };
-export function palmDownChecks(frame) {
-  const part = (value, need) => ({ value, need, ok: value > need });
-  const down = part(-frame.normal[1], PALM_DOWN.down), straight = part(frame.extension, PALM_DOWN.straight), spread = part(frame.spread, PALM_DOWN.spread);
-  return { down, straight, spread, all: down.ok && straight.ok && spread.ok };
+// The steering gesture in parts, relaxed on purpose: palm facing down, the hand up in front of you
+// (not resting on your lap), and anything but a fist, so the fingers may hang and touch. Each part
+// says how far it is (value), what makes it good (need) and how close it is (frac, 0..1), so the
+// game can show which part is missing.
+export const PALM_DOWN = { down: 0.65, open: 0.3 };
+export function palmDownChecks(frame, floorY = -Infinity) {
+  const part = (value, need) => ({ value, need, ok: value > need, frac: Math.max(0, Math.min(1, value / need)) });
+  const down = part(-frame.normal[1], PALM_DOWN.down), open = part(frame.extension, PALM_DOWN.open);
+  const above = frame.center[1] - floorY;
+  const raised = { value: above, need: 0, ok: above > 0, frac: above > 0 ? 1 : Math.max(0, 1 + above / 0.3) };
+  return { down, open, raised, all: down.ok && open.ok && raised.ok };
 }
 
-// Take-off: palm facing down, fingers straight and spread, lifted off the table, held a moment.
+// Steering on: the relaxed palm-down gesture (palmDownChecks) above a floor height, held a moment.
 export function createPalmDown({ holdOn = 0.5, holdOff = 0.3, minHeight = 0.08, dropTolerance = 0.25 } = {}) {
   const l = latch(holdOn, holdOff, dropTolerance);
   return {
@@ -102,7 +106,7 @@ export function createPalmDown({ holdOn = 0.5, holdOff = 0.3, minHeight = 0.08, 
     get progress() { return l.progress; },
     update(frame, tableY, dt) {
       if (!frame) return l.update(null, dt);
-      const ok = palmDownChecks(frame).all && frame.center[1] - tableY >= minHeight;
+      const ok = palmDownChecks(frame, tableY + minHeight).all;
       return l.update(ok, dt);
     },
   };
