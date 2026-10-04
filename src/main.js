@@ -7,6 +7,7 @@ import { createGestureCard } from './gesturecard.js';
 import { createPanel } from './panel.js';
 import { createInk } from './ink.js';
 import { createGlide } from './glide.js';
+import { createCreature } from './creature.js';
 import { createScribble, createKnot } from './scribble.js';
 import { unpackPrint } from './hand/dna.js';
 import { founders, toHand, toWorld } from './world/founders.js';
@@ -104,9 +105,16 @@ const knots = FOUNDERS.flatMap((f) => f.prints.map(unpackPrint).map((p, j) => {
   return { knot, line: createScribble({ ...LINE, at: knot.step(0, 0), seed: p.seed }) };
 }));
 // faster the higher you fly (30 m/s skimming the ridges, 220 m/s high over the wilderness), and diving adds half again
-const glide = createGlide({ pos: params.get('at')?.split(',').map(Number) ?? [0, 1400, 15000], turnRate: 0.75, climbRate: 60, clearance: 25, speedAt: (h) => Math.min(220, Math.max(30, 30 + 0.25 * (h - 60))) }); // ?at=x,y,z to start elsewhere
-const mine = [0, 1, 2, 3, 4].map((j) => createScribble({ ...LINE, at: [glide.pos[0] + (j - 2) * 60, glide.pos[1] - 80, glide.pos[2] - 420], seed: 900 + j }));
-const ink = createInk((knots.length + mine.length) * (LINE.points + 1), { width: 1.4, color: '#16100e' });
+const glide = createGlide({ pos: params.get('at')?.split(',').map(Number) ?? [0, 1100, 15000], turnRate: 0.9, clearance: 25, ceiling: 1500 }); // ?at=x,y,z to start elsewhere
+// you: the Whorl, ink strands winding round your own flight path; the camera chases it
+const creature = createCreature({ strands: 5, points: 90, spacing: 3, radius: 22 });
+const CHASE = { back: 140, up: 36 };
+const chase = { pos: new THREE.Vector3(glide.pos[0], glide.pos[1] + CHASE.up, glide.pos[2] + CHASE.back), yaw: glide.yaw };
+const ink = createInk((knots.length * (LINE.points + 1)) + creature.strands * 91, { width: 1.1, color: '#16100e' });
+// speed lines: ink streaks hanging in the air that rush past when you are fast
+const streaks = Array.from({ length: 60 }, () => new THREE.Vector3(Infinity, 0, 0));
+const streakInk = createInk(streaks.length, { width: 0.5, color: '#16100e' });
+scene.add(streakInk.mesh);
 scene.add(ink.mesh);
 
 // ---------- hands and head (read live for steering, never kept) ----------
@@ -122,11 +130,6 @@ const xrHands = [0, 1].map((i) => {
 });
 // ?webcam or the banner button: your laptop camera stands in for headset hand tracking
 let webcam = null;
-const BONES = [['wrist', 'thumb-metacarpal'], ['thumb-metacarpal', 'thumb-phalanx-proximal'], ['thumb-phalanx-proximal', 'thumb-phalanx-distal'], ['thumb-phalanx-distal', 'thumb-tip'],
-  ...['index-finger', 'middle-finger', 'ring-finger', 'pinky-finger'].flatMap((f) => [['wrist', `${f}-phalanx-proximal`], [`${f}-phalanx-proximal`, `${f}-phalanx-intermediate`], [`${f}-phalanx-intermediate`, `${f}-phalanx-distal`], [`${f}-phalanx-distal`, `${f}-tip`]]),
-  ['index-finger-phalanx-proximal', 'pinky-finger-phalanx-proximal']];
-const handInk = createInk(BONES.length * 2, { width: 0.004, color: '#16100e' });
-rig.add(handInk.mesh);
 const card = createGestureCard(); // what your hand is commanding, fixed at the bottom of your view
 camera.add(card.mesh);
 xrHands.forEach((h) => (h.smooth = new OneEuro({ minCutoff: 1.5, beta: 0.5 })));
@@ -140,24 +143,20 @@ async function useWebcam() {
     panel.say('No webcam: steer with A D and W S', 5);
   }
 }
-const tmpV = new THREE.Vector3();
 // hands lower than this don't steer (a hand resting on your lap): 60 cm below your eyes, in the
 // frame the joints are in (the rig for headset hands, your eyes for webcam hands)
 const handFloor = () => (!renderer.xr.isPresenting && webcam ? -0.6 : headLocal.y - 0.6);
 function readHands(dt) {
   const cams = !renderer.xr.isPresenting && webcam ? webcam.update() : null;
-  handInk.begin();
   for (const h of xrHands) {
     let ok = false;
     if (cams) {
       const c = cams.find((q) => q.handedness === h.handedness);
       if (c) {
         // the laptop camera stays put when you look around, so gestures read the joints in your eye
-        // frame, smoothed (a webcam is noisier than a headset); only the drawing follows your view
+        // frame, smoothed (a webcam is noisier than a headset)
         const flat = h.smooth.filter(JOINTS.flatMap((n) => c.joints[n]), dt);
         JOINTS.forEach((n, k) => { h.store[n][0] = flat[k * 3]; h.store[n][1] = flat[k * 3 + 1]; h.store[n][2] = flat[k * 3 + 2]; });
-        const vis = (n) => tmpV.fromArray(h.store[n]).applyQuaternion(camera.quaternion).add(camera.position).clone();
-        for (const [a, b] of BONES) handInk.segment(vis(a), vis(b));
         ok = true;
       } else h.smooth.reset();
     } else {
@@ -168,7 +167,6 @@ function readHands(dt) {
     h.frame = ok ? palmFrame(h.store, h.handedness) : null;
     h.engaged = h.hold.update(h.frame, handFloor(), dt) && !!h.frame; // a raised open hand, held a moment
   }
-  handInk.end();
 }
 const headQuat = new THREE.Quaternion(), headLocal = new THREE.Vector3();
 let headNeutral = null;
@@ -191,9 +189,10 @@ addEventListener('pointermove', (e) => {
   look.yaw -= e.movementX * 0.003;
   look.pitch = Math.max(-1.3, Math.min(0.6, look.pitch - e.movementY * 0.003));
 });
-let started = false, handSteering = false;
+let started = false;
 function steering() {
-  if (AUTO || !started) return { turn: 0.12, climb: 0 }; // the title screen is the world, drifting
+  // the title screen is the world, drifting; ?auto=dive dives, for screenshots
+  if (AUTO || !started) return { turn: 0.12, climb: params.get('auto') === 'dive' ? -0.8 : 0 };
   if (renderer.xr.isPresenting || webcam) {
     const h = xrHands.find((q) => q.engaged); // your fingers are the arrow
     if (h) return pointSteer(h.frame.forward);
@@ -210,6 +209,7 @@ function steering() {
 
 const clock = new THREE.Clock();
 let t = 0, fps = 60;
+const tmpChase = new THREE.Vector3();
 const camPos = new THREE.Vector3();
 const steer = { turn: 0, climb: 0 }; // eased, so a jittery hand still flies smoothly
 function frame() {
@@ -222,29 +222,30 @@ function frame() {
   steer.turn += (want.turn - steer.turn) * ease;
   steer.climb += (want.climb - steer.climb) * ease;
   // the gesture card shows the hand that steers, or else the one closest to the steering gesture;
-  // the drawn webcam hand turns red while it steers
   const seen = xrHands.filter((q) => q.frame).map((q) => ({ q, c: steerChecks(q.frame, handFloor()) }));
   const best = seen.find((x) => x.q.engaged) ?? seen.sort((a, b) => ['open', 'raised'].filter((k) => b.c[k].ok).length - ['open', 'raised'].filter((k) => a.c[k].ok).length)[0];
   const steeringNow = !!best?.q.engaged;
   // shown while hands can steer (webcam or headset), even before a hand is seen
   card.update(dt, started && (webcam || renderer.xr.isPresenting) ? { checks: best?.c ?? null, progress: best?.q.hold.progress ?? 0, steering: steeringNow, turn: steer.turn, climb: steer.climb } : null);
-  if (steeringNow !== handSteering) {
-    handSteering = steeringNow;
-    handInk.mesh.material.uniforms.uColor.value.set(steeringNow ? '#a8402b' : '#16100e');
-  }
   glide.update(dt, steer, groundAt);
-  rig.position.fromArray(glide.pos);
-  rig.rotation.y = glide.yaw;
+  creature.update(dt, glide.pos, { speed: glide.speed, pitch: glide.pitch, turn: steer.turn });
+  // the camera chases the creature: behind and above it, easing after its turns (never rolling)
+  const f = glide.forward(), follow = 1 - Math.exp(-dt * 3);
+  const cx = glide.pos[0] - f[0] * CHASE.back, cz = glide.pos[2] - f[2] * CHASE.back;
+  chase.pos.lerp(tmpChase.set(cx, Math.max(glide.pos[1] + CHASE.up, groundAt(cx, cz) + 20), cz), follow);
+  chase.yaw += Math.atan2(Math.sin(glide.yaw - chase.yaw), Math.cos(glide.yaw - chase.yaw)) * follow;
+  rig.position.copy(chase.pos);
+  rig.rotation.y = chase.yaw;
   if (!renderer.xr.isPresenting) {
     camera.rotation.set(look.pitch, look.yaw, 0, 'YXZ');
     // on a screen the view widens a little with speed, so you feel it (never in the headset: comfort)
-    const fov = 65 + 12 * Math.min(1, Math.max(0, (glide.speed - 30) / 190));
+    const fov = 65 + 14 * Math.min(1, Math.max(0, (glide.speed - 70) / 230));
     if (Math.abs(camera.fov - fov) > 0.05) {
       camera.fov += (fov - camera.fov) * (1 - Math.exp(-dt * 2));
       camera.updateProjectionMatrix();
     }
   }
-  setWind(started ? 0.25 + 0.35 * Math.abs(steer.turn) : 0);
+  setWind(started ? Math.min(1, 0.15 + glide.speed / 320) : 0); // the wind rises with speed
 
   ink.begin();
   for (const k of knots) {
@@ -254,16 +255,23 @@ function frame() {
     const l = k.line.polyline();
     ink.stroke(l.xyz, l.count, TAPER);
   }
-  const f = glide.forward();
-  mine.forEach((s, j) => {
-    const side = (j - 2) * 60, lift = -80 + 20 * Math.sin(t * 0.7 + j); // ahead of you, so you see the lines, not their tails
-    const target = [glide.pos[0] + f[0] * 420 - f[2] * side, glide.pos[1] + lift, glide.pos[2] + f[2] * 420 + f[0] * side];
-    const d = Math.hypot(target[0] - s.pos[0], target[1] - s.pos[1], target[2] - s.pos[2]);
-    s.step(dt, target, { speed: glide.speed * Math.min(1.9, Math.max(0.85, 0.85 + d / 150)), turn: 2.2, loops: 0.25, wander: 0.6 });
-    const l = s.polyline();
+  for (let k = 0; k < creature.strands; k++) {
+    const l = creature.strand(k);
     ink.stroke(l.xyz, l.count, TAPER);
-  });
+  }
   ink.end();
+  // speed lines: streaks fixed in the air round you, drawn along your motion, longer the faster you go
+  const fast = Math.max(0, Math.min(1, (glide.speed - 90) / 180)), vel = tmpChase.set(f[0] * Math.cos(glide.pitch), Math.sin(glide.pitch), f[2] * Math.cos(glide.pitch)).multiplyScalar(glide.speed);
+  streakInk.begin();
+  for (const p of streaks) {
+    const rel = p.clone().sub(chase.pos);
+    if (!Number.isFinite(p.x) || rel.dot(vel) < -40 * glide.speed || rel.length() > 900) { // behind you or lost: put it ahead again
+      const a = Math.random() * Math.PI * 2, r = 25 + Math.random() * 90, ahead = 150 + Math.random() * 600;
+      p.set(chase.pos.x + f[0] * ahead + Math.cos(a) * r * f[2], chase.pos.y + Math.sin(a) * r * 0.6 - 20, chase.pos.z + f[2] * ahead - Math.cos(a) * r * f[0]);
+    }
+    if (fast > 0) streakInk.segment(p, p.clone().addScaledVector(vel, -0.06 * fast), fast, 0);
+  }
+  streakInk.end();
 
   world.shared.uTime.value = t;
   surface.update((renderer.xr.isPresenting ? renderer.xr.getCamera() : camera).getWorldPosition(camPos));
@@ -314,6 +322,6 @@ renderer.setAnimationLoop(frame);
 // read-only peek for tests and curious players
 window.__pwc = {
   get state() {
-    return { hands: hands.length, pos: glide.pos.map(Math.round), yaw: +glide.yaw.toFixed(2), fps: Math.round(fps), scribbles: knots.length + mine.length, started, webcam: webcam ? webcam.update().map((q) => q.handedness) : null, steering: xrHands.some((q) => q.engaged), palm: xrHands.map((q) => q.frame && q.frame.normal.map((v) => +v.toFixed(2))), hand: xrHands.map((q) => q.frame && { point: q.frame.forward.map((v) => +v.toFixed(2)), open: +q.frame.extension.toFixed(2), height: +q.frame.center[1].toFixed(2) }), speed: Math.round(glide.speed), calls: renderer.info.render.calls, xr: renderer.xr.isPresenting };
+    return { hands: hands.length, pos: glide.pos.map(Math.round), yaw: +glide.yaw.toFixed(2), fps: Math.round(fps), scribbles: knots.length + creature.strands, started, webcam: webcam ? webcam.update().map((q) => q.handedness) : null, steering: xrHands.some((q) => q.engaged), palm: xrHands.map((q) => q.frame && q.frame.normal.map((v) => +v.toFixed(2))), hand: xrHands.map((q) => q.frame && { point: q.frame.forward.map((v) => +v.toFixed(2)), open: +q.frame.extension.toFixed(2), height: +q.frame.center[1].toFixed(2) }), speed: Math.round(glide.speed), calls: renderer.info.render.calls, xr: renderer.xr.isPresenting };
   },
 };
