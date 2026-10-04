@@ -22,6 +22,10 @@ import { JOINTS, palmFrame, createPalmDown, createTouch, palmTilt, createShadowB
 
 const params = new URLSearchParams(location.search);
 const AUTO = params.has('auto'); // autopilot for demos and headless tests
+const FILM = params.has('film'); // with ?emulate: a director plays the emulated head and hands (director.js)
+const STEP = params.has('step'); // frame by frame, for capturing the film: the page waits for each frame
+const film = { budget: 0, t: 0, done: false };
+const newSeed = () => +(params.get('seed') ?? Math.floor(Math.random() * 1e9));
 
 // ?emulate: a Meta Quest 3 in a desktop browser (IWER, Meta's WebXR emulator), a scanned room so
 // plane detection finds a real table, and the emulator's dev UI
@@ -162,7 +166,7 @@ const hands = [0, 1].map((i) => {
   rig.add(ctrl);
   const h = {
     hand, ctrl, handedness: i ? 'right' : 'left', joints: null, frame: null, seen: 0,
-    palmDown: createPalmDown(), touch: createTouch(), state: 'none',
+    palmDown: createPalmDown({ minHeight: 0.14 }), touch: createTouch(), state: 'none',
     tip: new THREE.Vector3(), tipFilter: new OneEuro({ minCutoff: 1.2, beta: 0.35 }), still: 0, last: new THREE.Vector3(),
   };
   hand.addEventListener('connected', (e) => { h.handedness = e.data.handedness || h.handedness; });
@@ -351,7 +355,7 @@ function takeOff(h) {
 }
 
 function steering(dt) {
-  if (AUTO) return autoSteer();
+  if (AUTO || FILM) return autoSteer();
   if (!renderer.xr.isPresenting) {
     const turn = (keys.has('arrowright') || keys.has('d') ? 1 : 0) - (keys.has('arrowleft') || keys.has('a') ? 1 : 0);
     const climb = (keys.has('arrowup') || keys.has('w') ? 1 : 0) - (keys.has('arrowdown') || keys.has('s') ? 1 : 0);
@@ -419,7 +423,7 @@ function onSelect(h) {
   } else if (mode === 'press') {
     const px = h?.tip ? current.terrain.pixelOf(h.tip) : null;
     const inside = px && px[0] > 8 && px[1] > 8 && px[0] < 248 && px[1] < 248;
-    beginGrowth(inside ? px[0] : 128, inside ? px[1] : 190, pickedCls, Math.floor(Math.random() * 1e9));
+    beginGrowth(inside ? px[0] : 128, inside ? px[1] : 190, pickedCls, newSeed());
   }
 }
 
@@ -433,7 +437,7 @@ function onClick() {
     if (cls) pickClass(cls);
   } else if (mode === 'press' && pointer.onTable) {
     const [px, py] = current.terrain.pixelOf(pointer.point);
-    beginGrowth(THREE.MathUtils.clamp(px, 8, 248), THREE.MathUtils.clamp(py, 8, 248), pickedCls, Math.floor(Math.random() * 1e9));
+    beginGrowth(THREE.MathUtils.clamp(px, 8, 248), THREE.MathUtils.clamp(py, 8, 248), pickedCls, newSeed());
   }
 }
 
@@ -479,11 +483,19 @@ const tmpV = new THREE.Vector3(), anchorWorld = new THREE.Vector3(), headVel = n
 let lastLevel = -1;
 
 function frame(time, xrFrame) {
-  const dt = Math.min(clock.getDelta(), 0.05);
-  const t = clock.elapsedTime;
+  let dt = Math.min(clock.getDelta(), 0.05);
+  if (STEP) {
+    // capturing: only move on when the recorder asks for the next frame, always by 1/30 s
+    if (film.budget <= 0) return renderer.render(scene, camera);
+    film.budget--;
+    dt = 1 / 30;
+  }
+  film.t += dt;
+  const t = film.t;
   modeT += dt;
   readHead();
   readHands(dt);
+  if (director && renderer.xr.isPresenting) director.update(dt); // its moves land next frame
   if (!renderer.xr.isPresenting) aimPointer();
 
   // the table
@@ -541,7 +553,7 @@ function frame(time, xrFrame) {
       const h = hands.find((q) => q.state === 'touch');
       if (h) {
         const [px, py] = current.terrain.pixelOf(h.tip);
-        beginGrowth(THREE.MathUtils.clamp(px, 8, 248), THREE.MathUtils.clamp(py, 8, 248), pickedCls, Math.floor(Math.random() * 1e9));
+        beginGrowth(THREE.MathUtils.clamp(px, 8, 248), THREE.MathUtils.clamp(py, 8, 248), pickedCls, newSeed());
       }
     }
   } else if (pointer.onTable && mode !== 'fly') {
@@ -556,7 +568,7 @@ function frame(time, xrFrame) {
     walker = walker?.land === current.land ? walker : Object.assign(createWalker(current.land), { land: current.land });
     const N = current.terrain.size, scale = N / (LAND * anchor.scale.x);
     let target = null;
-    if (AUTO) target = autoWalk();
+    if (AUTO || FILM) target = autoWalk();
     else if (tipWorld) target = current.terrain.pixelOf(tipWorld);
     if (target) {
       if (!walker.placed) walker.place(target[0], target[1], 0.025 * scale);
@@ -584,8 +596,19 @@ function frame(time, xrFrame) {
       setSand(0);
       lastLevel = -1;
     }
-    // take off: one hand lifted palm down, fingers spread (or the two-hand shadow bird)
-    for (const h of hands) if (h.palmDown.update(h.frame, tableY, dt) && h.seen > 0.5) takeOff(h);
+    // take off: one hand LIFTED off the land, palm down, fingers spread (or the two-hand shadow
+    // bird). A hand merely resting flat in the air is not a lift: the palm must have been low over
+    // the land a moment ago.
+    for (const h of hands) {
+      const flat = h.palmDown.update(h.frame, tableY, dt);
+      if (h.frame) {
+        const c = rig.localToWorld(tmpV.set(...h.frame.center));
+        // low = within 12 cm of the land; a lift has to rise above 14 cm, so a hand hovering flat at
+        // any one height never takes off by itself
+        if (Math.hypot(c.x - anchorWorld.x, c.z - anchorWorld.z) < 0.32 * anchor.scale.x && c.y - tableY < 0.12) h.lowAt = t;
+      }
+      if (flat && h.seen > 0.5 && t - (h.lowAt ?? -9) < 2.5) takeOff(h);
+    }
     const [l, r] = [hands.find((h) => h.handedness === 'left'), hands.find((h) => h.handedness === 'right')];
     if (mode === 'walk' && shadowBird.update(l?.frame, r?.frame, l?.joints, r?.joints, tableY, dt)) takeOff(r?.frame ? r : l);
     if (AUTO && current.woken.size >= +(params.get('birds') ?? 3) && modeT > 2) takeOff(null);
@@ -802,6 +825,18 @@ camera.lookAt(0, 0.75, -0.02);
 anchor.position.set(0, 0.752, 0);
 scene.background = new THREE.Color('#231a16');
 if (params.has('play') || AUTO) preview();
+// the film director drives the emulated device (only with ?emulate&film)
+const director = FILM && window.__device ? (await import('./director.js')).createDirector({
+  state: () => window.__pwc.state,
+  anchorWorld: () => anchor.getWorldPosition(new THREE.Vector3()),
+  walkerWorld: () => (walker?.placed && current.land ? current.terrain.worldOf(walker.x, walker.y) : null),
+  plate: (cls) => {
+    const p = chooser.group.visible && chooser.plates.find((m) => m.userData.cls === cls);
+    return p ? { pos: p.getWorldPosition(new THREE.Vector3()), normal: new THREE.Vector3(0, 0, 1).applyQuaternion(p.getWorldQuaternion(new THREE.Quaternion())) } : null;
+  },
+  flightForward: () => flight.forward(new THREE.Vector3()),
+  headLocal, rig, hands,
+}) : null;
 renderer.setAnimationLoop(frame);
 
 // read-only peek for tests and curious players
@@ -814,5 +849,8 @@ window.__pwc = {
     };
   },
   takeOff: () => takeOff(null),
+  film,
+  get filmDone() { return director?.done ?? false; },
+  get filmPhase() { return director?.phase ?? null; },
   debug: { flock, rings, rig, anchor, flight, hands, terrain: () => current.terrain, auto: () => ({ route: autoRoute.slice(0, 4), left: autoRoute.length, target: autoTarget, walker: walker && [walker.x, walker.y], land: current.land && current.land.landmarks.length }) },
 };

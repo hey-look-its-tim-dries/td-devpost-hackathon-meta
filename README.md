@@ -172,6 +172,7 @@ node --test tests/*.test.mjs
 | `?auto` | Autopilot: walks to the landmarks, takes off and flies to the next land |
 | `?fresh` | Ignore what this browser remembers |
 | `?emulate` | Quest 3 emulation with IWER (`&device=glasses` for the Meta VR Glasses, `&nodevui` hides its panel, `&room=office_small` changes the room) |
+| `?emulate&nodevui&film&seed=7` | The film director: plays the emulated head and hand through the first minutes with the real gestures, for recording the demo video (add `&step` to advance one frame per request, for frame-exact capture) |
 
 ## Competition fit
 
