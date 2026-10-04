@@ -267,13 +267,13 @@ These exist only in memory on the device during capture, for seconds, and are re
 Readable form (shown in the UI as a "DNA strand"): `R2 · UL · rc12 · f9 · c(3,3) · d(5,6) · #8f3a91c2`,
 with the orientation field drawn as a strip of 64 small ink strokes.
 
-### 8.3 Palm DNA v1 (about 200 bytes)
+### 8.3 Palm DNA v1 (28 + 13 bytes per line: 80 bytes for four lines)
 
 | Field | Size |
 |---|---|
-| version, side (L/R), flags (fused crease, fate present, ...) | 2 bytes |
+| version, side (L/R), line count | 3 bytes |
 | up to 8 lines: kind (4 bits), strength band (4 bits), 8 points × (x, y) at 6 bits | 13 bytes each |
-| finger creases: 2 per finger (3 for the thumb) along the axis, 6 bits | 8 bytes |
+| finger creases: 2 per finger, thumb included, along the axis, 6 bits | 8 bytes |
 | finger proportion bands (3 levels per finger, coarse on purpose) | 2 bytes |
 | triradii a, b, c, d, t (12 bits each) and 5 palmar pattern types (3 bits each) | 10 bytes |
 | palette (chosen) and seed | 5 bytes |
