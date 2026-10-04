@@ -96,6 +96,11 @@ export function createHandMesh(d, pose, shared) {
   mesh.position.set(pose.x, 0, pose.z);
   mesh.rotation.y = -pose.rot; // matches toWorld(): fingers along (sin rot, -cos rot)
   if (pose.mirror) mesh.scale.x = -1; // three.js flips the face winding for mirrored meshes itself
-  mesh.frustumCulled = false; // the heights are applied on the GPU
+  // the heights are applied on the GPU, so the bounds must hold them, or hands vanish at the view's edge
+  let top = 0;
+  for (let i = 0; i < d.height.length; i++) top = Math.max(top, d.height[i]);
+  geo.computeBoundingBox();
+  geo.boundingBox.max.y = top;
+  geo.boundingSphere = geo.boundingBox.getBoundingSphere(new THREE.Sphere());
   return mesh;
 }

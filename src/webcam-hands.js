@@ -48,14 +48,24 @@ export function toJoints(world, image, label, { aspect = 4 / 3, fovX = 1.05 } = 
 }
 
 export async function startWebcamHands() {
-  const { FilesetResolver, HandLandmarker } = await import(`${CDN}/vision_bundle.mjs`);
-  const files = await FilesetResolver.forVisionTasks(`${CDN}/wasm`);
-  const make = (delegate) => HandLandmarker.createFromOptions(files, { baseOptions: { modelAssetPath: MODEL, delegate }, runningMode: 'VIDEO', numHands: 2 });
-  const landmarker = await make('GPU').catch(() => make('CPU'));
-  const video = Object.assign(document.createElement('video'), { muted: true, playsInline: true, className: 'webcam' });
-  video.srcObject = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: 'user' }, audio: false });
-  await video.play();
-  document.body.append(video);
+  // the camera first: if you say no, nothing else loads; whatever did start is released on failure
+  const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: 'user' }, audio: false });
+  let landmarker = null, video = null;
+  try {
+    const { FilesetResolver, HandLandmarker } = await import(`${CDN}/vision_bundle.mjs`);
+    const files = await FilesetResolver.forVisionTasks(`${CDN}/wasm`);
+    const make = (delegate) => HandLandmarker.createFromOptions(files, { baseOptions: { modelAssetPath: MODEL, delegate }, runningMode: 'VIDEO', numHands: 2 });
+    landmarker = await make('GPU').catch(() => make('CPU'));
+    video = Object.assign(document.createElement('video'), { muted: true, playsInline: true, className: 'webcam' });
+    video.srcObject = stream;
+    await video.play();
+    document.body.append(video);
+  } catch (e) {
+    stream.getTracks().forEach((t) => t.stop());
+    landmarker?.close();
+    video?.remove();
+    throw e;
+  }
   let hands = [], last = -1;
   return {
     video,

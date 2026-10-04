@@ -1,6 +1,7 @@
 // src/world/scene.js
 import * as THREE from 'three';
 import { SOURCE_RADIUS } from './founders.js';
+import { FOG_DENSITY } from '../view.js';
 
 // The world around the hands: a warm paper sky, the Paper Sea (parchment with faint contour rings
 // round the Source) and the Source itself, a lake in the middle. Colours live in uniforms shared by
@@ -83,7 +84,7 @@ export function createWorldScene() {
     uTime: { value: 0 },
     uSunDir: { value: new THREE.Vector3(-0.5, 0.75, 0.35).normalize() },
     uFogColor: { value: new THREE.Color(HAZE) },
-    uFogDensity: { value: 1 / 4200 },
+    uFogDensity: { value: FOG_DENSITY },
     uSky: { value: new THREE.Color('#a9c3cc') },
     uTones: { value: TONES.map((c) => new THREE.Color(c)) },
   };
@@ -94,9 +95,12 @@ export function createWorldScene() {
       vertexShader: SEA_VERT, fragmentShader: SEA_FRAG,
     }),
   );
-  sea.position.y = -0.6;
+  sea.position.y = -3;
+  // drawn after the hands (whose pixels then hide it for free), pushed back in depth so far coasts never z-fight
+  sea.renderOrder = 1;
+  Object.assign(sea.material, { polygonOffset: true, polygonOffsetFactor: 4, polygonOffsetUnits: 4 });
   const sky = new THREE.Mesh(
-    new THREE.SphereGeometry(30000, 32, 16),
+    new THREE.SphereGeometry(10000, 32, 16), // inside the far plane
     new THREE.ShaderMaterial({
       uniforms: { ...shared, uZenith: { value: new THREE.Color('#d4bfa3') } },
       vertexShader: SKY_VERT, fragmentShader: SKY_FRAG, side: THREE.BackSide, depthWrite: false,

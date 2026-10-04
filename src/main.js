@@ -12,6 +12,7 @@ import { founders, toHand, toWorld } from './world/founders.js';
 import { createWorldScene } from './world/scene.js';
 import { createHandMesh } from './world/handmesh.js';
 import { startWebcamHands } from './webcam-hands.js';
+import { NEAR, FAR } from './view.js';
 
 // Palm Whorl Cities, first milestone: the First Ten. Ten founding hands lie in a ring around the
 // Source. Their lines are rivers, their fingertips are print lands, and black-ink scribbles knot
@@ -50,7 +51,7 @@ document.body.prepend(renderer.domElement);
 const scene = new THREE.Scene();
 const rig = new THREE.Group(); // you: camera and hands, gliding
 scene.add(rig);
-const camera = new THREE.PerspectiveCamera(65, innerWidth / innerHeight, 0.5, 40000);
+const camera = new THREE.PerspectiveCamera(65, innerWidth / innerHeight, NEAR, FAR);
 rig.add(camera);
 const world = createWorldScene();
 scene.add(world.sea);
@@ -116,7 +117,7 @@ let webcam = null;
 const BONES = [['wrist', 'thumb-metacarpal'], ['thumb-metacarpal', 'thumb-phalanx-proximal'], ['thumb-phalanx-proximal', 'thumb-phalanx-distal'], ['thumb-phalanx-distal', 'thumb-tip'],
   ...['index-finger', 'middle-finger', 'ring-finger', 'pinky-finger'].flatMap((f) => [['wrist', `${f}-phalanx-proximal`], [`${f}-phalanx-proximal`, `${f}-phalanx-intermediate`], [`${f}-phalanx-intermediate`, `${f}-phalanx-distal`], [`${f}-phalanx-distal`, `${f}-tip`]]),
   ['index-finger-phalanx-proximal', 'pinky-finger-phalanx-proximal']];
-const handInk = createInk(BONES.length * 2, { width: 0.01, color: '#16100e' });
+const handInk = createInk(BONES.length * 2, { width: 0.004, color: '#16100e' });
 rig.add(handInk.mesh);
 xrHands.forEach((h) => (h.smooth = new OneEuro({ minCutoff: 1.5, beta: 0.5 })));
 async function useWebcam() {
@@ -138,14 +139,11 @@ function readHands(dt) {
     if (cams) {
       const c = cams.find((q) => q.handedness === h.handedness);
       if (c) {
-        // head frame → rig frame, smoothed (the webcam is noisier than a headset)
+        // the laptop camera stays put when you look around, so gestures read the joints in your eye
+        // frame, smoothed (a webcam is noisier than a headset); only the drawing follows your view
         const flat = h.smooth.filter(JOINTS.flatMap((n) => c.joints[n]), dt);
-        JOINTS.forEach((n, k) => {
-          tmpV.set(flat[k * 3], flat[k * 3 + 1], flat[k * 3 + 2]).applyQuaternion(camera.quaternion).add(camera.position);
-          tmpV.toArray(h.store[n]);
-        });
-        // drawn 2.5 times further out and bigger (same size to the eye), past the camera's near plane
-        const eye = camera.position, vis = (n) => ({ x: eye.x + (h.store[n][0] - eye.x) * 2.5, y: eye.y + (h.store[n][1] - eye.y) * 2.5, z: eye.z + (h.store[n][2] - eye.z) * 2.5 });
+        JOINTS.forEach((n, k) => { h.store[n][0] = flat[k * 3]; h.store[n][1] = flat[k * 3 + 1]; h.store[n][2] = flat[k * 3 + 2]; });
+        const vis = (n) => tmpV.fromArray(h.store[n]).applyQuaternion(camera.quaternion).add(camera.position).clone();
         for (const [a, b] of BONES) handInk.segment(vis(a), vis(b));
         ok = true;
       } else h.smooth.reset();
@@ -255,6 +253,8 @@ async function enterHeadset() {
   startAudio();
   const session = await navigator.xr.requestSession('immersive-vr', { optionalFeatures: ['hand-tracking'] });
   await renderer.xr.setSession(session);
+  webcam?.stop(); // the headset tracks your hands now: the laptop camera goes off
+  webcam = null;
   headNeutral = null;
   start();
   session.addEventListener('visibilitychange', () => pauseAudio(session.visibilityState === 'hidden'));
@@ -282,6 +282,6 @@ renderer.setAnimationLoop(frame);
 // read-only peek for tests and curious players
 window.__pwc = {
   get state() {
-    return { hands: hands.length, pos: glide.pos.map(Math.round), yaw: +glide.yaw.toFixed(2), fps: Math.round(fps), scribbles: knots.length + mine.length, started, webcam: webcam ? webcam.update().map((q) => q.handedness) : null, steering: xrHands.some((q) => q.ref) };
+    return { hands: hands.length, pos: glide.pos.map(Math.round), yaw: +glide.yaw.toFixed(2), fps: Math.round(fps), scribbles: knots.length + mine.length, started, webcam: webcam ? webcam.update().map((q) => q.handedness) : null, steering: xrHands.some((q) => q.ref), palm: xrHands.map((q) => q.frame && q.frame.normal.map((v) => +v.toFixed(2))), calls: renderer.info.render.calls, xr: renderer.xr.isPresenting };
   },
 };
