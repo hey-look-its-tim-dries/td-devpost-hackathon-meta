@@ -55,3 +55,47 @@ test('a head line that stops mid-palm joins the regions it fails to split (Revie
   const total = areas.reduce((s, v) => s + v, 0);
   for (const v of areas) assert.ok(v / total > 0.03);
 });
+
+import { synthPrint } from '../src/hand/dna.js';
+import { RIVER, CANAL, OUTSIDE } from '../src/hand/label.js';
+import { bakeHand, KIND } from '../src/hand/bake.js';
+
+const baked = () => {
+  const shape = hand(), lab = labelHand(shape, 1.5);
+  const prints = [0, 1, 2, 3, 4].map((f) => synthPrint(f, ['whorl', 'ulnar', 'ulnar', 'double', 'arch'][f], 10 + f));
+  return { lab, bk: bakeHand(shape, lab, prints) };
+};
+
+test('rivers lie in valleys, and only rivers and canals hold water', () => {
+  const { lab, bk } = baked();
+  let river = 0, riverN = 0, land = 0, landN = 0;
+  for (let i = 0; i < lab.label.length; i++) {
+    const L = lab.label[i];
+    if (L === OUTSIDE) {
+      assert.equal(bk.height[i], 0);
+      assert.equal(bk.info[i * 4 + 2], 0);
+      continue;
+    }
+    assert.ok(Number.isFinite(bk.height[i]) && bk.height[i] >= 0.3);
+    if (L === RIVER || L === CANAL) assert.ok(bk.water[i] > 0, `dry water at ${i}`);
+    else assert.equal(bk.water[i], 0);
+    if (L === RIVER) { river += bk.height[i]; riverN++; } else if (L >= 15) { land += bk.height[i]; landN++; }
+  }
+  assert.ok(river / riverN < land / landN - 5, `rivers ${river / riverN} m, land ${land / landN} m`);
+});
+
+test('print lands carry the strongest ridges, and the phase is a unit vector', () => {
+  const { lab, bk } = baked();
+  let tips = 0;
+  for (let i = 0; i < lab.label.length; i++) {
+    const L = lab.label[i];
+    if (L < 0) continue;
+    assert.ok(Math.abs(bk.cos[i] ** 2 + bk.sin[i] ** 2 - 1) < 1e-5);
+    if (L % 3 === 0 && L < 15) {
+      tips++;
+      assert.equal(bk.info[i * 4 + 2] & 15, KIND.tip);
+      assert.equal(bk.info[i * 4 + 3], 255);
+    }
+  }
+  assert.ok(tips > 1000);
+});
