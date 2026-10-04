@@ -488,3 +488,47 @@ from `main` only with Tim's OK.
    second piece? The design assumes one first.
 5. **Walking**: the furrow walk at human scale returns as the way to explore a print land (design
    ready, scheduled after week 5)?
+
+Decided on 2026-10-04: 1. phone and read-by-eye first, headset camera later; 2. the game proposes
+three fits; 3. synthetic founders; 4. one Hand first; 5. walking later.
+
+## 16. The macro world (decided 2026-10-04)
+
+Tim's review of M1: the world looked tiny and limited. The hand should be ten times as big and ten
+times as detailed, and the surroundings detailed and beautiful. The world should feel endless from
+the first second. He chose a procedural core with a splat horizon.
+
+1. **Ten times larger.** The hand pipeline stays in hand metres (a span of 600). The world shows
+   every Hand ten times larger: 1 span = 6 km, so a palm stands about 200 m tall, fingers are
+   peninsulas 500 m wide, and print ridges are valleys 35 m apart that you can fly through. The
+   First Ten's wrists sit 4 km from the Source.
+2. **Ten times the detail.** Detail stacks from large to small, each layer fading out before it
+   gets finer than a pixel, so it stays sharp at any height:
+   - folds, which are mountains;
+   - creases, which are canyons with rivers;
+   - dermal ridges, which are valleys with geometry near you;
+   - pores along the crests;
+   - fine wrinkle networks crossing the ridges;
+   - grain.
+   The light reads as skin: furrows are deeper and redder, and the crests pale with a soft sheen.
+3. **Endless from the start.** Around the First Ten lies a basin, the plain with the Source lake.
+   Beyond it, an endless skin wilderness reaches every horizon. It is a patchwork of palms in
+   every skin tone with stitched seams, a little like the old Skin Country. Fold mountains cross
+   it, crease canyons cut through it with rivers and lakes at sea level, and dermal ridges flow
+   over all of it. A few of the ridges curl into giant fingerprint whorls, kilometres wide. The
+   same function runs on the GPU (shape and detail) and on the CPU (flight clearance), from
+   integer hashes, so it stays the same everywhere and never loses precision far from the centre.
+   As players join, the basin grows outward with the world.
+4. **One surface.** The hands and the wilderness are drawn as a single terrain with continuous
+   level of detail (CDLOD: a quadtree of grid patches around you, vertices morphing smoothly
+   between levels). That means no seams between hands and land, no popping, and no shimmering
+   when you fly. The Hands' baked textures live in one texture array that the terrain samples.
+5. **Sky and air.** A world-space sky with sun glow and high cirrus. The terrain fades into the
+   sky's own colour in each direction (aerial perspective), so the horizon has no edge.
+6. **Flight scales with height.** About 30 m/s skimming the ridges, up to about 200 m/s high
+   above the wilderness. The scribbles scale with the world: lines about 270 m long, knots about
+   150 m wide.
+7. **Splat horizon (test).** One AI-generated Gaussian splat world (World Labs Marble, made from
+   Tim's concept image) is loaded with Spark 2 as a distant backdrop, through `?horizon=<url>`.
+   It is a test of the look and the Quest cost, not the core: it can't grow with players. Marble
+   needs Tim's World Labs account.
