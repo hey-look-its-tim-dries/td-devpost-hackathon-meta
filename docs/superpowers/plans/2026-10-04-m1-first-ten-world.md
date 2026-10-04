@@ -2260,6 +2260,272 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ---
 
+### Task 9: Your webcam as headset hands
+
+Tim asked for this on 2026-10-04: test the hand gestures with the laptop webcam and his own hands, without a headset. MediaPipe Hand Landmarker runs on the device (the video never leaves the browser) and gives 21 joints per hand. They are mapped onto the 25 WebXR joint names, so `palmFrame`, `createPalmDown` and `palmTilt` work unchanged.
+
+**Files:**
+- Create: `src/webcam-hands.js`
+- Modify: `src/main.js` (a webcam hand source next to the XR hands, an ink skeleton so you see your hands), `index.html` (a "Use my webcam as hands" button), `style.css` (the small mirrored preview)
+- Test: `tests/webcam.test.mjs`
+
+**Interfaces:**
+- Consumes: `palmFrame`, `OneEuro` (existing `gesture.js`), `createInk` (Task 8).
+- Produces: `toJoints(world: {x,y,z}[21], image: {x,y}[21], label: 'Left'|'Right', { aspect = 4/3, fovX = 1.05 } = {}): { handedness: 'left'|'right', joints: { [webxrJointName]: [x,y,z] } }` in the head frame (x right, y up, -z forward; the laptop camera sits 0.55 m ahead of the eyes, 0.08 m below). `startWebcamHands(): Promise<{ video, update(): hand[], stop() }>`.
+
+- [ ] **Step 1: Write the failing test**
+
+```js
+// tests/webcam.test.mjs
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { toJoints } from '../src/webcam-hands.js';
+import { JOINTS, palmFrame } from '../src/gesture.js';
+
+// A right hand held up, palm to the camera, fingers up, as MediaPipe reports it from an unmirrored
+// webcam: camera frame, x right in the image, y down, z away from the camera. The person's thumb
+// shows on the image's right.
+const CAM = [
+  [0, 0.09, 0], // wrist
+  [0.03, 0.06, 0], [0.05, 0.04, 0], [0.065, 0.02, 0], [0.075, 0, 0], // thumb
+  ...[0.03, 0.01, -0.01, -0.03].flatMap((x) => [[x, 0, 0], [x, -0.04, 0], [x, -0.065, 0], [x, -0.085, 0]]),
+].map(([x, y, z]) => ({ x, y, z }));
+const image = (k) => CAM.map(({ x, y }) => ({ x: 0.5 + x * k, y: 0.5 + y * k }));
+
+test('all 25 WebXR joints, and MediaPipe\'s mirrored handedness swapped back', () => {
+  const h = toJoints(CAM, image(3), 'Left');
+  assert.equal(h.handedness, 'right');
+  for (const n of JOINTS) assert.equal(h.joints[n].length, 3, n);
+});
+
+test('a palm shown to the camera faces the screen, fingers up', () => {
+  const h = toJoints(CAM, image(3), 'Left');
+  const f = palmFrame(h.joints, h.handedness);
+  assert.ok(f.normal[2] < -0.95, `normal ${f.normal}`);
+  assert.ok(f.forward[1] > 0.95, `forward ${f.forward}`);
+});
+
+test('the hand sits between your eyes and the screen, nearer you when it looks smaller', () => {
+  const near = toJoints(CAM, image(6), 'Left').joints.wrist, far = toJoints(CAM, image(3), 'Left').joints.wrist;
+  for (const w of [near, far]) assert.ok(w[2] < -0.1 && w[2] > -0.6, `z ${w[2]}`);
+  assert.ok(far[2] > near[2]);
+});
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `node --test tests/webcam.test.mjs`
+Expected: FAIL with `Cannot find module .../src/webcam-hands.js`
+
+- [ ] **Step 3: Write the implementation**
+
+```js
+// src/webcam-hands.js
+// Your laptop webcam as headset hand tracking, for testing without a Quest. MediaPipe Hand
+// Landmarker runs in the page (the video never leaves the browser, and nothing is kept); its 21
+// joints per hand are mapped onto the 25 WebXR joint names, so the game's gestures work unchanged.
+const CDN = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1';
+const MODEL = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task';
+const CAMERA = [0, -0.08, -0.55]; // where the laptop camera sits, seen from your eyes
+const FINGERS = ['index-finger', 'middle-finger', 'ring-finger', 'pinky-finger'];
+const PALM = [0, 5, 9, 13, 17]; // the points that define the hand's centre
+
+const sub = (a, b) => [a.x - b.x, a.y - b.y, (a.z ?? 0) - (b.z ?? 0)];
+const mean = (pts) => ['x', 'y', 'z'].reduce((o, k) => ({ ...o, [k]: PALM.reduce((s, i) => s + (pts[i][k] ?? 0), 0) / PALM.length }), {});
+
+// world: MediaPipe world landmarks (metres, camera axes: x right in the image, y down, z away from
+// the camera); image: normalised image landmarks. The camera faces you, so its axes turned half a
+// turn round z are yours: x right, y up, z towards you.
+export function toJoints(world, image, label, { aspect = 4 / 3, fovX = 1.05 } = {}) {
+  // distance from the camera, from the least foreshortened palm edge
+  let scale = 0;
+  for (const [a, b] of [[0, 5], [0, 17], [5, 17]]) {
+    const m = Math.hypot(...sub(world[a], world[b]));
+    const px = Math.hypot(image[a].x - image[b].x, (image[a].y - image[b].y) / aspect);
+    scale = Math.max(scale, px / (m || 1));
+  }
+  const d = 1 / (scale * 2 * Math.tan(fovX / 2));
+  const ci = mean(image), cw = mean(world);
+  const cx = (ci.x - 0.5) * 2 * Math.tan(fovX / 2) * d, cy = ((ci.y - 0.5) * 2 * Math.tan(fovX / 2) * d) / aspect;
+  const centre = [CAMERA[0] - cx, CAMERA[1] - cy, Math.min(-0.15, CAMERA[2] + d)];
+  const at = (i) => {
+    const [x, y, z] = sub(world[i], cw);
+    return [centre[0] - x, centre[1] - y, centre[2] + z];
+  };
+  const joints = {
+    wrist: at(0),
+    'thumb-metacarpal': at(1), 'thumb-phalanx-proximal': at(2), 'thumb-phalanx-distal': at(3), 'thumb-tip': at(4),
+  };
+  FINGERS.forEach((f, k) => {
+    const b = 5 + k * 4, w = joints.wrist, kn = at(b);
+    joints[`${f}-metacarpal`] = [0, 1, 2].map((j) => w[j] + (kn[j] - w[j]) * 0.3); // MediaPipe has no metacarpal joints
+    joints[`${f}-phalanx-proximal`] = kn;
+    joints[`${f}-phalanx-intermediate`] = at(b + 1);
+    joints[`${f}-phalanx-distal`] = at(b + 2);
+    joints[`${f}-tip`] = at(b + 3);
+  });
+  // MediaPipe labels hands as if the picture were mirrored; a webcam's raw picture is not
+  return { handedness: label === 'Left' ? 'right' : 'left', joints };
+}
+
+export async function startWebcamHands() {
+  const { FilesetResolver, HandLandmarker } = await import(`${CDN}/vision_bundle.mjs`);
+  const files = await FilesetResolver.forVisionTasks(`${CDN}/wasm`);
+  const make = (delegate) => HandLandmarker.createFromOptions(files, { baseOptions: { modelAssetPath: MODEL, delegate }, runningMode: 'VIDEO', numHands: 2 });
+  const landmarker = await make('GPU').catch(() => make('CPU'));
+  const video = Object.assign(document.createElement('video'), { muted: true, playsInline: true, className: 'webcam' });
+  video.srcObject = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: 'user' }, audio: false });
+  await video.play();
+  document.body.append(video);
+  let hands = [], last = -1;
+  return {
+    video,
+    // the newest hands; detection runs at most once per camera frame
+    update() {
+      if (video.readyState < 2 || video.currentTime === last) return hands;
+      last = video.currentTime;
+      const r = landmarker.detectForVideo(video, performance.now());
+      const aspect = video.videoWidth / video.videoHeight;
+      hands = r.worldLandmarks.map((w, i) => toJoints(w, r.landmarks[i], r.handedness[i][0].categoryName, { aspect }));
+      return hands;
+    },
+    stop() {
+      video.srcObject.getTracks().forEach((t) => t.stop());
+      video.remove();
+      landmarker.close();
+    },
+  };
+}
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `node --test tests/webcam.test.mjs`
+Expected: PASS (3 tests)
+
+- [ ] **Step 5: Wire it into the game**
+
+In `src/main.js`:
+
+1. Import: `import { startWebcamHands } from './webcam-hands.js';` and add `OneEuro` to the `./gesture.js` import.
+2. After the `xrHands` block, add the webcam source and the skeleton ink:
+
+```js
+// ?webcam or the banner button: your laptop camera stands in for headset hand tracking
+let webcam = null;
+const BONES = [['wrist', 'thumb-metacarpal'], ['thumb-metacarpal', 'thumb-phalanx-proximal'], ['thumb-phalanx-proximal', 'thumb-phalanx-distal'], ['thumb-phalanx-distal', 'thumb-tip'],
+  ...['index-finger', 'middle-finger', 'ring-finger', 'pinky-finger'].flatMap((f) => [['wrist', `${f}-phalanx-proximal`], [`${f}-phalanx-proximal`, `${f}-phalanx-intermediate`], [`${f}-phalanx-intermediate`, `${f}-phalanx-distal`], [`${f}-phalanx-distal`, `${f}-tip`]]),
+  ['index-finger-phalanx-proximal', 'pinky-finger-phalanx-proximal']];
+const handInk = createInk(BONES.length * 2, { width: 0.004, color: '#16100e' });
+rig.add(handInk.mesh);
+xrHands.forEach((h) => (h.smooth = new OneEuro({ minCutoff: 1.5, beta: 0.5 })));
+async function useWebcam() {
+  if (webcam) return;
+  try {
+    webcam = await startWebcamHands();
+    panel.say('Palm down over the keys, tilt it to steer', 6);
+  } catch (e) {
+    console.error('webcam hands unavailable', e);
+    panel.say('No webcam: steer with A D and W S', 5);
+  }
+}
+const tmpV = new THREE.Vector3();
+```
+
+3. In `readHands(dt)`, before the existing XR read in the loop body, take the webcam hands when not presenting:
+
+```js
+function readHands(dt) {
+  const cams = !renderer.xr.isPresenting && webcam ? webcam.update() : null;
+  handInk.begin();
+  for (const h of xrHands) {
+    let ok = false;
+    if (cams) {
+      const c = cams.find((q) => q.handedness === h.handedness);
+      if (c) {
+        // head frame → rig frame, smoothed (the webcam is noisier than a headset)
+        const flat = h.smooth.filter(JOINTS.flatMap((n) => c.joints[n]), dt);
+        JOINTS.forEach((n, k) => {
+          tmpV.set(flat[k * 3], flat[k * 3 + 1], flat[k * 3 + 2]).applyQuaternion(camera.quaternion).add(camera.position);
+          tmpV.toArray(h.store[n]);
+        });
+        for (const [a, b] of BONES) handInk.segment({ x: h.store[a][0], y: h.store[a][1], z: h.store[a][2] }, { x: h.store[b][0], y: h.store[b][1], z: h.store[b][2] });
+        ok = true;
+      } else h.smooth.reset();
+    } else {
+      const j = h.hand.joints;
+      ok = renderer.xr.isPresenting && j && j.wrist && j.wrist.visible && JOINTS.every((n) => j[n]);
+      if (ok) for (const n of JOINTS) j[n].position.toArray(h.store[n]);
+    }
+    h.frame = ok ? palmFrame(h.store, h.handedness) : null;
+    if (!h.palmDown.update(h.frame, -Infinity, dt)) h.ref = null;
+    else if (!h.ref && h.frame) h.ref = JSON.parse(JSON.stringify(h.frame)); // the pose you started steering in
+  }
+  handInk.end();
+}
+```
+
+4. In `steering()`, let webcam hands steer like headset hands: replace `if (renderer.xr.isPresenting) {` with `if (renderer.xr.isPresenting || webcam) {`, and keep the head fallback for the headset only, falling through to the keys for the webcam:
+
+```js
+  if (renderer.xr.isPresenting || webcam) {
+    const h = xrHands.find((q) => q.ref && q.frame);
+    if (h) {
+      const { roll, pitch } = palmTilt(h.frame, h.ref);
+      return { turn: clamp1(roll / 0.45), climb: clamp1(pitch / 0.45) };
+    }
+    if (renderer.xr.isPresenting) {
+      headNeutral ||= headQuat.toArray();
+      return { turn: 0.6 * headSteer(headNeutral, headQuat.toArray()), climb: 0 };
+    }
+  }
+```
+
+5. Start it from the page: after the preview button listener add
+   `document.getElementById('webcamButton').addEventListener('click', () => { start(); useWebcam(); });`
+   and after `if (params.has('play')) start();` add `if (params.has('webcam')) { start(); useWebcam(); }`.
+6. Add `webcam: webcam ? webcam.update().map((q) => q.handedness) : null` and `steering: xrHands.some((q) => q.ref)` to `window.__pwc.state`.
+
+In `index.html`, after the preview button: `<button id="webcamButton" class="quiet">Use my webcam as hands</button>`.
+
+In `style.css`, append:
+
+```css
+.webcam {
+  position: fixed;
+  left: 12px;
+  bottom: 12px;
+  width: 180px;
+  border-radius: 10px;
+  transform: scaleX(-1); /* a mirror, the way you expect to see yourself */
+  opacity: 0.85;
+  z-index: 2;
+}
+```
+
+- [ ] **Step 6: Check it with a real hand picture**
+
+Make a fake camera from a still of an open right palm held to the camera (a local file only, never committed): `ffmpeg -loglevel error -y -loop 1 -i <palm.png> -t 3 -vf "scale=640:480:force_original_aspect_ratio=decrease,pad=640:480:(ow-iw)/2:(oh-ih)/2,format=yuv420p" <scratchpad>/m1/palm.y4m`.
+
+Copy `shot.mjs` to `webcam.mjs`, add `'--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', '--use-file-for-fake-video-capture=<scratchpad>/m1/palm.y4m'` to the launch args, and after the hands wait add `await page.waitForFunction(() => window.__pwc.state.webcam?.length > 0, { timeout: 120000 });`.
+
+Run: `node <scratchpad>/m1/webcam.mjs "http://localhost:8123/?webcam" <scratchpad>/m1/webcam.png`
+Expected: the state line shows `"webcam":["right"]`, `no errors`, and the screenshot shows the ink skeleton of an open hand in front of the camera with the mirrored preview in the corner. (A palm held to the camera faces the screen, so it does not steer: steering starts with the palm turned down.)
+
+Run: `node --test tests/*.test.mjs`
+Expected: all pass.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add src/webcam-hands.js tests/webcam.test.mjs src/main.js index.html style.css
+git commit -m "feat: test the hand gestures with your laptop webcam (MediaPipe, on device)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+---
+
 ## After M1
 
 - Push only when Tim says so.
