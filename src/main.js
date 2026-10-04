@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js';
 import { headSteer } from './steer.js';
 import { startAudio, pauseAudio, setWind } from './audio.js';
-import { JOINTS, palmFrame, createPalmDown, palmTilt } from './gesture.js';
+import { JOINTS, palmFrame, createPalmDown, palmTilt, OneEuro } from './gesture.js';
 import { createPanel } from './panel.js';
 import { createInk } from './ink.js';
 import { createGlide } from './glide.js';
@@ -11,6 +11,7 @@ import { unpackPrint } from './hand/dna.js';
 import { founders, toHand, toWorld } from './world/founders.js';
 import { createWorldScene } from './world/scene.js';
 import { createHandMesh } from './world/handmesh.js';
+import { startWebcamHands } from './webcam-hands.js';
 
 // Palm Whorl Cities, first milestone: the First Ten. Ten founding hands lie in a ring around the
 // Source. Their lines are rivers, their fingertips are print lands, and black-ink scribbles knot
@@ -110,15 +111,54 @@ const xrHands = [0, 1].map((i) => {
   hand.addEventListener('connected', (e) => { h.handedness = e.data.handedness || h.handedness; });
   return h;
 });
+// ?webcam or the banner button: your laptop camera stands in for headset hand tracking
+let webcam = null;
+const BONES = [['wrist', 'thumb-metacarpal'], ['thumb-metacarpal', 'thumb-phalanx-proximal'], ['thumb-phalanx-proximal', 'thumb-phalanx-distal'], ['thumb-phalanx-distal', 'thumb-tip'],
+  ...['index-finger', 'middle-finger', 'ring-finger', 'pinky-finger'].flatMap((f) => [['wrist', `${f}-phalanx-proximal`], [`${f}-phalanx-proximal`, `${f}-phalanx-intermediate`], [`${f}-phalanx-intermediate`, `${f}-phalanx-distal`], [`${f}-phalanx-distal`, `${f}-tip`]]),
+  ['index-finger-phalanx-proximal', 'pinky-finger-phalanx-proximal']];
+const handInk = createInk(BONES.length * 2, { width: 0.01, color: '#16100e' });
+rig.add(handInk.mesh);
+xrHands.forEach((h) => (h.smooth = new OneEuro({ minCutoff: 1.5, beta: 0.5 })));
+async function useWebcam() {
+  if (webcam) return;
+  try {
+    webcam = await startWebcamHands();
+    panel.say('Palm down over the keys, tilt it to steer', 6);
+  } catch (e) {
+    console.error('webcam hands unavailable', e);
+    panel.say('No webcam: steer with A D and W S', 5);
+  }
+}
+const tmpV = new THREE.Vector3();
 function readHands(dt) {
+  const cams = !renderer.xr.isPresenting && webcam ? webcam.update() : null;
+  handInk.begin();
   for (const h of xrHands) {
-    const j = h.hand.joints;
-    const ok = renderer.xr.isPresenting && j && j.wrist && j.wrist.visible && JOINTS.every((n) => j[n]);
-    if (ok) for (const n of JOINTS) j[n].position.toArray(h.store[n]);
+    let ok = false;
+    if (cams) {
+      const c = cams.find((q) => q.handedness === h.handedness);
+      if (c) {
+        // head frame → rig frame, smoothed (the webcam is noisier than a headset)
+        const flat = h.smooth.filter(JOINTS.flatMap((n) => c.joints[n]), dt);
+        JOINTS.forEach((n, k) => {
+          tmpV.set(flat[k * 3], flat[k * 3 + 1], flat[k * 3 + 2]).applyQuaternion(camera.quaternion).add(camera.position);
+          tmpV.toArray(h.store[n]);
+        });
+        // drawn 2.5 times further out and bigger (same size to the eye), past the camera's near plane
+        const eye = camera.position, vis = (n) => ({ x: eye.x + (h.store[n][0] - eye.x) * 2.5, y: eye.y + (h.store[n][1] - eye.y) * 2.5, z: eye.z + (h.store[n][2] - eye.z) * 2.5 });
+        for (const [a, b] of BONES) handInk.segment(vis(a), vis(b));
+        ok = true;
+      } else h.smooth.reset();
+    } else {
+      const j = h.hand.joints;
+      ok = renderer.xr.isPresenting && j && j.wrist && j.wrist.visible && JOINTS.every((n) => j[n]);
+      if (ok) for (const n of JOINTS) j[n].position.toArray(h.store[n]);
+    }
     h.frame = ok ? palmFrame(h.store, h.handedness) : null;
     if (!h.palmDown.update(h.frame, -Infinity, dt)) h.ref = null;
     else if (!h.ref && h.frame) h.ref = JSON.parse(JSON.stringify(h.frame)); // the pose you started steering in
   }
+  handInk.end();
 }
 const headQuat = new THREE.Quaternion(), headLocal = new THREE.Vector3();
 let headNeutral = null;
@@ -145,14 +185,16 @@ const clamp1 = (v) => Math.max(-1, Math.min(1, v));
 let started = false;
 function steering() {
   if (AUTO || !started) return { turn: 0.12, climb: 0 }; // the title screen is the world, drifting
-  if (renderer.xr.isPresenting) {
+  if (renderer.xr.isPresenting || webcam) {
     const h = xrHands.find((q) => q.ref && q.frame);
     if (h) {
       const { roll, pitch } = palmTilt(h.frame, h.ref);
       return { turn: clamp1(roll / 0.45), climb: clamp1(pitch / 0.45) };
     }
-    headNeutral ||= headQuat.toArray();
-    return { turn: 0.6 * headSteer(headNeutral, headQuat.toArray()), climb: 0 };
+    if (renderer.xr.isPresenting) {
+      headNeutral ||= headQuat.toArray();
+      return { turn: 0.6 * headSteer(headNeutral, headQuat.toArray()), climb: 0 };
+    }
   }
   const k = (a, b) => (keys.has(a) || keys.has(b) ? 1 : 0);
   return { turn: k('d', 'arrowright') - k('a', 'arrowleft'), climb: k('w', 'arrowup') - k('s', 'arrowdown') };
@@ -225,6 +267,7 @@ document.addEventListener('visibilitychange', () => pauseAudio(document.hidden))
 const xrButton = document.getElementById('xrButton');
 xrButton.addEventListener('click', () => enterHeadset().catch((e) => console.error(e)));
 document.getElementById('previewButton').addEventListener('click', start);
+document.getElementById('webcamButton').addEventListener('click', () => { start(); useWebcam(); });
 navigator.xr?.isSessionSupported('immersive-vr').then((ok) => ok && xrButton.classList.remove('hidden')).catch(() => {});
 addEventListener('resize', () => {
   if (renderer.xr.isPresenting) return;
@@ -233,11 +276,12 @@ addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight);
 });
 if (params.has('play')) start();
+if (params.has('webcam')) { start(); useWebcam(); }
 renderer.setAnimationLoop(frame);
 
 // read-only peek for tests and curious players
 window.__pwc = {
   get state() {
-    return { hands: hands.length, pos: glide.pos.map(Math.round), yaw: +glide.yaw.toFixed(2), fps: Math.round(fps), scribbles: knots.length + mine.length, started };
+    return { hands: hands.length, pos: glide.pos.map(Math.round), yaw: +glide.yaw.toFixed(2), fps: Math.round(fps), scribbles: knots.length + mine.length, started, webcam: webcam ? webcam.update().map((q) => q.handedness) : null, steering: xrHands.some((q) => q.ref) };
   },
 };

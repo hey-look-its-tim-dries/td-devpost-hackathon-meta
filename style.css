@@ -123,3 +123,14 @@ button:focus-visible {
 #xrButton.hidden {
   display: none;
 }
+
+.webcam {
+  position: fixed;
+  left: 12px;
+  bottom: 12px;
+  width: 180px;
+  border-radius: 10px;
+  transform: scaleX(-1); /* a mirror, the way you expect to see yourself */
+  opacity: 0.85;
+  z-index: 2;
+}
