@@ -40,7 +40,7 @@ export function bakeHand(shape, lab, prints) {
     const i = r * w + c, L = label[i];
     if (L === OUTSIDE) continue;
     const X = x0 + (c + 0.5) * cell, Y = y0 + (r + 0.5) * cell;
-    let z = 22 * sstep(0, 45, coastDist[i]), phase = 0, kind, strength = 0;
+    let z = 22, cut = 0, phase = 0, kind, strength = 0; // relief, faded to the beach at the end, then the valleys cut in
     for (const [hx, hy, a, s2] of hills) z += a * Math.exp(-((X - hx) ** 2 + (Y - hy) ** 2) / s2);
     const fi = lab.fingerOf[i];
     if (fi >= 0) {
@@ -48,7 +48,7 @@ export function bakeHand(shape, lab, prints) {
       z += 9 * Math.max(0, 1 - (u / hw) ** 2) * sstep(-10, 25, t); // a ridge along the finger
       let crease = Math.min(Math.abs(s - f.creases[0]), Math.abs(s - f.creases[1])) * f.len;
       if (fi === 0) crease = Math.min(crease, Math.abs(t - BASE_CREASE)); // the thumb's base crease lies on the thenar
-      z -= 4 * (L === CANAL ? 1 : 1 - sstep(CANAL_HALF, 6, crease)); // canal valleys (the other base creases follow the palm's edge)
+      cut += 4 * (L === CANAL ? 1 : 1 - sstep(CANAL_HALF, 6, crease)); // canal valleys (the other base creases follow the palm's edge)
       if (L === CANAL) {
         kind = KIND.canal;
         phase = u / 7; // a stitch every 7 m across the canal
@@ -75,10 +75,10 @@ export function bakeHand(shape, lab, prints) {
     const li = lab.lineOf[i];
     if (li >= 0 && (fi < 0 || lab.along[i] < 0)) { // rivers carve the palm, and the finger tails over them
       const st = shape.lines[li].strength, half = waterHalf(st);
-      z -= (6 + 4 * st) * (1 - sstep(half, half * 3.5, lab.lineDist[i]));
+      cut += (6 + 4 * st) * (1 - sstep(half, half * 3.5, lab.lineDist[i]));
       if (L === RIVER) water[i] = 1.5 + 0.8 * st;
     }
-    height[i] = Math.max(0.3, z);
+    height[i] = Math.max(0.3, z * sstep(0, 45, coastDist[i]) - cut); // every hill slopes down to a beach
     cos[i] = Math.cos(2 * Math.PI * phase);
     sin[i] = Math.sin(2 * Math.PI * phase);
     const coast = label[i - 1] === OUTSIDE || label[i + 1] === OUTSIDE || label[i - w] === OUTSIDE || label[i + w] === OUTSIDE;
