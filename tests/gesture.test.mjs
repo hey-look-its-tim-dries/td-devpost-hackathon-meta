@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { JOINTS, palmFrame, OneEuro, createPalmDown, createTouch, palmTilt, createShadowBird } from '../src/gesture.js';
+import { JOINTS, palmFrame, OneEuro, createPalmDown, createTouch, palmTilt, createShadowBird, palmDownChecks } from '../src/gesture.js';
 
 // A synthetic hand: palm down, fingers pointing away (-z), then rolled, pitched and moved.
 // curl bends the fingers towards the palm; spread fans them out.
@@ -111,4 +111,28 @@ test('shadow bird: crossed close parallel palms after the hold, tolerant of a lo
   const ls = hand('left', { at: [-0.25, 1, -0.4] }), rs = hand('right', { at: [0.25, 1, -0.4] });
   for (let i = 0; i < 20; i++) on = apart.update(palmFrame(ls, 'left'), palmFrame(rs, 'right'), ls, rs, 0.75, 0.05);
   assert.ok(!on, 'two hands side by side are not a bird');
+});
+
+test('the steering gesture as a checklist: each part says how far it is and whether it is good', () => {
+  const ok = palmDownChecks(palmFrame(hand('right'), 'right'));
+  assert.ok(ok.down.ok && ok.straight.ok && ok.spread.ok && ok.all);
+  const curled = palmDownChecks(palmFrame(hand('right', { curl: 1 }), 'right'));
+  assert.ok(!curled.straight.ok && curled.down.ok && !curled.all);
+  const up = palmDownChecks(palmFrame(hand('left', { roll: Math.PI }), 'left'));
+  assert.ok(!up.down.ok && up.down.value < 0);
+  const closed = palmDownChecks(palmFrame(hand('right', { spread: 0.02 }), 'right'));
+  assert.ok(!closed.spread.ok && closed.down.ok && closed.straight.ok);
+  for (const c of [ok.down, ok.straight, ok.spread]) assert.ok(c.need > 0 && typeof c.value === 'number');
+});
+
+test('palm down shows how far through the hold it is, then 1 while active', () => {
+  const d = createPalmDown({ holdOn: 0.5 }), f = palmFrame(hand('right'), 'right');
+  assert.equal(d.progress, 0);
+  for (let i = 0; i < 5; i++) d.update(f, -Infinity, 0.05);
+  assert.ok(Math.abs(d.progress - 0.5) < 1e-9, `progress ${d.progress}`);
+  for (let i = 0; i < 6; i++) d.update(f, -Infinity, 0.05);
+  assert.equal(d.active, true);
+  assert.equal(d.progress, 1);
+  d.update(palmFrame(hand('right', { curl: 1 }), 'right'), -Infinity, 0.05);
+  assert.equal(d.progress, 1); // still active while the release hold runs
 });

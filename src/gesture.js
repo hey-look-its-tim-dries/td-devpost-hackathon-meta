@@ -70,6 +70,7 @@ function latch(on, off, drop) {
   let active = false, t = 0, lost = 0;
   return {
     get active() { return active; },
+    get progress() { return active ? 1 : Math.min(1, t / on); }, // how far through the hold to switch on
     update(ok, dt) {
       if (ok === null) {
         lost += dt;
@@ -84,14 +85,24 @@ function latch(on, off, drop) {
   };
 }
 
+// The palm-down gesture in parts, each with how far it is (value) and what makes it good (need),
+// so the game can show a player which part is missing.
+export const PALM_DOWN = { down: 0.7, straight: 0.75, spread: 0.12 };
+export function palmDownChecks(frame) {
+  const part = (value, need) => ({ value, need, ok: value > need });
+  const down = part(-frame.normal[1], PALM_DOWN.down), straight = part(frame.extension, PALM_DOWN.straight), spread = part(frame.spread, PALM_DOWN.spread);
+  return { down, straight, spread, all: down.ok && straight.ok && spread.ok };
+}
+
 // Take-off: palm facing down, fingers straight and spread, lifted off the table, held a moment.
 export function createPalmDown({ holdOn = 0.5, holdOff = 0.3, minHeight = 0.08, dropTolerance = 0.25 } = {}) {
   const l = latch(holdOn, holdOff, dropTolerance);
   return {
     get active() { return l.active; },
+    get progress() { return l.progress; },
     update(frame, tableY, dt) {
       if (!frame) return l.update(null, dt);
-      const ok = -frame.normal[1] > 0.7 && frame.extension > 0.75 && frame.spread > 0.12 && frame.center[1] - tableY >= minHeight;
+      const ok = palmDownChecks(frame).all && frame.center[1] - tableY >= minHeight;
       return l.update(ok, dt);
     },
   };
