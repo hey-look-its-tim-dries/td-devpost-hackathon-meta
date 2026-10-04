@@ -4,10 +4,11 @@
 // DNA is generated, never scanned, and they are labelled as founders. Pure.
 import { packPalm, packPrint, synthPrint, rng } from '../hand/dna.js';
 import { templatePalm } from '../hand/shape.js';
+import { WORLD } from './units.js';
 
 export const FOUNDER_NAMES = ['Yanida', 'Cadio', 'Oru', 'Fennick', 'Saelo', 'Marrow', 'Tilde', 'Quenna', 'Brisk', 'Ombre'];
-export const RING_WRIST = 405; // metres from the Source to each wrist
-export const SOURCE_RADIUS = 250;
+export const RING_WRIST = 405 * WORLD; // world metres from the Source to each wrist
+export const SOURCE_RADIUS = 250 * WORLD;
 // how often each class turns up on a fingertip, roughly as in people
 const CLASS_ODDS = [['ulnar', 0.58], ['whorl', 0.26], ['radial', 0.04], ['double', 0.04], ['pocket', 0.03], ['arch', 0.03], ['tented', 0.02]];
 const pickClass = (x) => {
@@ -27,13 +28,13 @@ export function founders() {
   });
 }
 
-// hand metres (X towards the thumb, Y towards the fingers) to world (x, z), and back
+// hand metres (X towards the thumb, Y towards the fingers) to world metres (x, z), and back
 export function toWorld(pose, X, Y) {
-  const c = Math.cos(pose.rot), s = Math.sin(pose.rot), x = pose.mirror ? -X : X;
-  return [pose.x + c * x + s * Y, pose.z + s * x - c * Y];
+  const c = Math.cos(pose.rot), s = Math.sin(pose.rot), x = (pose.mirror ? -X : X) * WORLD, y = Y * WORLD;
+  return [pose.x + c * x + s * y, pose.z + s * x - c * y];
 }
 export function toHand(pose, x, z) {
   const c = Math.cos(pose.rot), s = Math.sin(pose.rot), dx = x - pose.x, dz = z - pose.z;
-  const X = c * dx + s * dz;
-  return [pose.mirror ? -X : X, s * dx - c * dz];
+  const X = (c * dx + s * dz) / WORLD;
+  return [pose.mirror ? -X : X, (s * dx - c * dz) / WORLD];
 }
