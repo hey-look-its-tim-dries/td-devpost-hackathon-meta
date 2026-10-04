@@ -48,8 +48,9 @@ export function wildHeight(x, z) {
   const r = Math.hypot(x, z), b = sstep(BASIN_IN, BASIN_OUT, r);
   const plain = 6 * (vnoise(x / 900, z / 900, 11) - 0.25) - 30 * (1 - sstep(SOURCE_R * 0.6, SOURCE_R, r)); // a few lakes, not a marsh
   if (b <= 0) return plain;
-  const canyon = 1 - sstep(0, 220, cells(x, z, 3500, 20).edge);
-  return plain * (1 - b) + b * (650 * Math.pow(fold(x, z), 1.5) * (1 - canyon) - 60 * canyon); // every canyon floor holds water
+  // canyon walls widen with the mountain they cut through, so they stay slopes, not cliffs
+  const mountain = 650 * Math.pow(fold(x, z), 1.5), canyon = 1 - sstep(0, 260 + 0.9 * mountain, cells(x, z, 3500, 20).edge);
+  return plain * (1 - b) + b * (mountain * (1 - canyon) - 60 * canyon); // every canyon floor holds water
 }
 
 export const WILD_GLSL = /* glsl */ `
@@ -108,8 +109,8 @@ export const WILD_GLSL = /* glsl */ `
     float r = length(p), b = sstep(11000.0, 17000.0, r);
     float plain = 6.0 * (vnoise(p / 900.0, 11) - 0.25) - 30.0 * (1.0 - sstep(2500.0 * 0.6, 2500.0, r));
     if (b <= 0.0) return plain;
-    float canyon = 1.0 - sstep(0.0, 220.0, cells(p, 3500.0, 20).y);
-    return plain * (1.0 - b) + b * (650.0 * pow(fold(p), 1.5) * (1.0 - canyon) - 60.0 * canyon);
+    float mountain = 650.0 * pow(fold(p), 1.5), canyon = 1.0 - sstep(0.0, 260.0 + 0.9 * mountain, cells(p, 3500.0, 20).y);
+    return plain * (1.0 - b) + b * (mountain * (1.0 - canyon) - 60.0 * canyon);
   }
   // dermal ridges over the wilderness: flowing lines 35 m apart that curl into a few giant whorls
   float wildPhase(vec2 p) {

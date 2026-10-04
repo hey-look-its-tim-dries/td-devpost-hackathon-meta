@@ -41,3 +41,12 @@ test('the GPU twin uses the same constants', () => {
   for (const s of ['0x27d4eb2du', '0x165667b1u', '0x1b873593u', '0x2c1b3c6du', '0x297a2d39u', '11000.0', '17000.0', '2500.0', '650.0', '60.0', '3500.0', '6000.0', '2.03', '900.0', '4000.0'])
     assert.ok(WILD_GLSL.includes(s), s);
 });
+
+test('canyon walls are slopes you can glide down, not cliffs (no forced lurches)', () => {
+  let worst = 0;
+  for (let i = 0; i < 20000; i++) {
+    const x = (hashI(i, 3, 9) - 0.5) * 120000, z = (hashI(i, 4, 9) - 0.5) * 120000;
+    worst = Math.max(worst, Math.abs(wildHeight(x + 2, z) - wildHeight(x, z)) / 2, Math.abs(wildHeight(x, z + 2) - wildHeight(x, z)) / 2);
+  }
+  assert.ok(worst < 3, `steepest ${worst.toFixed(2)} m per m`);
+});
