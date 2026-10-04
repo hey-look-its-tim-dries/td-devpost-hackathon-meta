@@ -120,8 +120,8 @@ const BONES = [['wrist', 'thumb-metacarpal'], ['thumb-metacarpal', 'thumb-phalan
   ['index-finger-phalanx-proximal', 'pinky-finger-phalanx-proximal']];
 const handInk = createInk(BONES.length * 2, { width: 0.004, color: '#16100e' });
 rig.add(handInk.mesh);
-const card = createGestureCard(); // what your hand is commanding, floating above it
-rig.add(card.mesh);
+const card = createGestureCard(); // what your hand is commanding, fixed at the bottom of your view
+camera.add(card.mesh);
 xrHands.forEach((h) => (h.smooth = new OneEuro({ minCutoff: 1.5, beta: 0.5 })));
 async function useWebcam() {
   if (webcam) return;
@@ -156,12 +156,6 @@ function readHands(dt) {
       if (ok) for (const n of JOINTS) j[n].position.toArray(h.store[n]);
     }
     h.frame = ok ? palmFrame(h.store, h.handedness) : null;
-    // where the card floats: above the hand as you see it (webcam joints live in the eye frame)
-    if (h.frame) {
-      h.anchor ||= new THREE.Vector3();
-      h.anchor.fromArray(h.frame.center);
-      if (cams) h.anchor.applyQuaternion(camera.quaternion).add(camera.position);
-    }
     if (!h.palmDown.update(h.frame, -Infinity, dt)) h.ref = null;
     else if (!h.ref && h.frame) h.ref = JSON.parse(JSON.stringify(h.frame)); // the pose you started steering in
   }
@@ -223,7 +217,8 @@ function frame() {
   const seen = xrHands.filter((q) => q.frame).map((q) => ({ q, c: palmDownChecks(q.frame) }));
   const best = seen.find((x) => x.q.ref) ?? seen.sort((a, b) => ['down', 'straight', 'spread'].filter((k) => b.c[k].ok).length - ['down', 'straight', 'spread'].filter((k) => a.c[k].ok).length)[0];
   const steeringNow = !!best?.q.ref;
-  card.update(dt, started && best ? { checks: best.c, progress: best.q.palmDown.progress, steering: steeringNow, turn: steer.turn, climb: steer.climb } : null, best?.q.anchor, headLocal, rig);
+  // shown while hands can steer (webcam or headset), even before a hand is seen
+  card.update(dt, started && (webcam || renderer.xr.isPresenting) ? { checks: best?.c ?? null, progress: best?.q.palmDown.progress ?? 0, steering: steeringNow, turn: steer.turn, climb: steer.climb } : null);
   if (steeringNow !== handSteering) {
     handSteering = steeringNow;
     handInk.mesh.material.uniforms.uColor.value.set(steeringNow ? '#a8402b' : '#16100e');

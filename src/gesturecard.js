@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-// The gesture card: a small card that floats just above your hand and says what your hand is
+// The gesture card: a small card fixed at the bottom of your view that says what your hand is
 // commanding right now. Not steering: the three parts of the palm-down gesture as a checklist, each
 // with how far along it is, and a bar that fills during the half-second hold. Steering: a red
 // "STEERING" with turn and climb gauges. Works the same for headset hands and webcam hands.
@@ -14,13 +14,13 @@ export function createGestureCard() {
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   const mesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.18, 0.0675),
+    new THREE.PlaneGeometry(0.3, 0.1125), // 28 degrees wide at 0.6 m: its smallest text stays above 1 degree
     new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false, opacity: 0 }),
   );
   mesh.renderOrder = 30;
   mesh.visible = false;
-  let drawn = '', placed = false;
-  const target = new THREE.Vector3(), headWorld = new THREE.Vector3();
+  mesh.position.set(0, -0.24, -0.6); // a child of the camera: bottom centre, about 22 degrees down
+  let drawn = '';
 
   function paint(s) {
     const g = canvas.getContext('2d');
@@ -102,21 +102,15 @@ export function createGestureCard() {
 
   return {
     mesh,
-    // s: { checks, progress, steering, turn, climb } or null (no hand); anchor: rig-space point to
-    // float above; head: rig-space eye position; rig: to face the card at you
-    update(dt, s, anchor, head, rig) {
+    // s: { checks (null when no hand is seen), progress, steering, turn, climb }, or null to hide it
+    update(dt, s) {
       const want = s ? 1 : 0;
       mesh.material.opacity += (want - mesh.material.opacity) * (1 - Math.exp(-dt * 8));
       mesh.visible = mesh.material.opacity > 0.02;
-      if (!s || !anchor) { placed = false; return; }
+      if (!s) return;
       const key = JSON.stringify([s.steering, Math.round(s.turn * 20), Math.round(s.climb * 20), Math.round(s.progress * 10),
         ...PARTS.map(([k]) => s.checks && [s.checks[k].ok, Math.round(Math.min(1, s.checks[k].value / s.checks[k].need) * 10)])]);
       if (key !== drawn) { drawn = key; paint(s); tex.needsUpdate = true; }
-      target.copy(anchor);
-      target.y += 0.1; // just above the hand
-      mesh.position.lerp(target, placed ? 1 - Math.exp(-dt * 10) : 1);
-      placed = true;
-      mesh.lookAt(rig.localToWorld(headWorld.copy(head)));
     },
   };
 }
