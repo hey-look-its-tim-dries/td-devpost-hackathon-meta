@@ -35,11 +35,10 @@ const COMMON = /* glsl */ `
       vec2 d = (p - pose.xy) / uWorld;
       vec2 c = (vec2((pose.z * d.x + pose.w * d.y) * uHandMirror[i], pose.w * d.x - pose.z * d.y) - box.xy) / uCell;
       if (c.x < 0.5 || c.y < 0.5 || c.x > box.z - 0.5 || c.y > box.w - 0.5) continue;
-      vec4 b = texelFetch(uHandB, ivec3(ivec2(c), i), 0);
-      if (b.b < 0.5 / 255.0) continue; // outside this Hand
       vec3 t = vec3(c / uLayer, float(i));
-      float h = textureLod(uHandA, t, 0.0).r * uWorld;
-      if (h > best) { best = h; tc = t; info = b; }
+      float hm = textureLod(uHandA, t, 0.0).r;
+      if (hm < 0.15) continue; // outside this Hand: heights are 0 outside and 0.3 or more inside, smooth at any distance
+      if (hm * uWorld > best) { best = hm * uWorld; tc = t; info = texelFetch(uHandB, ivec3(ivec2(c), i), 0); }
     }
     return best;
   }`;
@@ -60,11 +59,11 @@ const VERT = /* glsl */ `
     vec4 info;
     float hh = handAt(p, tc, info);
     float fine = 1.0 - sstep(4.0, 10.0, spacing);
-    if (hh > h) {
+    if (hh > -1e8) { // inside a Hand its own surface wins over the plain
       vec4 a = textureLod(uHandA, tc, 0.0);
       return hh + fine * a.g / max(length(a.gb), 1e-3) * info.a * 5.0;
     }
-    return h + fine * cos(6.2831853 * wildPhase(p)) * 3.0 * sstep(0.0, 20.0, wildH);
+    return fine > 0.0 ? h + fine * cos(6.2831853 * wildPhase(p)) * 3.0 * sstep(0.0, 20.0, wildH) : h; // most vertices skip the ridges
   }
   void main() {
     int level = int(node.w + 0.5);
@@ -102,8 +101,11 @@ const FRAG = /* glsl */ `
   vec2 skinDetail(vec2 p, float r, float px, int k) {
     vec2 w = p + 40.0 * (vec2(vnoise(p / 150.0, k), vnoise(p / 150.0, k + 1)) - 0.5);
     // soft grooves a few pixels wide (thin lines would break into dots), fading out before they alias
-    float wr = (1.0 - sstep(0.0, max(2.5, px * 2.0), cells(w, 110.0, k + 2).y)) * (1.0 - sstep(2.0, 5.0, px)) * (0.4 + 0.6 * vnoise(p / 300.0, k + 3));
-    float fw = (1.0 - sstep(0.0, max(0.8, px * 2.0), cells(w * 1.7, 40.0, k + 4).y)) * (1.0 - sstep(0.5, 1.5, px)) * 0.6;
+    float wr = 0.0, fw = 0.0;
+    if (px < 5.0) { // the wrinkle cells only where they can be seen (no derivatives in here)
+      wr = (1.0 - sstep(0.0, max(2.5, px * 2.0), cells(w, 110.0, k + 2).y)) * (1.0 - sstep(2.0, 5.0, px)) * (0.4 + 0.6 * vnoise(p / 300.0, k + 3));
+      fw = (1.0 - sstep(0.0, max(0.8, px * 2.0), cells(w * 1.7, 40.0, k + 4).y)) * (1.0 - sstep(0.5, 1.5, px)) * 0.6;
+    }
     vec2 c = floor(p / 6.0);
     float pd = length(fract(p / 6.0) - 0.5) * 6.0;
     float pore = step(0.86, hashI(int(c.x), int(c.y), k + 5)) * (1.0 - sstep(0.6, 1.3, pd)) * sstep(0.5, 0.85, r) * (1.0 - sstep(0.8, 2.5, px));
@@ -121,14 +123,15 @@ const FRAG = /* glsl */ `
     vec4 a = textureLod(uHandA, tc, 0.0);
     float hfw = length(fwidth(a.gb));
     float wph = wildPhase(p), wfw = fwidth(wph);
-    bool onHand = hh > max(vWild, 0.0) - 1.0;
+    bool onHand = hh > -1e8;
     vec3 albedo;
     float bh = 0.0, sheen = 0.0;
     bool isWater = false; // (water() is the shading function)
     float depth = 0.0;
     if (onHand) {
-      float code = floor(info.b * 255.0 + 0.5), coast = step(15.5, code), kind = code - 16.0 * coast;
-      if (kind > 3.5) {
+      float code = floor(info.b * 255.0 + 0.5), kind = code - 16.0 * step(15.5, code);
+      float coast = 1.0 - sstep(0.16, 0.3, a.r); // the inked coastline, from the smooth heights
+      if (a.a > 0.5) { // rivers and canals, from the smooth water depth
         isWater = true;
         depth = max(a.a * uWorld, 2.0);
         albedo = INK * step(4.5, kind) * smoothstep(0.8, 0.9, a.g / max(length(a.gb), 1e-3)); // stitches over canals
@@ -151,7 +154,7 @@ const FRAG = /* glsl */ `
       // the patchwork: one palm per (wavy) cell, each its own skin, stitched to its neighbours
       vec3 cell = cells(p + 300.0 * (vec2(vnoise(p / 2500.0, 41), vnoise(p / 2500.0, 42)) - 0.5), 5000.0, 40);
       vec3 skin = uTones[int(cell.z * 17.99)];
-      float aa = 1.0 - sstep(0.25, 0.7, wfw), r = cos(6.2831853 * wph);
+      float aa = 1.0 - sstep(0.1, 0.25, wfw), r = cos(6.2831853 * wph); // fade before the ridges reach the pixel grid (no moire)
       vec2 det = skinDetail(p, r, px, 200);
       float seam = 1.0 - sstep(3.0, 7.0, cell.y), stitch = step(0.5, fract((p.x + p.y) / 16.0));
       albedo = skin * (0.9 + 0.12 * r * aa);
@@ -197,6 +200,8 @@ function grid(cells) {
   g.instanceCount = 0;
   return g;
 }
+
+const box = new THREE.Box3(), v0 = new THREE.Vector3(), v1 = new THREE.Vector3();
 
 export function createSurface(shared) {
   let layer = null, A = null, B = null, texA = null, texB = null;
@@ -252,7 +257,11 @@ export function createSurface(shared) {
       uniforms.uHandCount.value = Math.max(uniforms.uHandCount.value, i + 1);
     },
     // choose the patches round the camera and hand them to the two instanced grids
-    update(cam) {
+    centre: [0, 0, 0], // where the patches were last chosen round, and how many are drawn (for checks)
+    patches: 0,
+    // frustum (optional): patches outside your view are not drawn at all
+    update(cam, frustum = null) {
+      this.centre = [cam.x, cam.y, cam.z];
       const { nodes, ranges, morphStart } = selectNodes([cam.x, cam.y, cam.z], { leaf: LEAF, levels: LEVELS });
       uniforms.uMorphStart.value = morphStart;
       uniforms.uMorphEnd.value = ranges;
@@ -261,10 +270,12 @@ export function createSurface(shared) {
         let n = 0;
         for (const node of nodes) {
           if (node.part !== part || n >= MAX_NODES) continue;
+          if (frustum && !frustum.intersectsBox(box.set(v0.set(node.x, -120, node.z), v1.set(node.x + node.size, 750, node.z + node.size)))) continue;
           arr.set([node.x, node.z, node.size, node.level], n * 4);
           n++;
         }
         m.geometry.instanceCount = n;
+        this.patches = (part ? this.patches : 0) + n;
         attr.needsUpdate = true;
       }
     },

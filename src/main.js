@@ -12,8 +12,7 @@ import { unpackPrint } from './hand/dna.js';
 import { founders, toHand, toWorld } from './world/founders.js';
 import { createWorldScene } from './world/scene.js';
 import { createSurface } from './world/surface.js';
-import { wildHeight } from './world/wild.js';
-import { WORLD } from './world/units.js';
+import { groundAt as groundAtWorld } from './world/ground.js';
 import { loadHorizon } from './world/horizon.js';
 import { startWebcamHands } from './webcam-hands.js';
 import { NEAR, FAR } from './view.js';
@@ -81,18 +80,8 @@ for (const w of workers) {
 }
 FOUNDERS.forEach((f, id) => workers[id % workers.length].postMessage({ id, palm: f.palm, prints: f.prints, cell: 0.75 }));
 
-// height of the world at (x, z): the highest hand there, or the sea
-function groundAt(x, z) {
-  let top = Math.max(0, wildHeight(x, z)); // the wilderness, or the water
-  for (const { pose, data: d } of hands) {
-    const [X, Y] = toHand(pose, x, z);
-    const c = (X - d.x0) / d.cell - 0.5, r = (Y - d.y0) / d.cell - 0.5;
-    if (c < 0 || r < 0 || c >= d.w - 1 || r >= d.h - 1) continue;
-    const c0 = Math.floor(c), r0 = Math.floor(r), fx = c - c0, fy = r - r0, H = d.height, i = r0 * d.w + c0;
-    top = Math.max(top, WORLD * ((H[i] * (1 - fx) + H[i + 1] * fx) * (1 - fy) + (H[i + d.w] * (1 - fx) + H[i + d.w + 1] * fx) * fy));
-  }
-  return top;
-}
+// height of the world at (x, z), for flight clearance (the GPU surface follows the same rule)
+const groundAt = (x, z) => groundAtWorld(hands, x, z);
 
 // ---------- scribbles: founders' knots over their palms, and your own five following you ----------
 
@@ -211,6 +200,17 @@ function steering() {
 const clock = new THREE.Clock();
 let t = 0, fps = 60;
 const camPos = new THREE.Vector3();
+// what you can see, for skipping terrain patches outside it (in the headset: both eyes, in the rig)
+const frustum = new THREE.Frustum(), viewM = new THREE.Matrix4(), projView = new THREE.Matrix4();
+function viewFrustum() {
+  if (renderer.xr.isPresenting) {
+    const c = renderer.xr.getCamera();
+    viewM.multiplyMatrices(rig.matrixWorld, c.matrix).invert();
+    return frustum.setFromProjectionMatrix(projView.multiplyMatrices(c.projectionMatrix, viewM));
+  }
+  camera.updateMatrixWorld();
+  return frustum.setFromProjectionMatrix(projView.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+}
 const steer = { turn: 0, climb: 0 }; // eased, so a jittery hand still flies smoothly
 function frame() {
   const dt = Math.min(clock.getDelta(), 0.05);
@@ -266,7 +266,9 @@ function frame() {
   ink.end();
 
   world.shared.uTime.value = t;
-  surface.update((renderer.xr.isPresenting ? renderer.xr.getCamera() : camera).getWorldPosition(camPos));
+  // the terrain's detail centres on your eyes; the headset camera's pose is in the rig's space
+  rig.updateMatrixWorld();
+  surface.update(renderer.xr.isPresenting ? rig.localToWorld(camPos.copy(renderer.xr.getCamera().position)) : camera.getWorldPosition(camPos), viewFrustum());
   panel.update(dt, headLocal, headQuat);
   renderer.render(scene, camera);
 }
@@ -314,6 +316,6 @@ renderer.setAnimationLoop(frame);
 // read-only peek for tests and curious players
 window.__pwc = {
   get state() {
-    return { hands: hands.length, pos: glide.pos.map(Math.round), yaw: +glide.yaw.toFixed(2), fps: Math.round(fps), scribbles: knots.length + mine.length, started, webcam: webcam ? webcam.update().map((q) => q.handedness) : null, steering: xrHands.some((q) => q.engaged), palm: xrHands.map((q) => q.frame && q.frame.normal.map((v) => +v.toFixed(2))), hand: xrHands.map((q) => q.frame && { point: q.frame.forward.map((v) => +v.toFixed(2)), open: +q.frame.extension.toFixed(2), height: +q.frame.center[1].toFixed(2) }), speed: Math.round(glide.speed), calls: renderer.info.render.calls, xr: renderer.xr.isPresenting };
+    return { hands: hands.length, pos: glide.pos.map(Math.round), yaw: +glide.yaw.toFixed(2), fps: Math.round(fps), scribbles: knots.length + mine.length, started, webcam: webcam ? webcam.update().map((q) => q.handedness) : null, steering: xrHands.some((q) => q.engaged), palm: xrHands.map((q) => q.frame && q.frame.normal.map((v) => +v.toFixed(2))), hand: xrHands.map((q) => q.frame && { point: q.frame.forward.map((v) => +v.toFixed(2)), open: +q.frame.extension.toFixed(2), height: +q.frame.center[1].toFixed(2) }), speed: Math.round(glide.speed), calls: renderer.info.render.calls, xr: renderer.xr.isPresenting, lod: surface.centre.map(Math.round), patches: surface.patches };
   },
 };
