@@ -11,7 +11,9 @@ import { createScribble, createKnot } from './scribble.js';
 import { unpackPrint } from './hand/dna.js';
 import { founders, toHand, toWorld } from './world/founders.js';
 import { createWorldScene } from './world/scene.js';
-import { createHandMesh } from './world/handmesh.js';
+import { createSurface } from './world/surface.js';
+import { wildHeight } from './world/wild.js';
+import { WORLD } from './world/units.js';
 import { startWebcamHands } from './webcam-hands.js';
 import { NEAR, FAR } from './view.js';
 
@@ -55,7 +57,8 @@ scene.add(rig);
 const camera = new THREE.PerspectiveCamera(65, innerWidth / innerHeight, NEAR, FAR);
 rig.add(camera);
 const world = createWorldScene();
-scene.add(world.sea);
+const surface = createSurface(world.shared); // the Hands and the endless wilderness, one level-of-detail terrain
+surface.meshes.forEach((m) => scene.add(m));
 rig.add(world.sky);
 const panel = createPanel();
 rig.add(panel.mesh);
@@ -68,7 +71,7 @@ const workers = [0, 1, 2].map(() => new Worker(new URL('./hand/worker.js', impor
 for (const w of workers) {
   w.onmessage = ({ data }) => {
     const f = FOUNDERS[data.id];
-    scene.add(createHandMesh(data, f.pose, world.shared));
+    surface.addHand(data.id, data, f.pose);
     hands.push({ ...f, data });
   };
   w.onerror = (e) => console.error('hand worker failed', e);
@@ -77,30 +80,30 @@ FOUNDERS.forEach((f, id) => workers[id % workers.length].postMessage({ id, palm:
 
 // height of the world at (x, z): the highest hand there, or the sea
 function groundAt(x, z) {
-  let top = 0;
+  let top = Math.max(0, wildHeight(x, z)); // the wilderness, or the water
   for (const { pose, data: d } of hands) {
     const [X, Y] = toHand(pose, x, z);
     const c = (X - d.x0) / d.cell - 0.5, r = (Y - d.y0) / d.cell - 0.5;
     if (c < 0 || r < 0 || c >= d.w - 1 || r >= d.h - 1) continue;
     const c0 = Math.floor(c), r0 = Math.floor(r), fx = c - c0, fy = r - r0, H = d.height, i = r0 * d.w + c0;
-    top = Math.max(top, (H[i] * (1 - fx) + H[i + 1] * fx) * (1 - fy) + (H[i + d.w] * (1 - fx) + H[i + d.w + 1] * fx) * fy);
+    top = Math.max(top, WORLD * ((H[i] * (1 - fx) + H[i + 1] * fx) * (1 - fy) + (H[i + d.w] * (1 - fx) + H[i + d.w + 1] * fx) * fy));
   }
   return top;
 }
 
 // ---------- scribbles: founders' knots over their palms, and your own five following you ----------
 
-const LINE = { points: 90, spacing: 0.55 };
+const LINE = { points: 90, spacing: 3 }; // lines about 270 m long, at world scale
 const TAPER = (s) => 0.12 + 0.88 * Math.pow(Math.sin(Math.PI * s), 0.6);
 const knots = FOUNDERS.flatMap((f) => f.prints.map(unpackPrint).map((p, j) => {
   const [cx, cz] = toWorld(f.pose, 0, 230);
-  const knot = createKnot({ cls: p.cls, seed: p.seed, center: [cx, 70 + j * 7, cz], radius: 15 + j * 2, tilt: 0.35 + j * 0.18 });
+  const knot = createKnot({ cls: p.cls, seed: p.seed, center: [cx, 480 + j * 35, cz], radius: 110 + j * 20, tilt: 0.35 + j * 0.18 }); // above the palms
   return { knot, line: createScribble({ ...LINE, at: knot.step(0, 0), seed: p.seed }) };
 }));
-// faster the higher you fly (35 m/s skimming, 120 m/s up high), and diving adds half again
-const glide = createGlide({ pos: params.get('at')?.split(',').map(Number) ?? [0, 230, 1150], turnRate: 0.75, climbRate: 25, speedAt: (h) => Math.min(120, Math.max(35, 35 + 0.35 * h)) }); // ?at=x,y,z to start elsewhere
-const mine = [0, 1, 2, 3, 4].map((j) => createScribble({ ...LINE, at: [glide.pos[0] + (j - 2) * 14, glide.pos[1] - 20, glide.pos[2] - 95], seed: 900 + j }));
-const ink = createInk((knots.length + mine.length) * (LINE.points + 1), { width: 0.32, color: '#16100e' });
+// faster the higher you fly (30 m/s skimming the ridges, 220 m/s high over the wilderness), and diving adds half again
+const glide = createGlide({ pos: params.get('at')?.split(',').map(Number) ?? [0, 1400, 15000], turnRate: 0.75, climbRate: 60, clearance: 25, speedAt: (h) => Math.min(220, Math.max(30, 30 + 0.25 * (h - 60))) }); // ?at=x,y,z to start elsewhere
+const mine = [0, 1, 2, 3, 4].map((j) => createScribble({ ...LINE, at: [glide.pos[0] + (j - 2) * 60, glide.pos[1] - 80, glide.pos[2] - 420], seed: 900 + j }));
+const ink = createInk((knots.length + mine.length) * (LINE.points + 1), { width: 1.4, color: '#16100e' });
 scene.add(ink.mesh);
 
 // ---------- hands and head (read live for steering, never kept) ----------
@@ -177,7 +180,7 @@ function readHead() {
 const keys = new Set();
 addEventListener('keydown', (e) => keys.add(e.key.toLowerCase()));
 addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()));
-const look = { yaw: 0, pitch: +(params.get('pitch') ?? -0.32), drag: false }; // ?pitch= for screenshots
+const look = { yaw: 0, pitch: +(params.get('pitch') ?? -0.22), drag: false }; // ?pitch= for screenshots
 renderer.domElement.addEventListener('pointerdown', () => (look.drag = true));
 addEventListener('pointerup', () => (look.drag = false));
 addEventListener('pointermove', (e) => {
@@ -204,6 +207,7 @@ function steering() {
 
 const clock = new THREE.Clock();
 let t = 0, fps = 60;
+const camPos = new THREE.Vector3();
 const steer = { turn: 0, climb: 0 }; // eased, so a jittery hand still flies smoothly
 function frame() {
   const dt = Math.min(clock.getDelta(), 0.05);
@@ -231,7 +235,7 @@ function frame() {
   if (!renderer.xr.isPresenting) {
     camera.rotation.set(look.pitch, look.yaw, 0, 'YXZ');
     // on a screen the view widens a little with speed, so you feel it (never in the headset: comfort)
-    const fov = 65 + 12 * Math.min(1, Math.max(0, (glide.speed - 35) / 85));
+    const fov = 65 + 12 * Math.min(1, Math.max(0, (glide.speed - 30) / 190));
     if (Math.abs(camera.fov - fov) > 0.05) {
       camera.fov += (fov - camera.fov) * (1 - Math.exp(-dt * 2));
       camera.updateProjectionMatrix();
@@ -241,24 +245,25 @@ function frame() {
 
   ink.begin();
   for (const k of knots) {
-    const target = k.knot.step(dt, 10), p = k.line.pos;
+    const target = k.knot.step(dt, 45), p = k.line.pos;
     const d = Math.hypot(target[0] - p[0], target[1] - p[1], target[2] - p[2]);
-    k.line.step(dt, target, { speed: 10 * Math.min(2.2, Math.max(0.9, 0.9 + d / 12)), turn: 4, loops: 0.03 });
+    k.line.step(dt, target, { speed: 45 * Math.min(2.2, Math.max(0.9, 0.9 + d / 50)), turn: 4, loops: 0.03 });
     const l = k.line.polyline();
     ink.stroke(l.xyz, l.count, TAPER);
   }
   const f = glide.forward();
   mine.forEach((s, j) => {
-    const side = (j - 2) * 14, lift = -20 + 5 * Math.sin(t * 0.7 + j); // ahead of you, so you see the lines, not their tails
-    const target = [glide.pos[0] + f[0] * 95 - f[2] * side, glide.pos[1] + lift, glide.pos[2] + f[2] * 95 + f[0] * side];
+    const side = (j - 2) * 60, lift = -80 + 20 * Math.sin(t * 0.7 + j); // ahead of you, so you see the lines, not their tails
+    const target = [glide.pos[0] + f[0] * 420 - f[2] * side, glide.pos[1] + lift, glide.pos[2] + f[2] * 420 + f[0] * side];
     const d = Math.hypot(target[0] - s.pos[0], target[1] - s.pos[1], target[2] - s.pos[2]);
-    s.step(dt, target, { speed: glide.speed * Math.min(1.9, Math.max(0.85, 0.85 + d / 40)), turn: 2.2, loops: 0.25, wander: 0.6 });
+    s.step(dt, target, { speed: glide.speed * Math.min(1.9, Math.max(0.85, 0.85 + d / 150)), turn: 2.2, loops: 0.25, wander: 0.6 });
     const l = s.polyline();
     ink.stroke(l.xyz, l.count, TAPER);
   });
   ink.end();
 
   world.shared.uTime.value = t;
+  surface.update((renderer.xr.isPresenting ? renderer.xr.getCamera() : camera).getWorldPosition(camPos));
   panel.update(dt, headLocal, headQuat);
   renderer.render(scene, camera);
 }
