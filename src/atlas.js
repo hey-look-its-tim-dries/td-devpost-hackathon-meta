@@ -5,14 +5,14 @@
 // ponytail: a bundled atlas until the shared one (Cloudflare Worker + D1) exists; the journey
 // must never depend on the network anyway, so this stays as the fallback.
 export const BUNDLED = [
-  { id: 'b1', cls: 'double', seed: 4211, ink: '#2b1d52' },
-  { id: 'b2', cls: 'whorl', seed: 907, ink: '#4a1a14' },
-  { id: 'b3', cls: 'tented', seed: 3310, ink: '#10323a' },
-  { id: 'b4', cls: 'pocket', seed: 77, ink: '#3b2a10' },
-  { id: 'b5', cls: 'arch', seed: 5120, ink: '#1f3a1a' },
-  { id: 'b6', cls: 'loop', seed: 2718, ink: '#3a1030' },
-  { id: 'b7', cls: 'whorl', seed: 6161, ink: '#1c2a4a' },
-  { id: 'b8', cls: 'loop', seed: 8088, ink: '#402414' },
+  { id: 'b1', cls: 'double', seed: 4211, ink: '#2b1d52', tone: 1 },
+  { id: 'b2', cls: 'whorl', seed: 907, ink: '#160d0a', tone: 4 },
+  { id: 'b3', cls: 'tented', seed: 3310, ink: '#10323a', tone: 0 },
+  { id: 'b4', cls: 'pocket', seed: 77, ink: '#3b2a10', tone: 2 },
+  { id: 'b5', cls: 'arch', seed: 5120, ink: '#1f3a1a', tone: 1 },
+  { id: 'b6', cls: 'loop', seed: 2718, ink: '#3a1030', tone: 3 },
+  { id: 'b7', cls: 'whorl', seed: 6161, ink: '#1c2a4a', tone: 0 },
+  { id: 'b8', cls: 'loop', seed: 8088, ink: '#120a08', tone: 3 },
 ];
 
 // Where neighbouring lands lie around a land (world metres at table scale): far enough to feel

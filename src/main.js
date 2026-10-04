@@ -9,6 +9,7 @@ import { createFlock, wingShape } from './birds.js';
 import { createCity } from './city.js';
 import { createChooser, PLATES } from './chooser.js';
 import { createFlight, SHRINK } from './flight.js';
+import { SKIN } from './desert.js';
 import { createHandGuide } from './guide.js';
 import { createPanel } from './panel.js';
 import { createInk } from './ink.js';
@@ -302,7 +303,7 @@ function beginGrowth(px, py, cls, seed, speed = 0.16) {
 
 function growNeighbours() {
   neighbours({ cls: home.cls, seed: home.seed }).forEach((l, k) => {
-    const t = createTerrain({ size: 192, ink: l.ink });
+    const t = createTerrain({ size: 192, ink: l.ink, sand: SKIN[l.tone ?? 1] }); // every land is someone's skin
     t.mesh.position.set(SPOTS[k][0], 0, SPOTS[k][1]);
     t.mesh.visible = false;
     worldRoot.add(t.mesh);

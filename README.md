@@ -38,7 +38,8 @@ ridge, the way real fingerprints form before birth.
   went today.
 - **Fly.** Lift your hand off the land, palm down, fingers spread. Your hand becomes a wire bird
   (drawn from the ridge at your own print's delta), you shrink to bird size, the room gives way to a
-  warm sky, and you glide over the skin-coloured desert with your flock, steering by tilting your hand.
+  warm sky, and you glide with your flock over skin country: a patchwork of palms in every skin tone,
+  stitched together, their heart, head and life lines cut in as canyons. You steer by tilting your hand.
 - **Visit other people.** Another player's land rises on the horizon in a different ink. Fly through the
   hoop above its summit and you land there: their land now lies on your table, and one of their
   birds joins your flock.
@@ -119,7 +120,8 @@ Fingerprints are biometric data, so the game is built so it never needs yours:
 | Gestures | Palm frame, palm-down take-off, touch hysteresis, palm tilt, shadow bird | [src/gesture.js](src/gesture.js) |
 | Walking | Path following that never crosses a ridge, autopilot routes | [src/walk.js](src/walk.js) |
 | Wire birds | Ridges as wings, flocking, ink ribbons in one draw call | [src/birds.js](src/birds.js), [src/ink.js](src/ink.js) |
-| Flight | Shrinks you, not the world; sky and skin desert | [src/flight.js](src/flight.js) |
+| Flight | Shrinks you, not the world; the sky | [src/flight.js](src/flight.js) |
+| Skin country | A stitched patchwork of palms in six skin tones, with crease canyons and dermal ripples | [src/desert.js](src/desert.js) |
 | Table finding | Detected table planes, then your flat hand, otherwise a sensible default | [src/room.js](src/room.js), [src/main.js](src/main.js) |
 | Sound | Generated with Web Audio: sand, wind, pentatonic terraces, bird songs | [src/audio.js](src/audio.js) |
 | City | Ink houses along the walked paths, a tower at the summit, kept per land | [src/city.js](src/city.js) |
@@ -186,4 +188,4 @@ node --test tests/*.test.mjs
   atlas as the fallback
 - An optional phone page that reads your real fingertip's class, core, delta and ridge count, deletes
   the photo, and sends only those few numbers
-- Your palm as the desert: its three big creases as canyons between your five fingertip lands
+- Your own palm in the patchwork, with your five fingertip lands at its fingertips

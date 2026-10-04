@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { createDesert } from './desert.js';
 
 // Flying. Nothing in the world gets bigger: YOU shrink. The rig that holds the camera and your
 // hands scales down about 40 times, so the 60 cm land on your table becomes a 24 m country, your
@@ -22,38 +23,6 @@ const SKY_FRAG = /* glsl */ `
     #include <colorspace_fragment>
   }`;
 
-// The palm desert between prints: flesh dunes rippled like skin, cut by three crease canyons.
-const DESERT_VERT = /* glsl */ `
-  varying vec2 vP;
-  varying float vDepth;
-  float crease(vec2 p) {
-    float a = abs(p.y + 0.9 - 0.25 * sin(p.x * 1.3));            // heart line
-    float b = abs(p.y + 0.2 - 0.18 * sin(p.x * 0.9 + 1.0) + 0.1 * p.x); // head line
-    float c = abs(length(p - vec2(-1.6, 0.6)) - 1.1);             // life line, round the thumb
-    return min(a, min(b, c));
-  }
-  void main() {
-    vP = position.xz;
-    float dune = 0.5 + 0.5 * sin(vP.x * 9.0 + sin(vP.y * 5.0) * 2.0) * sin(vP.y * 7.0 + 1.3);
-    float canyon = smoothstep(0.12, 0.0, crease(vP));
-    vDepth = canyon;
-    vec3 p = position + vec3(0.0, -0.003 - dune * 0.004 - canyon * 0.02, 0.0);
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
-  }`;
-const DESERT_FRAG = /* glsl */ `
-  uniform float uFade;
-  varying vec2 vP;
-  varying float vDepth;
-  void main() {
-    float ripple = 0.5 + 0.5 * sin(length(vP * vec2(1.0, 1.3)) * 140.0 + sin(vP.x * 11.0) * 3.0);
-    vec3 col = mix(vec3(0.93, 0.72, 0.6), vec3(0.85, 0.6, 0.5), ripple * 0.35);
-    col = mix(col, vec3(0.45, 0.24, 0.22), vDepth * 0.8);
-    float far = smoothstep(1.6, 3.2, length(vP));
-    col = mix(col, vec3(1.0, 0.8, 0.66), far);
-    gl_FragColor = vec4(col, uFade);
-    #include <colorspace_fragment>
-  }`;
-
 export function createFlight({ rig, worldRoot }) {
   const skyU = { uFade: { value: 0 } };
   const sky = new THREE.Mesh(
@@ -68,12 +37,7 @@ export function createFlight({ rig, worldRoot }) {
   sky.visible = false;
   rig.add(sky);
 
-  const deserU = { uFade: { value: 0 } };
-  const desert = new THREE.Mesh(
-    new THREE.CircleGeometry(3.2, 160).rotateX(-Math.PI / 2),
-    new THREE.ShaderMaterial({ uniforms: deserU, transparent: true, vertexShader: DESERT_VERT, fragmentShader: DESERT_FRAG }),
-  );
-  desert.renderOrder = -5;
+  const { mesh: desert, uniforms: deserU } = createDesert();
   desert.visible = false;
   worldRoot.add(desert);
 
