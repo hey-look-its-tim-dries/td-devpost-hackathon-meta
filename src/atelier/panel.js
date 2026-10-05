@@ -186,11 +186,13 @@ export function createAtelierPanel() {
   return {
     mesh,
     get isOpen() { return mesh.visible; },
-    // the card 0.75 m ahead of your eyes and a little low, turned to face you (head pose in the parent's space)
+    // the card 0.75 m along your gaze (never more than 35 degrees down or 10 up), turned to face you
+    // (head pose in the parent's space)
     open(headLocal, headQuat) {
-      const f = new THREE.Vector3(0, 0, -1).applyQuaternion(headQuat).setY(0).normalize();
+      const f = new THREE.Vector3(0, 0, -1).applyQuaternion(headQuat);
+      const pitch = Math.max(-0.6, Math.min(0.17, Math.asin(Math.max(-1, Math.min(1, f.y)))));
+      f.setY(0).normalize().multiplyScalar(Math.cos(pitch)).setY(Math.sin(pitch));
       mesh.position.copy(headLocal).addScaledVector(f, 0.75);
-      mesh.position.y -= 0.08;
       mesh.lookAt(mesh.parent.localToWorld(headLocal.clone()));
       mesh.visible = true;
     },

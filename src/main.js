@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js';
 import { headSteer } from './steer.js';
-import { startAudio, pauseAudio, setWind } from './audio.js';
+import { startAudio, pauseAudio, setWind, tone, swell } from './audio.js';
 import { JOINTS, palmFrame, OneEuro, createSteer, steerChecks, pointSteer } from './gesture.js';
 import { createGestureCard } from './gesturecard.js';
 import { createPanel } from './panel.js';
@@ -9,7 +9,7 @@ import { createInk } from './ink.js';
 import { createGlide } from './glide.js';
 import { createCreature } from './creature.js';
 import { createScribble, createKnot } from './scribble.js';
-import { unpackPrint } from './hand/dna.js';
+import { unpackPrint, unpackPalm } from './hand/dna.js';
 import { founders, toHand, toWorld } from './world/founders.js';
 import { createWorldScene } from './world/scene.js';
 import { createSurface } from './world/surface.js';
@@ -17,6 +17,12 @@ import { groundAt as groundAtWorld } from './world/ground.js';
 import { loadHorizon } from './world/horizon.js';
 import { startWebcamHands } from './webcam-hands.js';
 import { NEAR, FAR } from './view.js';
+import { handShape } from './hand/shape.js';
+import { createAtelierPanel } from './atelier/panel.js';
+import { createFlow } from './atelier/flow.js';
+import { findFits } from './world/fit.js';
+import { createGhosts } from './world/ghosts.js';
+import { loadHand, saveHand, forgetHand } from './world/mine.js';
 
 // Palm Whorl Cities, first milestone: the First Ten. Ten founding hands lie in a ring around the
 // Source. Their lines are rivers, their fingertips are print lands, and black-ink scribbles knot
@@ -69,17 +75,22 @@ rig.add(panel.mesh);
 // ---------- the First Ten, grown in workers ----------
 
 const FOUNDERS = founders();
+const MINE = FOUNDERS.length; // your Hand's layer, after the founders
+let mine = loadHand(localStorage); // your Hand on this device ({ palm, prints, pose, name }), or null
+let rising = null; // { t } while your new Hand rises
 const hands = [];
 const workers = [0, 1, 2].map(() => new Worker(new URL('./hand/worker.js', import.meta.url), { type: 'module' }));
 for (const w of workers) {
   w.onmessage = ({ data }) => {
-    const f = FOUNDERS[data.id];
-    surface.addHand(data.id, data, f.pose);
-    hands.push({ ...f, data });
+    const f = data.id === MINE ? mine : FOUNDERS[data.id], rise = data.id === MINE && rising ? 0 : 1;
+    surface.addHand(data.id, data, f.pose, rise);
+    hands.push({ ...f, id: data.id, data, rise });
   };
   w.onerror = (e) => console.error('hand worker failed', e);
 }
-FOUNDERS.forEach((f, id) => workers[id % workers.length].postMessage({ id, palm: f.palm, prints: f.prints, cell: 0.75 }));
+const bake = (id, f) => workers[id % workers.length].postMessage({ id, palm: f.palm, prints: f.prints, cell: 0.75 });
+FOUNDERS.forEach((f, id) => bake(id, f));
+if (mine) bake(MINE, mine);
 
 // height of the world at (x, z), for flight clearance (the GPU surface follows the same rule)
 const groundAt = (x, z) => groundAtWorld(hands, x, z);
@@ -171,9 +182,18 @@ const keys = new Set();
 addEventListener('keydown', (e) => keys.add(e.key.toLowerCase()));
 addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()));
 const look = { yaw: 0, pitch: +(params.get('pitch') ?? -0.22), drag: false }; // ?pitch= for screenshots
-renderer.domElement.addEventListener('pointerdown', () => (look.drag = true));
-addEventListener('pointerup', () => (look.drag = false));
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  const ray = mouseRay(e), uv = mode === 'atelier' ? cardUV() : null;
+  if (uv) { drawing = true; return act(atelier.down(uv, flow)); }
+  if (mode === 'merge') { const i = ghosts.aim(ray.origin, ray.direction); if (i >= 0) return choose(i); }
+  look.drag = true;
+});
+addEventListener('pointerup', () => {
+  look.drag = false;
+  if (drawing) { drawing = false; act(atelier.up(flow)); }
+});
 addEventListener('pointermove', (e) => {
+  if (drawing) { mouseRay(e); const uv = cardUV(); if (uv) atelier.move(uv, flow); return; }
   if (!look.drag) return;
   look.yaw -= e.movementX * 0.003;
   look.pitch = Math.max(-1.3, Math.min(0.6, look.pitch - e.movementY * 0.003));
@@ -193,6 +213,103 @@ function steering() {
   const k = (a, b) => (keys.has(a) || keys.has(b) ? 1 : 0);
   return { turn: k('d', 'arrowright') - k('a', 'arrowleft'), climb: k('w', 'arrowup') - k('s', 'arrowdown') };
 }
+
+// ---------- your Hand: read it by eye, lay it into the world, keep it ----------
+
+const atelier = createAtelierPanel();
+rig.add(atelier.mesh);
+const ghosts = createGhosts((x, z) => groundAt(x, z));
+scene.add(ghosts.group);
+let mode = 'fly', flow = null, laying = null, drawing = false, poking = null;
+const raycaster = new THREE.Raycaster(), ndc = new THREE.Vector2(), tipW = new THREE.Vector3();
+
+function openAtelier() {
+  if (mode !== 'fly' || mine) return;
+  flow = createFlow(Math.floor(Math.random() * 2 ** 32));
+  atelier.open(headLocal, headQuat);
+  atelier.paint(flow);
+  mode = 'atelier';
+}
+function act(a) {
+  if (!a || mode !== 'atelier') return;
+  if (a.type === 'pick') flow.pick(a.cls);
+  else if (a.type === 'notSure') flow.notSure();
+  else if (a.type === 'traced') flow.traced(a.pts);
+  else if (a.type === 'guide') flow.useGuide();
+  else if (a.type === 'noLine') flow.noLine();
+  else if (a.type === 'typical') flow.typicalLines();
+  else if (a.type === 'palette') flow.choosePalette(a.i);
+  else if (a.type === 'reroll') flow.reroll();
+  else if (a.type === 'lay') return merge();
+  tone(4 + ((flow.prints.length + flow.lines.length) % 7), 0, 0.08);
+  atelier.paint(flow);
+}
+// ponytail: runs on the main thread (~0.25 s, one hitch when you press "Lay my Hand"); a worker when the world is big
+function merge() {
+  flow.done();
+  const dna = flow.dna(), land = hands.map((h) => ({ pose: h.pose, shape: handShape(unpackPalm(h.palm)), name: h.name }));
+  const fits = findFits(land, handShape(unpackPalm(dna.palm)));
+  atelier.close();
+  if (!fits.length) { mode = 'fly'; return panel.say('No room on the coast right now', 5); }
+  for (const f of fits) f.names = f.next.map((i) => (i < 0 ? 'the Source' : land[i].name));
+  laying = { ...dna, name: flow.name };
+  ghosts.show(fits);
+  mode = 'merge';
+  panel.say('Three places fit your Hand: choose one', 8);
+}
+function choose(i) { // a ghost chosen once is picked, chosen again is laid
+  if (mode !== 'merge' || i < 0) return;
+  if (i !== ghosts.selected) return ghosts.select(i);
+  const fit = ghosts.fits[i];
+  ghosts.hide();
+  mine = { ...laying, pose: fit.pose };
+  try {
+    saveHand(localStorage, mine);
+  } catch (e) {
+    console.warn('this browser keeps nothing: your Hand lasts until you close the page', e);
+  }
+  rising = { t: 0 };
+  mode = 'rise';
+  bake(MINE, mine);
+  swell(8);
+  panel.say(fit.rivers ? `${mine.name} joins the world · ${fit.rivers} river${fit.rivers > 1 ? 's' : ''} join` : `${mine.name} joins the world`, 7);
+}
+// the ray from the mouse, or from your eyes along your gaze (world space)
+function mouseRay(e) {
+  ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  raycaster.setFromCamera(ndc, camera);
+  return raycaster.ray;
+}
+function gazeRay() {
+  raycaster.ray.origin.copy(headLocal).applyMatrix4(rig.matrixWorld);
+  raycaster.ray.direction.set(0, 0, -1).applyQuaternion(headQuat).applyQuaternion(rig.quaternion);
+  return raycaster.ray;
+}
+const cardUV = () => (atelier.isOpen ? raycaster.intersectObject(atelier.mesh)[0]?.uv ?? null : null); // after a ray is set
+// headset: your index fingertip pressed against the card is a touch, and dragging it draws
+function poke() {
+  for (const h of xrHands) {
+    if (!h.frame) continue;
+    const p = atelier.mesh.worldToLocal(rig.localToWorld(tipW.fromArray(h.store['index-finger-tip'])));
+    const on = Math.abs(p.x) < 0.3 && Math.abs(p.y) < 0.225, uv = { x: p.x / 0.6 + 0.5, y: p.y / 0.45 + 0.5 };
+    if (!poking && on && p.z < 0.01 && p.z > -0.03) { poking = h; act(atelier.down(uv, flow)); }
+    else if (poking === h && (p.z > 0.03 || !on)) { poking = null; act(atelier.up(flow)); }
+    else if (poking === h) atelier.move(uv, flow);
+  }
+}
+// a pinch: in the atelier it touches the card where you look; on the way to the merge it chooses the ghost you look at
+[0, 1].forEach((i) => renderer.xr.getController(i).addEventListener('select', () => {
+  gazeRay();
+  if (mode === 'atelier') { const uv = cardUV(); if (uv) { act(atelier.down(uv, flow)); act(atelier.up(flow)); } }
+  else if (mode === 'merge') choose(ghosts.aim(raycaster.ray.origin, raycaster.ray.direction));
+}));
+addEventListener('keydown', (e) => {
+  if (mode !== 'merge') return;
+  if ('123'.includes(e.key)) choose(+e.key - 1);
+  else if (e.key === 'Enter') choose(ghosts.selected);
+});
+document.getElementById('forget').addEventListener('click', (e) => { e.preventDefault(); forgetHand(localStorage); location.reload(); });
+if (mine) document.getElementById('forget').classList.remove('hidden');
 
 // ---------- the loop ----------
 
@@ -226,8 +343,8 @@ function frame() {
   const best = seen.find((x) => x.q.engaged) ?? seen.sort((a, b) => ['open', 'raised'].filter((k) => b.c[k].ok).length - ['open', 'raised'].filter((k) => a.c[k].ok).length)[0];
   const steeringNow = !!best?.q.engaged;
   // shown while hands can steer (webcam or headset), even before a hand is seen
-  card.update(dt, started && (webcam || renderer.xr.isPresenting) ? { checks: best?.c ?? null, progress: best?.q.hold.progress ?? 0, steering: steeringNow, turn: steer.turn, climb: steer.climb } : null);
-  glide.update(dt, steer, groundAt);
+  card.update(dt, started && mode !== 'atelier' && (webcam || renderer.xr.isPresenting) ? { checks: best?.c ?? null, progress: best?.q.hold.progress ?? 0, steering: steeringNow, turn: steer.turn, climb: steer.climb } : null);
+  if (mode !== 'atelier') glide.update(dt, steer, groundAt); // the world waits while you read your hand
   creature.update(dt, glide.pos, { speed: glide.speed, pitch: glide.pitch, turn: steer.turn });
   // the camera chases the creature: behind and above it, easing after its turns (never rolling)
   const f = glide.forward(), follow = 1 - Math.exp(-dt * 3);
@@ -276,6 +393,17 @@ function frame() {
   world.shared.uTime.value = t;
   // the terrain's detail centres on your eyes; the headset camera's pose is in the rig's space
   rig.updateMatrixWorld();
+  if (mode === 'atelier' && renderer.xr.isPresenting) poke();
+  if (mode === 'merge') ghosts.update(camera.getWorldPosition(tmpChase));
+  if (rising) { // your Hand rises over 8 s once it has baked; the glider's floor rises with it
+    const h = hands.find((q) => q.id === MINE);
+    if (h) {
+      rising.t = Math.min(1, rising.t + dt / 8);
+      h.rise = rising.t * rising.t * (3 - 2 * rising.t);
+      surface.setRise(MINE, h.rise);
+      if (rising.t === 1) { rising = null; mode = 'fly'; }
+    }
+  }
   surface.update(renderer.xr.isPresenting ? rig.localToWorld(camPos.copy(renderer.xr.getCamera().position)) : camera.getWorldPosition(camPos), viewFrustum());
   panel.update(dt, headLocal, headQuat);
   renderer.render(scene, camera);
@@ -289,7 +417,7 @@ function start() {
   startAudio();
   banner.classList.add('hidden');
   panel.say('Palm Whorl Cities', 4);
-  setTimeout(() => panel.say(renderer.xr.isPresenting ? 'Raise a hand, point where you want to fly' : 'A D turn · W S climb · drag to look', 6), 4200);
+  setTimeout(() => (mine ? panel.say(renderer.xr.isPresenting ? 'Raise a hand, point where you want to fly' : 'A D turn · W S climb · drag to look', 6) : openAtelier()), 4200);
 }
 async function enterHeadset() {
   startAudio();
@@ -324,6 +452,7 @@ renderer.setAnimationLoop(frame);
 // read-only peek for tests and curious players
 window.__pwc = {
   get state() {
-    return { hands: hands.length, pos: glide.pos.map(Math.round), yaw: +glide.yaw.toFixed(2), fps: Math.round(fps), scribbles: knots.length + creature.strands, started, webcam: webcam ? webcam.update().map((q) => q.handedness) : null, steering: xrHands.some((q) => q.engaged), palm: xrHands.map((q) => q.frame && q.frame.normal.map((v) => +v.toFixed(2))), hand: xrHands.map((q) => q.frame && { point: q.frame.forward.map((v) => +v.toFixed(2)), open: +q.frame.extension.toFixed(2), height: +q.frame.center[1].toFixed(2) }), speed: Math.round(glide.speed), calls: renderer.info.render.calls, xr: renderer.xr.isPresenting, lod: surface.centre.map(Math.round), patches: surface.patches };
+    return { hands: hands.length, pos: glide.pos.map(Math.round), yaw: +glide.yaw.toFixed(2), fps: Math.round(fps), scribbles: knots.length + creature.strands, started, webcam: webcam ? webcam.update().map((q) => q.handedness) : null, steering: xrHands.some((q) => q.engaged), palm: xrHands.map((q) => q.frame && q.frame.normal.map((v) => +v.toFixed(2))), hand: xrHands.map((q) => q.frame && { point: q.frame.forward.map((v) => +v.toFixed(2)), open: +q.frame.extension.toFixed(2), height: +q.frame.center[1].toFixed(2) }), speed: Math.round(glide.speed), calls: renderer.info.render.calls, xr: renderer.xr.isPresenting, lod: surface.centre.map(Math.round), patches: surface.patches, mode, mine: mine?.name ?? null };
   },
+  atelier: { act: (a) => act(a), get flow() { return flow; }, choose: (i) => choose(i) },
 };
