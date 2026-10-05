@@ -21,6 +21,7 @@ const COMMON = /* glsl */ `
   uniform vec4 uHandPose[MAX_HANDS]; // x, z (world m), cos, sin of the rotation
   uniform vec4 uHandBox[MAX_HANDS];  // x0, y0 (hand m), width, height (texels)
   uniform float uHandMirror[MAX_HANDS];
+  uniform float uHandRise[MAX_HANDS];
   uniform vec2 uLayer;
   uniform float uCell, uWorld;
   ${WILD_GLSL}
@@ -36,7 +37,7 @@ const COMMON = /* glsl */ `
       vec2 c = (vec2((pose.z * d.x + pose.w * d.y) * uHandMirror[i], pose.w * d.x - pose.z * d.y) - box.xy) / uCell;
       if (c.x < 0.5 || c.y < 0.5 || c.x > box.z - 0.5 || c.y > box.w - 0.5) continue;
       vec3 t = vec3(c / uLayer, float(i));
-      float hm = textureLod(uHandA, t, 0.0).r;
+      float hm = textureLod(uHandA, t, 0.0).r * uHandRise[i]; // a laid Hand rises out of the land
       if (hm < 0.15) continue; // outside this Hand: heights are 0 outside and 0.3 or more inside, smooth at any distance
       if (hm * uWorld > best) { best = hm * uWorld; tc = t; info = texelFetch(uHandB, ivec3(ivec2(c), i), 0); }
     }
@@ -211,6 +212,7 @@ export function createSurface(shared) {
     uHandPose: { value: Array.from({ length: MAX_HANDS }, () => new THREE.Vector4()) },
     uHandBox: { value: Array.from({ length: MAX_HANDS }, () => new THREE.Vector4()) },
     uHandMirror: { value: new Array(MAX_HANDS).fill(1) },
+    uHandRise: { value: new Array(MAX_HANDS).fill(1) },
     uLayer: { value: new THREE.Vector2(1, 1) }, uCell: { value: 0.75 }, uWorld: { value: WORLD },
     uLeaf: { value: LEAF }, uN: { value: N }, uMinY: { value: -120 }, uMaxY: { value: 750 },
     uMorphStart: { value: new Array(LEVELS).fill(0) }, uMorphEnd: { value: new Array(LEVELS).fill(1) },
@@ -233,7 +235,7 @@ export function createSurface(shared) {
   return {
     meshes,
     // one Hand's baked arrays into its layer of the texture arrays (every Hand shares the template's size)
-    addHand(i, d, pose) {
+    addHand(i, d, pose, rise = 1) {
       if (!layer) {
         layer = { w: d.w, h: d.h };
         A = new Uint16Array(d.w * d.h * 4 * MAX_HANDS);
@@ -254,8 +256,10 @@ export function createSurface(shared) {
       uniforms.uHandPose.value[i].set(pose.x, pose.z, Math.cos(pose.rot), Math.sin(pose.rot));
       uniforms.uHandBox.value[i].set(d.x0, d.y0, d.w, d.h);
       uniforms.uHandMirror.value[i] = pose.mirror ? -1 : 1;
+      uniforms.uHandRise.value[i] = rise;
       uniforms.uHandCount.value = Math.max(uniforms.uHandCount.value, i + 1);
     },
+    setRise(i, rise) { uniforms.uHandRise.value[i] = rise; },
     // choose the patches round the camera and hand them to the two instanced grids
     centre: [0, 0, 0], // where the patches were last chosen round, and how many are drawn (for checks)
     patches: 0,
