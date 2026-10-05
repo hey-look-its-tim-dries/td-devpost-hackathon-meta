@@ -64,3 +64,18 @@ test('it never stops moving: the shape changes from moment to moment', () => {
   const b = Array.from(c.strand(0).xyz.slice(30, 60));
   assert.notDeepEqual(a, b);
 });
+
+test('a complex creature: strands of different sizes and line weights, a few bold and many fine', () => {
+  const c = createCreature({ strands: 9, radius: 12 });
+  fly(c, 4, glide);
+  const reaches = Array.from({ length: 9 }, (_, k) => {
+    const { xyz, count } = c.strand(k), s = c.spine();
+    let m = 0;
+    for (let i = 0; i < count; i++) m = Math.max(m, Math.hypot(xyz[i * 3] - s.xyz[i * 3], xyz[i * 3 + 1] - s.xyz[i * 3 + 1], xyz[i * 3 + 2] - s.xyz[i * 3 + 2]));
+    return m;
+  });
+  assert.ok(Math.max(...reaches) > 2 * Math.min(...reaches), `reaches ${reaches.map((r) => r.toFixed(1))}`);
+  const widths = Array.from({ length: 9 }, (_, k) => c.weight(k));
+  assert.ok(Math.max(...widths) >= 2.5 * Math.min(...widths), `weights ${widths}`);
+});
+

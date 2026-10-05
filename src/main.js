@@ -96,10 +96,10 @@ const knots = FOUNDERS.flatMap((f) => f.prints.map(unpackPrint).map((p, j) => {
 // faster the higher you fly (30 m/s skimming the ridges, 220 m/s high over the wilderness), and diving adds half again
 const glide = createGlide({ pos: params.get('at')?.split(',').map(Number) ?? [0, 1100, 15000], turnRate: 0.9, clearance: 25, ceiling: 1500 }); // ?at=x,y,z to start elsewhere
 // you: the Whorl, ink strands winding round your own flight path; the camera chases it
-const creature = createCreature({ strands: 5, points: 90, spacing: 3, radius: 22 });
-const CHASE = { back: 140, up: 36 };
+const creature = createCreature({ strands: 9, points: 70, spacing: 2, radius: 13 });
+const CHASE = { back: 190, up: 40 }; // further back than the creature is long, so all of it is in front of you
 const chase = { pos: new THREE.Vector3(glide.pos[0], glide.pos[1] + CHASE.up, glide.pos[2] + CHASE.back), yaw: glide.yaw };
-const ink = createInk((knots.length * (LINE.points + 1)) + creature.strands * 91, { width: 1.1, color: '#16100e' });
+const ink = createInk((knots.length * (LINE.points + 1)) + creature.strands * 71, { width: 1.1, color: '#16100e' });
 // speed lines: ink streaks hanging in the air that rush past when you are fast
 const streaks = Array.from({ length: 60 }, () => new THREE.Vector3(Infinity, 0, 0));
 const streakInk = createInk(streaks.length, { width: 0.5, color: '#16100e' });
@@ -256,8 +256,8 @@ function frame() {
     ink.stroke(l.xyz, l.count, TAPER);
   }
   for (let k = 0; k < creature.strands; k++) {
-    const l = creature.strand(k);
-    ink.stroke(l.xyz, l.count, TAPER);
+    const l = creature.strand(k), w = creature.weight(k);
+    ink.stroke(l.xyz, l.count, (s) => TAPER(s) * w); // a few bold strands, many fine ones
   }
   ink.end();
   // speed lines: streaks fixed in the air round you, drawn along your motion, longer the faster you go
