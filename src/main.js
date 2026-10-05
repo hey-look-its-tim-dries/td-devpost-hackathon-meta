@@ -50,7 +50,8 @@ if (params.has('emulate')) {
 
 // ---------- renderer, you, the world ----------
 
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setClearColor(0x000000, 0); // transparent where nothing is drawn: your room, in passthrough
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.xr.enabled = true;
@@ -218,6 +219,11 @@ function steering() {
 
 const atelier = createAtelierPanel();
 rig.add(atelier.mesh);
+const dim = new THREE.Mesh(new THREE.PlaneGeometry(6, 4.5), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.55, depthTest: false, depthWrite: false }));
+dim.position.z = -0.01;
+dim.renderOrder = 24;
+atelier.mesh.add(dim); // behind the card: the world dims while you read your hand (unless you are in your room)
+let inRoom = false;
 const ghosts = createGhosts((x, z) => groundAt(x, z));
 scene.add(ghosts.group);
 let mode = 'fly', flow = null, laying = null, drawing = false, poking = null;
@@ -394,6 +400,12 @@ function frame() {
   // the terrain's detail centres on your eyes; the headset camera's pose is in the rig's space
   rig.updateMatrixWorld();
   if (mode === 'atelier' && renderer.xr.isPresenting) poke();
+  // reading your hand in your own room: only the card and your hands; the world comes back after
+  const room = mode === 'atelier' && inRoom;
+  world.sky.visible = !room;
+  surface.meshes.forEach((m) => (m.visible = !room));
+  ink.mesh.visible = streakInk.mesh.visible = !room;
+  dim.visible = !inRoom;
   if (mode === 'merge') ghosts.update(camera.getWorldPosition(tmpChase));
   if (rising) { // your Hand rises over 8 s once it has baked; the glider's floor rises with it
     const h = hands.find((q) => q.id === MINE);
@@ -421,14 +433,17 @@ function start() {
 }
 async function enterHeadset() {
   startAudio();
-  const session = await navigator.xr.requestSession('immersive-vr', { optionalFeatures: ['hand-tracking'] });
+  const kind = (await navigator.xr.isSessionSupported('immersive-ar').catch(() => false)) ? 'immersive-ar' : 'immersive-vr';
+  const session = await navigator.xr.requestSession(kind, { optionalFeatures: ['hand-tracking'] });
   await renderer.xr.setSession(session);
+  inRoom = session.environmentBlendMode !== undefined && session.environmentBlendMode !== 'opaque'; // your real room shows through
   webcam?.stop(); // the headset tracks your hands now: the laptop camera goes off
   webcam = null;
   headNeutral = null;
   start();
   session.addEventListener('visibilitychange', () => pauseAudio(session.visibilityState === 'hidden'));
   session.addEventListener('end', () => {
+    inRoom = false;
     started = false;
     banner.classList.remove('hidden');
   });
