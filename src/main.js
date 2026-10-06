@@ -77,7 +77,9 @@ rig.add(panel.mesh);
 
 const FOUNDERS = founders();
 const MINE = FOUNDERS.length; // your Hand's layer, after the founders
-let mine = loadHand(localStorage); // your Hand on this device ({ palm, prints, pose, name }), or null
+let storage = null; // localStorage, or null when the browser refuses it (your Hand then lasts until you close the page)
+try { storage = localStorage; } catch {}
+let mine = loadHand(storage); // your Hand on this device ({ palm, prints, pose, name }), or null
 let rising = null; // { t } while your new Hand rises
 const hands = [];
 const workers = [0, 1, 2].map(() => new Worker(new URL('./hand/worker.js', import.meta.url), { type: 'module' }));
@@ -270,7 +272,7 @@ function choose(i) { // a ghost chosen once is picked, chosen again is laid
   ghosts.hide();
   mine = { ...laying, pose: fit.pose };
   try {
-    saveHand(localStorage, mine);
+    saveHand(storage, mine);
   } catch (e) {
     console.warn('this browser keeps nothing: your Hand lasts until you close the page', e);
   }
@@ -291,7 +293,7 @@ function gazeRay() {
   raycaster.ray.direction.set(0, 0, -1).applyQuaternion(headQuat).applyQuaternion(rig.quaternion);
   return raycaster.ray;
 }
-const cardUV = () => (atelier.isOpen ? raycaster.intersectObject(atelier.mesh)[0]?.uv ?? null : null); // after a ray is set
+const cardUV = () => (atelier.isOpen ? raycaster.intersectObject(atelier.mesh, false)[0]?.uv ?? null : null); // after a ray is set; the card only: the dim backdrop behind it is its child
 // headset: your index fingertip pressed against the card is a touch, and dragging it draws
 function poke() {
   for (const h of xrHands) {
@@ -314,7 +316,7 @@ addEventListener('keydown', (e) => {
   if ('123'.includes(e.key)) choose(+e.key - 1);
   else if (e.key === 'Enter') choose(ghosts.selected);
 });
-document.getElementById('forget').addEventListener('click', (e) => { e.preventDefault(); forgetHand(localStorage); location.reload(); });
+document.getElementById('forget').addEventListener('click', (e) => { e.preventDefault(); forgetHand(storage); location.reload(); });
 if (mine) document.getElementById('forget').classList.remove('hidden');
 
 // ---------- the loop ----------
@@ -443,6 +445,7 @@ async function enterHeadset() {
   start();
   session.addEventListener('visibilitychange', () => pauseAudio(session.visibilityState === 'hidden'));
   session.addEventListener('end', () => {
+    if (mode === 'atelier') { atelier.close(); flow = null; mode = 'fly'; } // so the next start opens the card at the new head pose
     inRoom = false;
     started = false;
     banner.classList.remove('hidden');

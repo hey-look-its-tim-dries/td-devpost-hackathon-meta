@@ -9,7 +9,7 @@ import { TONES } from '../world/scene.js';
 // The atelier: one paper card in front of you that walks you through reading your hand by eye. Poke
 // it with a fingertip, pinch while looking at it, or click it. On the lines page you trace on the
 // drawing of a palm, with a fingertip pressed to the card or with the mouse. 0.6 x 0.45 m at 0.75 m:
-// inside the 30 degree cone, and its smallest text (22 px of 900) is about 17 mm tall.
+// inside the 30 degree cone, and its smallest text (30 px of 900) is about 15 mm tall.
 const W = 1200, H = 900, INK = '#16100e', PAPER = '#f6ead6', SEAL = '#a8402b', RIVER = '#2f5d7c', GILT = '#a88442';
 const SERIF = 'Georgia, "Times New Roman", serif', SANS = 'Inter, "Segoe UI", system-ui, sans-serif';
 const LABEL = { arch: 'arch', tented: 'tented arch', ulnar: 'loop', whorl: 'whorl', pocket: 'pocket loop', double: 'double loop' };
@@ -55,13 +55,13 @@ export function createAtelierPanel() {
     g.textAlign = 'left';
     g.textBaseline = 'alphabetic';
     g.fillStyle = SEAL;
-    g.font = `700 24px ${SANS}`;
+    g.font = `700 30px ${SANS}`;
     g.fillText(step.toUpperCase(), 40, 56);
     g.fillStyle = INK;
     g.font = `400 52px ${SERIF}`;
     g.fillText(title, 40, 110, W - 80);
     g.fillStyle = 'rgba(22,16,14,0.65)';
-    g.font = `400 26px ${SANS}`;
+    g.font = `400 32px ${SANS}`;
     g.fillText(sub, 40, 142, W - 80);
   };
   const path = (pts, close) => {
@@ -123,7 +123,7 @@ export function createAtelierPanel() {
         g.fill();
         g.stroke();
         g.fillStyle = done ? '#f7eedf' : INK;
-        g.font = `700 22px ${SANS}`;
+        g.font = `700 30px ${SANS}`;
         g.textAlign = 'center';
         g.textBaseline = 'middle';
         g.fillText(n.split(' ')[0], x + 52, 205);
@@ -156,7 +156,7 @@ export function createAtelierPanel() {
       y += 100;
       if (!everyone) { button('noLine', 730, y, 430, 72, "I don't have one"); y += 100; }
       button('typical', 730, y, 430, 72, 'Use a typical palm');
-      if (warn) { g.fillStyle = SEAL; g.font = `600 26px ${SANS}`; g.textAlign = 'left'; g.textBaseline = 'alphabetic'; g.fillText('Trace along the whole line', 730, y + 130); }
+      if (warn) { g.fillStyle = SEAL; g.font = `600 32px ${SANS}`; g.textAlign = 'left'; g.textBaseline = 'alphabetic'; g.fillText('Trace along the whole line', 730, y + 130); }
     } else if (flow.step === 'palette') {
       header('3 of 3 · your Hand', flow.name, 'Choose its skin. Any palette: it does not have to match yours.');
       for (let i = 0; i < 6; i++) {
