@@ -11,7 +11,7 @@ import { NOISE_GLSL, WATER_GLSL, INK_GLSL, SKY_GLSL } from './scene.js';
 // and stitched seams, dermal ridges and whorls, pores, wrinkle networks, grain. Everything fades into
 // the sky's own colour.
 const N = 32; // grid cells per full patch
-const MAX_HANDS = 16, LEVELS = 12, LEAF = 48, MAX_NODES = 600;
+const MAX_HANDS = 64, LEVELS = 12, LEAF = 48, MAX_NODES = 600, GROW = 16; // texture layers grow 16 at a time: a Hand is about 6 MB of texture
 
 const COMMON = /* glsl */ `
   #define MAX_HANDS ${MAX_HANDS}
@@ -19,9 +19,7 @@ const COMMON = /* glsl */ `
   uniform highp sampler2DArray uHandB;
   uniform int uHandCount;
   uniform vec4 uHandPose[MAX_HANDS]; // x, z (world m), cos, sin of the rotation
-  uniform vec4 uHandBox[MAX_HANDS];  // x0, y0 (hand m), width, height (texels)
-  uniform float uHandMirror[MAX_HANDS];
-  uniform float uHandRise[MAX_HANDS];
+  uniform vec4 uHandBox[MAX_HANDS];  // x0, y0 (hand m), mirror (1 or -1), rise (0..1); every Hand's size is uLayer
   uniform vec2 uLayer;
   uniform float uCell, uWorld;
   ${WILD_GLSL}
@@ -32,12 +30,12 @@ const COMMON = /* glsl */ `
     info = vec4(0.0);
     for (int i = 0; i < MAX_HANDS; i++) {
       if (i >= uHandCount) break;
-      vec4 pose = uHandPose[i], box = uHandBox[i];
+      vec4 pose = uHandPose[i], box = uHandBox[i]; // two vectors a Hand: 64 Hands fit any WebGL2 uniform budget
       vec2 d = (p - pose.xy) / uWorld;
-      vec2 c = (vec2((pose.z * d.x + pose.w * d.y) * uHandMirror[i], pose.w * d.x - pose.z * d.y) - box.xy) / uCell;
-      if (c.x < 0.5 || c.y < 0.5 || c.x > box.z - 0.5 || c.y > box.w - 0.5) continue;
+      vec2 c = (vec2((pose.z * d.x + pose.w * d.y) * box.z, pose.w * d.x - pose.z * d.y) - box.xy) / uCell;
+      if (c.x < 0.5 || c.y < 0.5 || c.x > uLayer.x - 0.5 || c.y > uLayer.y - 0.5) continue;
       vec3 t = vec3(c / uLayer, float(i));
-      float hm = textureLod(uHandA, t, 0.0).r * uHandRise[i]; // a laid Hand rises out of the land
+      float hm = textureLod(uHandA, t, 0.0).r * box.w; // a laid Hand rises out of the land
       if (hm < 0.15) continue; // outside this Hand: heights are 0 outside and 0.3 or more inside, smooth at any distance
       if (hm * uWorld > best) { best = hm * uWorld; tc = t; info = texelFetch(uHandB, ivec3(ivec2(c), i), 0); }
     }
@@ -211,8 +209,6 @@ export function createSurface(shared) {
     uHandA: { value: null }, uHandB: { value: null }, uHandCount: { value: 0 },
     uHandPose: { value: Array.from({ length: MAX_HANDS }, () => new THREE.Vector4()) },
     uHandBox: { value: Array.from({ length: MAX_HANDS }, () => new THREE.Vector4()) },
-    uHandMirror: { value: new Array(MAX_HANDS).fill(1) },
-    uHandRise: { value: new Array(MAX_HANDS).fill(1) },
     uLayer: { value: new THREE.Vector2(1, 1) }, uCell: { value: 0.75 }, uWorld: { value: WORLD },
     uLeaf: { value: LEAF }, uN: { value: N }, uMinY: { value: -120 }, uMaxY: { value: 750 },
     uMorphStart: { value: new Array(LEVELS).fill(0) }, uMorphEnd: { value: new Array(LEVELS).fill(1) },
@@ -236,30 +232,30 @@ export function createSurface(shared) {
     meshes,
     // one Hand's baked arrays into its layer of the texture arrays (every Hand shares the template's size)
     addHand(i, d, pose, rise = 1) {
-      if (!layer) {
-        layer = { w: d.w, h: d.h };
-        A = new Uint16Array(d.w * d.h * 4 * MAX_HANDS);
-        B = new Uint8Array(d.w * d.h * 4 * MAX_HANDS);
-        texA = new THREE.DataArrayTexture(A, d.w, d.h, MAX_HANDS);
+      const n = d.w * d.h * 4;
+      if (!layer) { layer = { w: d.w, h: d.h }; uniforms.uLayer.value.set(d.w, d.h); uniforms.uCell.value = d.cell; }
+      if (d.w !== layer.w || d.h !== layer.h) throw new Error('every Hand must share the template size');
+      if (i >= MAX_HANDS) throw new Error(`more than ${MAX_HANDS} Hands`);
+      if (!texA || i >= texA.image.depth) { // grow the texture arrays, keeping the Hands already in them
+        const depth = Math.min(MAX_HANDS, Math.ceil((i + 1) / GROW) * GROW);
+        const A2 = new Uint16Array(n * depth), B2 = new Uint8Array(n * depth);
+        if (A) { A2.set(A); B2.set(B); texA.dispose(); texB.dispose(); }
+        A = A2; B = B2;
+        texA = new THREE.DataArrayTexture(A, d.w, d.h, depth);
         texA.type = THREE.HalfFloatType;
         texA.magFilter = texA.minFilter = THREE.LinearFilter;
-        texB = new THREE.DataArrayTexture(B, d.w, d.h, MAX_HANDS);
+        texB = new THREE.DataArrayTexture(B, d.w, d.h, depth);
         uniforms.uHandA.value = texA;
         uniforms.uHandB.value = texB;
-        uniforms.uLayer.value.set(d.w, d.h);
-        uniforms.uCell.value = d.cell;
       }
-      if (d.w !== layer.w || d.h !== layer.h) throw new Error('every Hand must share the template size');
-      A.set(d.texA, i * d.w * d.h * 4);
-      B.set(d.info, i * d.w * d.h * 4);
+      A.set(d.texA, i * n);
+      B.set(d.info, i * n);
       texA.needsUpdate = texB.needsUpdate = true;
       uniforms.uHandPose.value[i].set(pose.x, pose.z, Math.cos(pose.rot), Math.sin(pose.rot));
-      uniforms.uHandBox.value[i].set(d.x0, d.y0, d.w, d.h);
-      uniforms.uHandMirror.value[i] = pose.mirror ? -1 : 1;
-      uniforms.uHandRise.value[i] = rise;
+      uniforms.uHandBox.value[i].set(d.x0, d.y0, pose.mirror ? -1 : 1, rise);
       uniforms.uHandCount.value = Math.max(uniforms.uHandCount.value, i + 1);
     },
-    setRise(i, rise) { uniforms.uHandRise.value[i] = rise; },
+    setRise(i, rise) { uniforms.uHandBox.value[i].w = rise; },
     // choose the patches round the camera and hand them to the two instanced grids
     centre: [0, 0, 0], // where the patches were last chosen round, and how many are drawn (for checks)
     patches: 0,
