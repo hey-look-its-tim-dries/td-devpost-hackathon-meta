@@ -1,0 +1,23 @@
+name = "pwc"
+main = "src/worker.js"
+compatibility_date = "2026-09-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "pwc"
+database_id = "replace-after-wrangler-d1-create"
+
+[[durable_objects.bindings]]
+name = "WORLD"
+class_name = "World"
+
+[[durable_objects.bindings]]
+name = "ROOM"
+class_name = "Room"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["World", "Room"]
+
+[vars]
+ORIGINS = "https://hey-look-its-tim-dries.github.io,http://localhost:8130,http://127.0.0.1:8130"

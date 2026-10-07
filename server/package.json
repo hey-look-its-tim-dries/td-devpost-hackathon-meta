@@ -1,0 +1,13 @@
+{
+  "name": "pwc-server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --port 8787 --var RATE_MS:0",
+    "seed": "wrangler d1 execute pwc --local --file=schema.sql && node seed.mjs > .wrangler/seed.sql && wrangler d1 execute pwc --local --file=.wrangler/seed.sql",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}
