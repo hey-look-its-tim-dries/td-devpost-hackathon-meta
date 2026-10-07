@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { nameFor } from '../src/world/names.js';
-import { saveHand, loadHand, forgetHand } from '../src/world/mine.js';
+import { saveHand, loadHand, forgetHand, checkHand } from '../src/world/mine.js';
 import { packPalm, packPrint, synthPrint, fromB64, toB64 } from '../src/hand/dna.js';
 import { templatePalm } from '../src/hand/shape.js';
 
@@ -55,4 +55,27 @@ test('forgetting your Hand deletes it', () => {
   forgetHand(s);
   assert.equal(loadHand(s), null);
   assert.equal(s.m.size, 0);
+});
+
+test('checkHand is the one gate: strings or bytes in, a clean Hand or null out', () => {
+  const h = hand();
+  const ok = checkHand({ ...h, palm: toB64(h.palm), prints: h.prints.map(toB64) });
+  assert.deepEqual([...ok.palm], [...h.palm]);
+  assert.equal(ok.prints.length, 5);
+  assert.equal(checkHand(h).name, 'Saelo');
+  assert.equal(checkHand({ ...h, name: '  ' }), null, 'blank name');
+  assert.equal(checkHand({ ...h, name: 'x'.repeat(41) }), null, 'long name');
+  assert.equal(checkHand({ ...h, pose: { ...h.pose, x: 200000 } }), null, 'too far');
+  assert.equal(checkHand({ ...h, pose: { ...h.pose, mirror: true } }), null, 'mirrored (M3 lays right hands)');
+  assert.equal(checkHand({ ...h, prints: h.prints.slice(0, 4) }), null, 'four prints');
+});
+
+test('a saved Hand keeps its server id and whether it is still pending', () => {
+  const s = memory();
+  saveHand(s, { ...hand(), id: 'h1', pending: true });
+  assert.equal(loadHand(s).id, 'h1');
+  assert.equal(loadHand(s).pending, true);
+  saveHand(s, hand());
+  assert.equal(loadHand(s).id, undefined);
+  assert.equal(loadHand(s).pending, false);
 });
