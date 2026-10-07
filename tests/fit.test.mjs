@@ -54,3 +54,12 @@ test('a Hand has rivers that reach its coast', () => {
 test('fast enough to run when you finish the atelier', () => {
   assert.ok(took < 2000, `${took} ms`);
 });
+
+test('overlaps stays fast as the world grows: 40 Hands in well under a frame budget per lay (final review 4)', () => {
+  const big = [...world];
+  for (let k = 0; k < 30; k++) big.push({ pose: { x: 40000 + (k % 6) * 9000, z: -30000 + Math.floor(k / 6) * 9000, rot: k * 0.7, mirror: false }, shape: world[k % 10].shape });
+  const t = performance.now();
+  for (const f of fits) assert.equal(overlaps(big, mine, f.pose), false);
+  assert.equal(overlaps(big, big[25].shape, big[25].pose), true, 'on a far Hand');
+  assert.ok((performance.now() - t) / (fits.length + 1) < 25, `${((performance.now() - t) / (fits.length + 1)).toFixed(0)} ms per check`);
+});

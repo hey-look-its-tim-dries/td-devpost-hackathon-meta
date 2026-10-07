@@ -1,7 +1,7 @@
 // tests/net.test.mjs: the pure parts of the client's network layer, with a stub fetch
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createNet, rowToHand } from '../src/net.js';
+import { createNet, rowToHand, settleLay } from '../src/net.js';
 import { founders } from '../src/world/founders.js';
 import { toB64 } from '../src/hand/dna.js';
 
@@ -38,7 +38,7 @@ test('laying: a 200 and a 409 are a Hand, a conflict is fits, the rest is an err
   const f = founders()[0], mk = (status, body) => createNet({ storage: memory(), fetchFn: async () => new Response(JSON.stringify(body), { status }) });
   const h = { palm: f.palm, prints: f.prints, pose: f.pose, name: 'Testo' };
   assert.deepEqual(await mk(200, { id: 'x', pose: f.pose }).layHand(h), { id: 'x', pose: f.pose });
-  assert.equal((await mk(409, { id: 'y', pose: f.pose }).layHand(h)).id, 'y');
+  assert.equal((await mk(409, row(founders()[0], 'y')).layHand(h)).id, 'hy', 'a 409 is the Hand already on the map');
   assert.equal((await mk(200, { conflict: true, fits: [] }).layHand(h)).conflict, true);
   assert.equal((await mk(400, { error: 'not a Hand' }).layHand(h)).error, 'not a Hand');
   assert.equal((await createNet({ storage: memory(), fetchFn: async () => { throw new Error('down'); } }).layHand(h)).error, 'offline');
@@ -47,4 +47,38 @@ test('laying: a 200 and a 409 are a Hand, a conflict is fits, the rest is an err
 test('rowToHand carries exactly what main.js bakes with', () => {
   const h = rowToHand(row(founders()[1], 1));
   assert.deepEqual(Object.keys(h).sort(), ['founder', 'id', 'name', 'palm', 'pose', 'prints']);
+});
+
+test('a world whose body stalls after the headers still falls back in time (final review 8, Review Focus 3)', async () => {
+  const net = createNet({ storage: memory(), timeout: 50, fetchFn: async () => new Response(new ReadableStream({ start() {} })) });
+  const t = performance.now(), w = await net.fetchWorld();
+  assert.equal(w.online, false);
+  assert.ok(performance.now() - t < 1000);
+});
+
+const answers = (...list) => { let k = 0; return async () => { const [status, body] = list[Math.min(k++, list.length - 1)]; return new Response(JSON.stringify(body), { status }); }; };
+const f0 = founders()[0], mineHand = { id: 'local-1', palm: f0.palm, prints: f0.prints, pose: { x: 1, z: 2, rot: 0, mirror: false }, name: 'Pendo', pending: true };
+
+test('settleLay: laid, or adopted, or moved to a fresh fit, or still pending (final review 1 and 2)', async () => {
+  const at = (fetchFn) => settleLay(createNet({ storage: memory(), fetchFn }), mineHand);
+  let r = await at(answers([200, { id: 's1', pose: mineHand.pose }]));
+  assert.deepEqual([r.note, r.hand.id, r.hand.pending], ['joined', 's1', false]);
+  const old = row(founders()[2], 9);
+  r = await at(answers([409, old]));
+  assert.deepEqual([r.note, r.hand.id, r.hand.name, r.hand.pending], ['existing', 'h9', 'Oru', false]);
+  assert.deepEqual([...r.hand.palm], [...founders()[2].palm], 'the server\'s Hand, not the one this device drew');
+  const fit = { pose: { x: 5000, z: 6000, rot: 1, mirror: false } };
+  r = await at(answers([200, { conflict: true, fits: [fit] }], [200, { id: 's2', pose: fit.pose }]));
+  assert.deepEqual([r.note, r.hand.id, r.hand.pose.x, r.hand.pending], ['moved', 's2', 5000, false]);
+  r = await at(answers([200, { conflict: true, fits: [fit] }], [200, { conflict: true, fits: [] }]));
+  assert.deepEqual([r.note, r.hand.pose.x, r.hand.pending], ['pending', 5000, true], 'waits at the free place it was offered');
+  r = await at(async () => { throw new Error('down'); });
+  assert.deepEqual([r.note, r.hand.id, r.hand.pending], ['pending', 'local-1', true]);
+});
+
+test('a 409 hands back the server\'s whole Hand', async () => {
+  const r = await createNet({ storage: memory(), fetchFn: answers([409, row(founders()[2], 9)]) }).layHand(mineHand);
+  assert.equal(r.existing, true);
+  assert.equal(r.name, 'Oru');
+  assert.equal(r.prints.length, 5);
 });

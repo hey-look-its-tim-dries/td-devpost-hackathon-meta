@@ -15,6 +15,7 @@ const BOX = [[-200, -20], [300, -20], [-200, 640], [300, 640]]; // round any Han
 const along = (f, u, t) => [f.base[0] + f.side[0] * u + f.dir[0] * t, f.base[1] + f.side[1] * u + f.dir[1] * t];
 const tip = (f) => along(f, 0, f.len);
 const ANCHORS = [OUTLINE[40], OUTLINE[8], OUTLINE[60], tip(FINGERS[2])]; // wrist, little-finger edge, thumb edge, middle fingertip
+const inBox = ([X, Y]) => X > -200 && X < 300 && Y > -20 && Y < 640; // round any Hand, hand metres (BOX)
 
 const segDist = (px, py, [ax, ay], [bx, by]) => {
   const vx = bx - ax, vy = by - ay, t = Math.max(0, Math.min(1, ((px - ax) * vx + (py - ay) * vy) / (vx * vx + vy * vy || 1)));
@@ -66,7 +67,6 @@ export function buildGrid(world, cell = 60) {
   const W = Math.ceil((maxX - minX + 2 * pad) / cell), H = Math.ceil((maxZ - minZ + 2 * pad) / cell);
   // land and the Source are 0; every cell up to NEAR away gets its distance and whose land it is
   const dist = new Uint8Array(W * H).fill(255), owner = new Int8Array(W * H), queue = [];
-  const inBox = ([X, Y]) => X > -200 && X < 300 && Y > -20 && Y < 640;
   for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) {
     const x = x0 + (c + 0.5) * cell, z = z0 + (r + 0.5) * cell, source = Math.hypot(x, z) < SOURCE_RADIUS;
     const who = source ? -1 : world.findIndex((h) => { const p = toHand(h.pose, x, z); return inBox(p) && insideHand(h.shape, p[0], p[1]); });
@@ -104,10 +104,18 @@ const worldSamples = (shape) => {
   return { samples: [...coast, ...inner].map(([X, Y]) => [X * WORLD, Y * WORLD]), coastCount: coast.length };
 };
 
-// would this pose put the Hand on land or in the Source? The server asks before it keeps a Hand (spec 6.3)
+// would this pose put more than one of the Hand's samples on land or in the Source? The server asks before it
+// keeps a Hand (spec 6.3). Each sample is tested against each Hand directly: no grid, so the answer does not move
+// with the world's extent, and a lay costs samples x Hands. The one-cell margin is the fit finder's, on the client.
 export function overlaps(world, shape, pose) {
-  const { samples, coastCount } = worldSamples(shape);
-  return fitAt(buildGrid(world), samples, coastCount, pose) === null;
+  const { samples } = worldSamples(shape), c = Math.cos(pose.rot), s = Math.sin(pose.rot);
+  let on = 0;
+  for (const [X, Y] of samples) {
+    const x = pose.x + c * X + s * Y, z = pose.z + s * X - c * Y;
+    const land = Math.hypot(x, z) < SOURCE_RADIUS || world.some((h) => { const p = toHand(h.pose, x, z); return inBox(p) && insideHand(h.shape, p[0], p[1]); });
+    if (land && ++on > 1) return true;
+  }
+  return false;
 }
 
 export function findFits(world, shape, { cell = 60, rotations = 48, stride = 3, keep = 3, apart = 3000 } = {}) {

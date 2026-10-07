@@ -20,4 +20,4 @@ tag = "v1"
 new_sqlite_classes = ["World", "Room"]
 
 [vars]
-ORIGINS = "https://hey-look-its-tim-dries.github.io,http://localhost:8130,http://127.0.0.1:8130"
+ORIGINS = "https://hey-look-its-tim-dries.github.io,http://localhost:8130,http://127.0.0.1:8130,http://localhost:8123,http://127.0.0.1:8123"

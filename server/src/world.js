@@ -23,6 +23,7 @@ export class World extends DurableObject {
     this.lastByIp = new Map();
     this.cache = null; // { etag, body }
     this.rooms = new Set();
+    this.chain = Promise.resolve(); // lays and washes, one at a time: D1 calls let other requests in while they wait
     ctx.blockConcurrencyWhile(async () => { this.rooms = new Set((await ctx.storage.get('rooms')) ?? []); });
   }
 
@@ -38,9 +39,12 @@ export class World extends DurableObject {
       if (req.headers.get('If-None-Match') === this.cache.etag) return new Response(null, { status: 304, headers: { ETag: this.cache.etag } });
       return new Response(this.cache.body, { headers: { ETag: this.cache.etag, 'Content-Type': 'application/json' } });
     }
-    if (url.pathname === '/hands' && req.method === 'POST') return this.lay(req);
     const del = url.pathname.match(/^\/hands\/([\w-]+)$/);
-    if (del && req.method === 'DELETE') return this.wash(del[1], req);
+    if ((url.pathname === '/hands' && req.method === 'POST') || (del && req.method === 'DELETE')) {
+      const out = this.chain.then(() => (del ? this.wash(del[1], req) : this.lay(req)));
+      this.chain = out.catch(() => {});
+      return out;
+    }
     if (url.pathname === '/rooms' && req.method === 'POST') {
       const name = (await req.text()).slice(0, 32);
       if (!this.rooms.has(name)) { this.rooms.add(name); await this.ctx.storage.put('rooms', [...this.rooms]); }
@@ -59,7 +63,7 @@ export class World extends DurableObject {
     if (BLOCK.some((w) => hand.name.toLowerCase().includes(w))) return Response.json({ error: 'that name is not available' }, { status: 400 });
     const tokenHash = await sha(token);
     const mine = await this.env.DB.prepare(`${SELECT} where p.token_hash = ?`).bind(tokenHash).first();
-    if (mine) return Response.json({ id: mine.id, pose: row(mine).pose }, { status: 409 }); // a retry, or a lost answer: the Hand is already there
+    if (mine) return Response.json(row(mine), { status: 409 }); // a retry, a lost answer, or a forgotten Hand: the one already there, whole
     const laid = await this.hands();
     const world = laid.map((h) => ({ pose: h.pose, shape: handShape(unpackPalm(fromB64(h.palm))), name: h.name }));
     const shape = handShape(unpackPalm(hand.palm));

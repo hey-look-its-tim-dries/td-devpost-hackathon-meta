@@ -46,7 +46,10 @@ test('lay, see, conflict, one Hand per token, refuse junk, wash (Review Focus 2)
   assert.ok(c.fits.length >= 1 && c.fits.length <= 3);
   const same = await post(body(fit.pose));
   assert.equal(same.status, 409, 'one Hand per token');
-  assert.equal((await same.json()).id, id);
+  const back = await same.json();
+  assert.equal(back.id, id);
+  assert.equal(back.name, 'Testo', 'a 409 hands back the whole Hand (final review 2)');
+  assert.equal(back.prints.length, 5);
   assert.equal((await post({ ...body(fit.pose, { token: 'b'.repeat(40) }), prints: [] })).status, 400);
   assert.equal((await post(body(fit.pose, { name: 'x'.repeat(41), token: 'b'.repeat(40) }))).status, 400);
   assert.equal((await post({ ...body(fit.pose), token: 'short' })).status, 400);
@@ -95,4 +98,22 @@ test('a full room points at the next shard (Review Focus 5)', { skip }, async ()
   assert.equal(b.got.text[0]?.full, 'eu-8');
   assert.equal(a.got.text[0]?.hello !== undefined, true);
   a.ws.close();
+});
+
+test('two lays on one spot at the same moment: exactly one Hand (Review Focus 2, final review 3)', { skip }, async () => {
+  const tokens = ['d', 'e', 'f', 'g'].map((c) => c.repeat(40));
+  for (const h of (await world()).filter((h) => !h.founder)) for (const t of tokens) await wash(h.id, t);
+  const w0 = await world(), fit = findFits(shapes(w0), handShape(templatePalm({ seed: 77 })))[0];
+  const answers = await Promise.all(tokens.map((token, k) => post(body(fit.pose, { token, name: `Race${k}` })).then(async (r) => ({ status: r.status, body: await r.json() }))));
+  const laid = answers.filter((a) => a.status === 200 && a.body.id);
+  assert.equal(laid.length, 1, JSON.stringify(answers.map((a) => a.status)));
+  assert.ok(answers.every((a) => a.status === 200), 'never a 500');
+  assert.equal((await world()).length, w0.length + 1);
+  await wash(laid[0].body.id, tokens[answers.indexOf(laid[0])]);
+});
+
+test('GET is open to any origin; the local preview ports may write (final review 9)', { skip }, async () => {
+  assert.equal((await fetch(API + '/world', { headers: { Origin: 'https://example.org' } })).headers.get('access-control-allow-origin'), '*');
+  const pre = await fetch(API + '/hands', { method: 'OPTIONS', headers: { Origin: 'http://localhost:8123', 'Access-Control-Request-Method': 'POST' } });
+  assert.equal(pre.headers.get('access-control-allow-origin'), 'http://localhost:8123');
 });

@@ -18,12 +18,15 @@ export function createNet({ api = API, storage = null, fetchFn = globalThis.fetc
   try { token = storage?.getItem(TOKEN_KEY); } catch {}
   if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token)) { token = makeToken(); try { storage?.setItem(TOKEN_KEY, token); } catch {} }
 
-  // a request that gives up after `timeout` ms even when the fetch never settles
+  // a request and its JSON body, given up after `timeout` ms even when the fetch or the body never settles
   const call = (path, init = {}) => {
     const ctl = new AbortController();
     let timer;
     const late = new Promise((_, reject) => { timer = setTimeout(() => { ctl.abort(); reject(new Error('timeout')); }, timeout); });
-    const go = fetchFn(api + path, { ...init, signal: ctl.signal, headers: { 'Content-Type': 'application/json', ...(init.headers ?? {}) } });
+    const go = (async () => {
+      const r = await fetchFn(api + path, { ...init, signal: ctl.signal, headers: init.body ? { 'Content-Type': 'application/json' } : {} }); // a plain GET needs no preflight
+      return { status: r.status, body: r.status === 204 ? null : await r.json().catch(() => ({})) };
+    })();
     return Promise.race([go, late]).finally(() => clearTimeout(timer));
   };
 
@@ -31,21 +34,20 @@ export function createNet({ api = API, storage = null, fetchFn = globalThis.fetc
     token,
     async fetchWorld() {
       try {
-        const r = await call('/world');
-        if (!r.ok) throw new Error(r.status);
-        const { hands } = await r.json();
-        if (!Array.isArray(hands) || !hands.length) throw new Error('empty');
-        return { hands: hands.map(rowToHand), online: true };
+        const { status, body } = await call('/world');
+        if (status !== 200 || !Array.isArray(body?.hands) || !body.hands.length) throw new Error(status);
+        return { hands: body.hands.map(rowToHand), online: true };
       } catch {
         return { hands: founders().map((f, i) => ({ ...f, id: `hand-founder-${i}`, founder: true })), online: false };
       }
     },
+    // { id, pose } laid; { existing, ...Hand } when this device already has one on the map (409); { conflict, fits }; or { error }
     async layHand({ palm, prints, pose, name }) {
       try {
-        const r = await call('/hands', { method: 'POST', body: JSON.stringify({ token, name, palm: toB64(palm), prints: prints.map(toB64), pose: { x: pose.x, z: pose.z, rot: pose.rot, mirror: false } }) });
-        const body = await r.json().catch(() => ({}));
-        if (r.status === 200 || r.status === 409) return body; // 409: this device's Hand is already on the map
-        return { error: body.error ?? `server ${r.status}` };
+        const { status, body } = await call('/hands', { method: 'POST', body: JSON.stringify({ token, name, palm: toB64(palm), prints: prints.map(toB64), pose: { x: pose.x, z: pose.z, rot: pose.rot, mirror: false } }) });
+        if (status === 409) return body?.palm ? { existing: true, ...rowToHand(body) } : { error: 'server 409' };
+        if (status === 200) return body;
+        return { error: body?.error ?? `server ${status}` };
       } catch {
         return { error: 'offline' };
       }
@@ -81,4 +83,23 @@ export function createNet({ api = API, storage = null, fetchFn = globalThis.fetc
       };
     },
   };
+}
+
+// a Hand laid without anyone choosing (sent again at start): laid; adopted, when the map already holds this device's
+// Hand; moved once to the fresh fit the map offers when its place was taken (spec 6.3); or still pending. Never
+// left overlapping someone. `note` says which.
+export async function settleLay(net, hand) {
+  const done = (r, note) => ({ hand: { ...hand, id: r.id, pose: r.pose, pending: false }, note });
+  let r = await net.layHand(hand);
+  if (r.existing) { const { existing, ...h } = r; return { hand: { ...h, pending: false }, note: 'existing' }; }
+  if (r.id) return done(r, 'joined');
+  if (r.conflict) {
+    const fit = r.fits?.[0];
+    if (!fit) return { hand: { ...hand, pending: true }, note: 'pending' };
+    const moved = { ...hand, pose: fit.pose };
+    r = await net.layHand(moved);
+    if (r.id) return { hand: { ...moved, id: r.id, pose: r.pose, pending: false }, note: 'moved' };
+    return { hand: { ...moved, pending: true }, note: 'pending' };
+  }
+  return { hand: { ...hand, pending: true }, note: 'pending' };
 }

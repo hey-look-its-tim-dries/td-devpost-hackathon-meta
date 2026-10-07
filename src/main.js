@@ -22,7 +22,7 @@ import { createFlow } from './atelier/flow.js';
 import { findFits } from './world/fit.js';
 import { createGhosts } from './world/ghosts.js';
 import { loadHand, saveHand, forgetHand } from './world/mine.js';
-import { createNet, API } from './net.js';
+import { createNet, settleLay, API } from './net.js';
 import { createOthers } from './others.js';
 
 // Palm Whorl Cities, first milestone: the First Ten. Ten founding hands lie in a ring around the
@@ -95,7 +95,8 @@ for (const w of workers) {
     if (!f) return;
     const rise = rising?.id === f.id ? 0 : 1;
     surface.addHand(data.id, data, f.pose, rise);
-    hands.push({ ...f, layer: data.id, data, rise });
+    const { texA, info, ...kept } = data; // the textures live in the surface now; the ground keeps heights only
+    hands.push({ ...f, layer: data.id, data: kept, rise });
     if (rise === 1) knots.push(...hatch(f)); // a rising Hand hatches when it has risen (below)
   };
   w.onerror = (e) => console.error('hand worker failed', e);
@@ -121,11 +122,16 @@ function removeHand(id) {
   hands.splice(i, 1);
   for (let k = knots.length - 1; k >= 0; k--) if (knots[k].hand === id) knots.splice(k, 1);
 }
-// a Hand laid while offline (or before the map existed) is sent when the map can be reached; a 409 means it got there before
+// a Hand laid while offline (or before the map existed) is sent when the map can be reached: laid, moved to a fresh
+// fit when its place was taken meanwhile, adopted when the map already holds this device's Hand, or still pending
 async function retryLay() {
-  const r = await net.layHand(mine);
-  if (r.id) { mine = { ...mine, id: r.id, pose: r.pose, pending: false }; try { saveHand(storage, mine); } catch {} }
-  bake(mine);
+  const { hand, note } = await settleLay(net, mine);
+  mine = hand;
+  try { saveHand(storage, mine); } catch {}
+  if (layerOf(mine.id) < 0) bake(mine);
+  if (note === 'moved') panel.say(`Someone laid a Hand where ${mine.name} was: it found a new place`, 7);
+  else if (note === 'existing') panel.say(`This device's Hand on the map is ${mine.name}`, 6);
+  else if (note === 'pending') panel.say(`${mine.name} is here for now: the shared map will get it later`, 6);
 }
 net.fetchWorld().then(({ hands: list, online: ok }) => {
   online = ok;
@@ -320,6 +326,14 @@ async function choose(i) { // a ghost chosen once is picked, chosen again is lai
     return panel.say('Someone just laid a Hand there: three new places', 7);
   }
   ghosts.hide();
+  if (r.existing) { // this device already has a Hand on the map (it was forgotten here): that one is yours
+    const { existing, ...h } = r;
+    mine = { ...h, pending: false };
+    try { saveHand(storage, mine); } catch {}
+    if (layerOf(mine.id) < 0) bake(mine);
+    mode = 'fly';
+    return panel.say(`This device already has a Hand on the map: ${mine.name}`, 7);
+  }
   mine = { ...laying, pose: r.pose ?? fit.pose, id: r.id ?? `local-${Date.now()}`, pending: !r.id };
   delete mine.busy;
   try {
@@ -366,7 +380,12 @@ addEventListener('keydown', (e) => {
   if ('123'.includes(e.key)) choose(+e.key - 1);
   else if (e.key === 'Enter') choose(ghosts.selected);
 });
-document.getElementById('forget').addEventListener('click', async (e) => { e.preventDefault(); if (mine?.id && !mine.pending) await net.washHand(mine.id); forgetHand(storage); location.reload(); });
+document.getElementById('forget').addEventListener('click', async (e) => {
+  e.preventDefault();
+  if (mine?.id && !mine.pending && !(await net.washHand(mine.id))) return (e.target.textContent = 'The map could not be reached: try again'); // keep it until the map lets go
+  forgetHand(storage);
+  location.reload();
+});
 if (mine) document.getElementById('forget').classList.remove('hidden');
 
 // ---------- the loop ----------

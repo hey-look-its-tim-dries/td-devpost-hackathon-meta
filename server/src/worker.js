@@ -9,7 +9,8 @@ const MAX_BODY = 8192;
 
 const cors = (req, env, extra = {}) => {
   const list = (env.ORIGINS ?? '').split(','), origin = req.headers.get('Origin') ?? '';
-  return { 'Access-Control-Allow-Origin': list.includes(origin) ? origin : list[0], 'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'Vary': 'Origin', ...extra };
+  const allow = req.method === 'GET' ? '*' : list.includes(origin) ? origin : list[0]; // reading the map is open to all; writing to listed origins
+  return { 'Access-Control-Allow-Origin': allow, 'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'Vary': 'Origin', ...extra };
 };
 const json = (req, env, body, status = 200) => new Response(JSON.stringify(body), { status, headers: cors(req, env, { 'Content-Type': 'application/json' }) });
 

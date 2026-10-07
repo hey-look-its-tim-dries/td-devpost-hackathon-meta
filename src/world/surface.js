@@ -245,12 +245,13 @@ export function createSurface(shared) {
         texA.type = THREE.HalfFloatType;
         texA.magFilter = texA.minFilter = THREE.LinearFilter;
         texB = new THREE.DataArrayTexture(B, d.w, d.h, depth);
+        for (const t of [texA, texB]) { t.userData.fresh = true; t.onUpdate = () => (t.userData.fresh = false); } // a new array uploads whole, once
         uniforms.uHandA.value = texA;
         uniforms.uHandB.value = texB;
       }
       A.set(d.texA, i * n);
       B.set(d.info, i * n);
-      texA.needsUpdate = texB.needsUpdate = true;
+      for (const t of [texA, texB]) { if (!t.userData.fresh) t.addLayerUpdate(i); t.needsUpdate = true; } // after that, only this Hand's layer
       uniforms.uHandPose.value[i].set(pose.x, pose.z, Math.cos(pose.rot), Math.sin(pose.rot));
       uniforms.uHandBox.value[i].set(d.x0, d.y0, pose.mirror ? -1 : 1, rise);
       uniforms.uHandCount.value = Math.max(uniforms.uHandCount.value, i + 1);
