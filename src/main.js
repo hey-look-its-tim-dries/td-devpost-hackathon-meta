@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js';
 import { headSteer } from './steer.js';
-import { startAudio, pauseAudio, setWind, tone, swell } from './audio.js';
 import { JOINTS, palmFrame, OneEuro, createSteer, steerChecks, pointSteer } from './gesture.js';
 import { createGestureCard } from './gesturecard.js';
 import { createPanel } from './panel.js';
@@ -102,18 +101,20 @@ const groundAt = (x, z) => groundAtWorld(hands, x, z);
 
 const LINE = { points: 90, spacing: 3 }; // lines about 270 m long, at world scale
 const TAPER = (s) => 0.12 + 0.88 * Math.pow(Math.sin(Math.PI * s), 0.6);
-const knots = FOUNDERS.flatMap((f) => f.prints.map(unpackPrint).map((p, j) => {
+// a Hand's five scribbles, one knot per print, hatched above its palm
+const hatch = (f) => f.prints.map(unpackPrint).map((p, j) => {
   const [cx, cz] = toWorld(f.pose, 0, 230);
   const knot = createKnot({ cls: p.cls, seed: p.seed, center: [cx, 480 + j * 35, cz], radius: 110 + j * 20, tilt: 0.35 + j * 0.18 }); // above the palms
   return { knot, line: createScribble({ ...LINE, at: knot.step(0, 0), seed: p.seed }) };
-}));
+});
+const knots = [...FOUNDERS, ...(mine ? [mine] : [])].flatMap(hatch); // a laid Hand hatches when it has risen (below)
 // faster the higher you fly (30 m/s skimming the ridges, 220 m/s high over the wilderness), and diving adds half again
 const glide = createGlide({ pos: params.get('at')?.split(',').map(Number) ?? [0, 1100, 15000], turnRate: 0.9, clearance: 25, ceiling: 1500 }); // ?at=x,y,z to start elsewhere
 // you: the Whorl, ink strands winding round your own flight path; the camera chases it
 const creature = createCreature({ strands: 9, points: 70, spacing: 2, radius: 13 });
 const CHASE = { back: 190, up: 40 }; // further back than the creature is long, so all of it is in front of you
 const chase = { pos: new THREE.Vector3(glide.pos[0], glide.pos[1] + CHASE.up, glide.pos[2] + CHASE.back), yaw: glide.yaw };
-const ink = createInk((knots.length * (LINE.points + 1)) + creature.strands * 71, { width: 1.1, color: '#16100e' });
+const ink = createInk((FOUNDERS.length + 1) * 5 * (LINE.points + 1) + creature.strands * 71, { width: 1.1, color: '#16100e' }); // room for your Hand's five too
 // speed lines: ink streaks hanging in the air that rush past when you are fast
 const streaks = Array.from({ length: 60 }, () => new THREE.Vector3(Infinity, 0, 0));
 const streakInk = createInk(streaks.length, { width: 0.5, color: '#16100e' });
@@ -249,7 +250,6 @@ function act(a) {
   else if (a.type === 'palette') flow.choosePalette(a.i);
   else if (a.type === 'reroll') flow.reroll();
   else if (a.type === 'lay') return merge();
-  tone(4 + ((flow.prints.length + flow.lines.length) % 7), 0, 0.08);
   atelier.paint(flow);
 }
 // ponytail: runs on the main thread (~0.25 s, one hitch when you press "Lay my Hand"); a worker when the world is big
@@ -279,7 +279,6 @@ function choose(i) { // a ghost chosen once is picked, chosen again is laid
   rising = { t: 0 };
   mode = 'rise';
   bake(MINE, mine);
-  swell(8);
   panel.say(fit.rivers ? `${mine.name} joins the world · ${fit.rivers} river${fit.rivers > 1 ? 's' : ''} join` : `${mine.name} joins the world`, 7);
 }
 // the ray from the mouse, or from your eyes along your gaze (world space)
@@ -370,7 +369,6 @@ function frame() {
       camera.updateProjectionMatrix();
     }
   }
-  setWind(started ? Math.min(1, 0.15 + glide.speed / 320) : 0); // the wind rises with speed
 
   ink.begin();
   for (const k of knots) {
@@ -415,7 +413,7 @@ function frame() {
       rising.t = Math.min(1, rising.t + dt / 8);
       h.rise = rising.t * rising.t * (3 - 2 * rising.t);
       surface.setRise(MINE, h.rise);
-      if (rising.t === 1) { rising = null; mode = 'fly'; }
+      if (rising.t === 1) { rising = null; mode = 'fly'; knots.push(...hatch(mine)); } // risen: its five scribbles hatch (spec 6.3)
     }
   }
   surface.update(renderer.xr.isPresenting ? rig.localToWorld(camPos.copy(renderer.xr.getCamera().position)) : camera.getWorldPosition(camPos), viewFrustum());
@@ -428,13 +426,11 @@ function frame() {
 const banner = document.getElementById('banner');
 function start() {
   started = true;
-  startAudio();
   banner.classList.add('hidden');
   panel.say('Palm Whorl Cities', 4);
   setTimeout(() => (mine ? panel.say(renderer.xr.isPresenting ? 'Raise a hand, point where you want to fly' : 'A D turn · W S climb · drag to look', 6) : openAtelier()), 4200);
 }
 async function enterHeadset() {
-  startAudio();
   const kind = (await navigator.xr.isSessionSupported('immersive-ar').catch(() => false)) ? 'immersive-ar' : 'immersive-vr';
   const session = await navigator.xr.requestSession(kind, { optionalFeatures: ['hand-tracking'] });
   await renderer.xr.setSession(session);
@@ -443,7 +439,6 @@ async function enterHeadset() {
   webcam = null;
   headNeutral = null;
   start();
-  session.addEventListener('visibilitychange', () => pauseAudio(session.visibilityState === 'hidden'));
   session.addEventListener('end', () => {
     if (mode === 'atelier') { atelier.close(); flow = null; mode = 'fly'; } // so the next start opens the card at the new head pose
     inRoom = false;
@@ -451,7 +446,6 @@ async function enterHeadset() {
     banner.classList.remove('hidden');
   });
 }
-document.addEventListener('visibilitychange', () => pauseAudio(document.hidden));
 const xrButton = document.getElementById('xrButton');
 xrButton.addEventListener('click', () => enterHeadset().catch((e) => console.error(e)));
 document.getElementById('previewButton').addEventListener('click', start);

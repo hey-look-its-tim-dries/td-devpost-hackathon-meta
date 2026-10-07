@@ -40,7 +40,7 @@ engine: an orientation field per class (the Sherlock-Monro zero-pole model), the
 oriented Gabor filtering of random seeds, so ridges grow and minutiae appear where growing fronts
 meet. From the grown print we compute ridge-count terraces, a thinned path skeleton and the minutiae.
 It runs in a worker in about 150 ms. Flight shrinks the player rig 40 times instead of growing the
-world, which keeps stereo depth and head motion right. Sound is all generated with Web Audio.
+world, which keeps stereo depth and head motion right.
 
 ## Challenges we ran into
 
@@ -76,7 +76,7 @@ hand is in view. Hand data is used live only and never stored or sent.
 
 ## Built With
 
-three.js, WebXR, JavaScript, HTML, CSS, GLSL, Web Audio API, WebXR Hand Input, WebXR Plane Detection,
+three.js, WebXR, JavaScript, HTML, CSS, GLSL, WebXR Hand Input, WebXR Plane Detection,
 Meta Quest, Meta Quest Browser, Passthrough, IWER (Immersive Web Emulation Runtime), GitHub Pages,
 Node.js, Claude Code
 

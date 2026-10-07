@@ -123,7 +123,6 @@ Fingerprints are biometric data, so the game is built so it never needs yours:
 | Flight | Shrinks you, not the world; the sky | [src/flight.js](src/flight.js) |
 | Skin country | A stitched patchwork of palms in six skin tones, with crease canyons and dermal ripples | [src/desert.js](src/desert.js) |
 | Table finding | Detected table planes, then your flat hand, otherwise a sensible default | [src/room.js](src/room.js), [src/main.js](src/main.js) |
-| Sound | Generated with Web Audio: sand, wind, pentatonic terraces, bird songs | [src/audio.js](src/audio.js) |
 | City | Ink houses along the walked paths, a tower at the summit, kept per land | [src/city.js](src/city.js) |
 | Atlas and memory | Other players' lands (bundled for now), local save | [src/atlas.js](src/atlas.js) |
 
