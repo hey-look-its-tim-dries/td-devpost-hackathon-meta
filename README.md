@@ -156,10 +156,27 @@ Open http://localhost:8123/?emulate for Meta's IWER emulator with a virtual Ques
 a scanned sample room. To test on your own Quest from your laptop, connect it over USB, run
 `adb reverse tcp:8123 tcp:8123`, then open http://localhost:8123/ in the Quest Browser.
 
+### The shared map (server)
+
+The world's Hands live on a Cloudflare Worker with D1 and Durable Objects, in `server/`. Locally:
+
+```bash
+cd server && npm install && npm run seed && npm run dev
+```
+
+That serves the map on http://localhost:8787; open the game with `?api=http://localhost:8787`.
+Without a server the game plays alone with the First Ten and your own Hand, and sends your Hand
+the next time the map can be reached. To deploy: `npx wrangler login`,
+`npx wrangler d1 create pwc --location weur`, put the id in `server/wrangler.toml`, then
+`npx wrangler d1 execute pwc --remote --file=schema.sql`,
+`node seed.mjs > seed.sql && npx wrangler d1 execute pwc --remote --file=seed.sql` and
+`npm run deploy`, and set `API` in `src/net.js` to the Worker's URL.
+
 ### Tests
 
 ```bash
-node --test tests/*.test.mjs
+node --test tests/*.test.mjs   # the server tests run when a server answers on :8787 (SERVER=1 starts one)
+node tests/m3.mjs              # two browsers on one map: needs serve.py on :8130 and the server on :8787
 ```
 
 ### Handy URL parameters
@@ -170,6 +187,7 @@ node --test tests/*.test.mjs
 | `?cls=whorl&seed=7` | Grow a specific land straight away |
 | `?auto` | Autopilot: walks to the landmarks, takes off and flies to the next land |
 | `?fresh` | Ignore what this browser remembers |
+| `?api=http://localhost:8787` | Use this server for the shared map (the default is the deployed Worker) |
 | `?emulate` | Quest 3 emulation with IWER (`&device=glasses` for the Meta VR Glasses, `&nodevui` hides its panel, `&room=office_small` changes the room) |
 | `?emulate&nodevui&film&seed=7` | The film director: plays the emulated head and hand through the first minutes with the real gestures, for recording the demo video (add `&step` to advance one frame per request, for frame-exact capture) |
 
@@ -184,8 +202,6 @@ node --test tests/*.test.mjs
 
 ## What's next
 
-- The shared atlas: everyone's lands stitched together through a small server, with the bundled
-  atlas as the fallback
 - An optional phone page that reads your real fingertip's class, core, delta and ridge count, deletes
   the photo, and sends only those few numbers
 - Your own palm in the patchwork, with your five fingertip lands at its fingertips
