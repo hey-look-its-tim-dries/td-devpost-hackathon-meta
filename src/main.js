@@ -23,6 +23,7 @@ import { findFits } from './world/fit.js';
 import { createGhosts } from './world/ghosts.js';
 import { loadHand, saveHand, forgetHand } from './world/mine.js';
 import { createNet, API } from './net.js';
+import { createOthers } from './others.js';
 
 // Palm Whorl Cities, first milestone: the First Ten. Ten founding hands lie in a ring around the
 // Source. Their lines are rivers, their fingertips are print lands, and black-ink scribbles knot
@@ -130,10 +131,10 @@ net.fetchWorld().then(({ hands: list, online: ok }) => {
   online = ok;
   for (const h of list) if (h.id !== mine?.id) bake(h);
   if (mine) { if (ok && (!mine.id || mine.pending)) retryLay(); else bake(mine); }
-  if (ok) roomLink = net.openRoom({ onHello: (id) => (me = id), onSnapshot: (s) => others.apply(s, me), onLaid: applyLaid, onLeft: removeHand, onState: (st) => (roomState = st) });
+  if (ok) roomLink = net.openRoom({ onHello: (id) => (me = id), onSnapshot: (s) => others.apply(s, me, glide.pos), onLaid: applyLaid, onLeft: removeHand, onState: (st) => (roomState = st) });
   else panel.say('Playing alone: the map could not be reached', 6);
 });
-const others = { apply() {}, update() {}, each() {}, count: 0 }; // other players: Task 7
+const others = createOthers({ max: 60 }); // the other players in your room, as lighter creatures
 
 // height of the world at (x, z), for flight clearance (the GPU surface follows the same rule)
 const groundAt = (x, z) => groundAtWorld(hands, x, z);
@@ -404,6 +405,7 @@ function frame() {
   if (mode !== 'atelier') glide.update(dt, steer, groundAt); // the world waits while you read your hand
   roomLink?.send({ x: glide.pos[0], y: glide.pos[1], z: glide.pos[2], yaw: glide.yaw, pitch: glide.pitch, mode: ['fly', 'atelier', 'merge', 'rise'].indexOf(mode) }); // at most 5 a second
   creature.update(dt, glide.pos, { speed: glide.speed, pitch: glide.pitch, turn: steer.turn });
+  others.update(dt);
   // the camera chases the creature: behind and above it, easing after its turns (never rolling)
   const f = glide.forward(), follow = 1 - Math.exp(-dt * 3);
   const cx = glide.pos[0] - f[0] * CHASE.back, cz = glide.pos[2] - f[2] * CHASE.back;
@@ -433,6 +435,7 @@ function frame() {
     const l = creature.strand(k), w = creature.weight(k);
     ink.stroke(l.xyz, l.count, (s) => TAPER(s) * w); // a few bold strands, many fine ones
   }
+  others.each((c) => { for (let k = 0; k < c.strands; k++) { const l = c.strand(k), w = c.weight(k); ink.stroke(l.xyz, l.count, (s) => TAPER(s) * 0.7 * w); } }); // other players, a little lighter than you
   ink.end();
   // speed lines: streaks fixed in the air round you, drawn along your motion, longer the faster you go
   const fast = Math.max(0, Math.min(1, (glide.speed - 90) / 180)), vel = tmpChase.set(f[0] * Math.cos(glide.pitch), Math.sin(glide.pitch), f[2] * Math.cos(glide.pitch)).multiplyScalar(glide.speed);
