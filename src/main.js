@@ -9,7 +9,7 @@ import { createGlide } from './glide.js';
 import { createCreature } from './creature.js';
 import { createScribble, createKnot } from './scribble.js';
 import { unpackPrint, unpackPalm } from './hand/dna.js';
-import { founders, toHand, toWorld } from './world/founders.js';
+import { toHand, toWorld } from './world/founders.js';
 import { createWorldScene } from './world/scene.js';
 import { createSurface } from './world/surface.js';
 import { groundAt as groundAtWorld } from './world/ground.js';
@@ -22,6 +22,7 @@ import { createFlow } from './atelier/flow.js';
 import { findFits } from './world/fit.js';
 import { createGhosts } from './world/ghosts.js';
 import { loadHand, saveHand, forgetHand } from './world/mine.js';
+import { createNet, API } from './net.js';
 
 // Palm Whorl Cities, first milestone: the First Ten. Ten founding hands lie in a ring around the
 // Source. Their lines are rivers, their fingertips are print lands, and black-ink scribbles knot
@@ -72,32 +73,72 @@ rig.add(world.sky);
 const panel = createPanel();
 rig.add(panel.mesh);
 
-// ---------- the First Ten, grown in workers ----------
+// ---------- the Hands, from the shared map (or the bundled founders), grown in workers ----------
 
-const FOUNDERS = founders();
-const MINE = FOUNDERS.length; // your Hand's layer, after the founders
 let storage = null; // localStorage, or null when the browser refuses it (your Hand then lasts until you close the page)
 try { storage = localStorage; } catch {}
-let mine = loadHand(storage); // your Hand on this device ({ palm, prints, pose, name }), or null
-let rising = null; // { t } while your new Hand rises
-const hands = [];
+const net = createNet({ api: params.get('api') ?? API, storage }); // ?api=http://localhost:8787 for wrangler dev
+let mine = loadHand(storage); // your Hand on this device ({ id, palm, prints, pose, name, pending }), or null
+let rising = null; // { id, t } while a laid Hand rises
+const hands = []; // every Hand in the world: { id, name, palm, prints, pose, founder, layer, data, rise }
+const pendingBake = new Map(); // layer -> Hand, until its worker answers
+let online = false, roomLink = null, me = -1, roomState = 'closed'; // roomLink: the live room (frame() has its own `room`, your real room)
+const MAX_LAYERS = 64; // surface.js MAX_HANDS
+const layerOf = (id) => hands.find((h) => h.id === id)?.layer ?? [...pendingBake].find(([, h]) => h.id === id)?.[0] ?? -1;
+const freeLayer = () => { for (let i = 0; i < MAX_LAYERS; i++) if (!hands.some((h) => h.layer === i) && !pendingBake.has(i)) return i; return -1; };
 const workers = [0, 1, 2].map(() => new Worker(new URL('./hand/worker.js', import.meta.url), { type: 'module' }));
 for (const w of workers) {
   w.onmessage = ({ data }) => {
-    const f = data.id === MINE ? mine : FOUNDERS[data.id], rise = data.id === MINE && rising ? 0 : 1;
+    const f = pendingBake.get(data.id);
+    pendingBake.delete(data.id);
+    if (!f) return;
+    const rise = rising?.id === f.id ? 0 : 1;
     surface.addHand(data.id, data, f.pose, rise);
-    hands.push({ ...f, id: data.id, data, rise });
+    hands.push({ ...f, layer: data.id, data, rise });
+    if (rise === 1) knots.push(...hatch(f)); // a rising Hand hatches when it has risen (below)
   };
   w.onerror = (e) => console.error('hand worker failed', e);
 }
-const bake = (id, f) => workers[id % workers.length].postMessage({ id, palm: f.palm, prints: f.prints, cell: 0.75 });
-FOUNDERS.forEach((f, id) => bake(id, f));
-if (mine) bake(MINE, mine);
+const bake = (f) => {
+  const layer = freeLayer();
+  if (layer < 0) return console.warn('the world is full on this device', f.name);
+  pendingBake.set(layer, f);
+  workers[layer % workers.length].postMessage({ id: layer, palm: f.palm, prints: f.prints, cell: 0.75 });
+};
+const sameBytes = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
+// a Hand laid by anyone, now: it bakes into a free layer and rises like your own (Review Focus 1)
+function applyLaid(h) {
+  if (layerOf(h.id) >= 0 || mine?.id === h.id) return;
+  if ([mine, laying].some((m) => m && sameBytes(h.palm, m.palm))) return; // our own lay, announced to the room before our answer came back
+  rising = { id: h.id, t: 0 }; // ponytail: one rise at a time; a Hand laid during another's rise cuts that one short (it ends fully risen below)
+  bake(h);
+}
+function removeHand(id) {
+  const i = hands.findIndex((h) => h.id === id);
+  if (i < 0) return;
+  surface.setRise(hands[i].layer, 0);
+  hands.splice(i, 1);
+  for (let k = knots.length - 1; k >= 0; k--) if (knots[k].hand === id) knots.splice(k, 1);
+}
+// a Hand laid while offline (or before the map existed) is sent when the map can be reached; a 409 means it got there before
+async function retryLay() {
+  const r = await net.layHand(mine);
+  if (r.id) { mine = { ...mine, id: r.id, pose: r.pose, pending: false }; try { saveHand(storage, mine); } catch {} }
+  bake(mine);
+}
+net.fetchWorld().then(({ hands: list, online: ok }) => {
+  online = ok;
+  for (const h of list) if (h.id !== mine?.id) bake(h);
+  if (mine) { if (ok && (!mine.id || mine.pending)) retryLay(); else bake(mine); }
+  if (ok) roomLink = net.openRoom({ onHello: (id) => (me = id), onSnapshot: (s) => others.apply(s, me), onLaid: applyLaid, onLeft: removeHand, onState: (st) => (roomState = st) });
+  else panel.say('Playing alone: the map could not be reached', 6);
+});
+const others = { apply() {}, update() {}, each() {}, count: 0 }; // other players: Task 7
 
 // height of the world at (x, z), for flight clearance (the GPU surface follows the same rule)
 const groundAt = (x, z) => groundAtWorld(hands, x, z);
 
-// ---------- scribbles: founders' knots over their palms, and your own five following you ----------
+// ---------- scribbles: every Hand's knots over its palm, and your own creature following you ----------
 
 const LINE = { points: 90, spacing: 3 }; // lines about 270 m long, at world scale
 const TAPER = (s) => 0.12 + 0.88 * Math.pow(Math.sin(Math.PI * s), 0.6);
@@ -105,16 +146,16 @@ const TAPER = (s) => 0.12 + 0.88 * Math.pow(Math.sin(Math.PI * s), 0.6);
 const hatch = (f) => f.prints.map(unpackPrint).map((p, j) => {
   const [cx, cz] = toWorld(f.pose, 0, 230);
   const knot = createKnot({ cls: p.cls, seed: p.seed, center: [cx, 480 + j * 35, cz], radius: 110 + j * 20, tilt: 0.35 + j * 0.18 }); // above the palms
-  return { knot, line: createScribble({ ...LINE, at: knot.step(0, 0), seed: p.seed }) };
+  return { hand: f.id, knot, line: createScribble({ ...LINE, at: knot.step(0, 0), seed: p.seed }) };
 });
-const knots = [...FOUNDERS, ...(mine ? [mine] : [])].flatMap(hatch); // a laid Hand hatches when it has risen (below)
+const knots = []; // filled as Hands bake
 // faster the higher you fly (30 m/s skimming the ridges, 220 m/s high over the wilderness), and diving adds half again
 const glide = createGlide({ pos: params.get('at')?.split(',').map(Number) ?? [0, 1100, 15000], turnRate: 0.9, clearance: 25, ceiling: 1500 }); // ?at=x,y,z to start elsewhere
 // you: the Whorl, ink strands winding round your own flight path; the camera chases it
 const creature = createCreature({ strands: 9, points: 70, spacing: 2, radius: 13 });
 const CHASE = { back: 190, up: 40 }; // further back than the creature is long, so all of it is in front of you
 const chase = { pos: new THREE.Vector3(glide.pos[0], glide.pos[1] + CHASE.up, glide.pos[2] + CHASE.back), yaw: glide.yaw };
-const ink = createInk((FOUNDERS.length + 1) * 5 * (LINE.points + 1) + creature.strands * 71, { width: 1.1, color: '#16100e' }); // room for your Hand's five too
+const ink = createInk(MAX_LAYERS * 5 * (LINE.points + 1) + creature.strands * 71 + 60 * 5 * 41, { width: 1.1, color: '#16100e' }); // every Hand's five, you, and up to 60 others
 // speed lines: ink streaks hanging in the air that rush past when you are fast
 const streaks = Array.from({ length: 60 }, () => new THREE.Vector3(Infinity, 0, 0));
 const streakInk = createInk(streaks.length, { width: 0.5, color: '#16100e' });
@@ -265,21 +306,30 @@ function merge() {
   mode = 'merge';
   panel.say('Three places fit your Hand: choose one', 8);
 }
-function choose(i) { // a ghost chosen once is picked, chosen again is laid
-  if (mode !== 'merge' || i < 0) return;
+async function choose(i) { // a ghost chosen once is picked, chosen again is laid
+  if (mode !== 'merge' || i < 0 || laying.busy) return;
   if (i !== ghosts.selected) return ghosts.select(i);
   const fit = ghosts.fits[i];
+  laying.busy = true;
+  const r = online ? await net.layHand({ ...laying, pose: fit.pose }) : { error: 'offline' };
+  laying.busy = false;
+  if (r.conflict) { // someone laid a Hand there a moment ago: fresh places, no penalty (spec 6.3)
+    if (!r.fits?.length) { ghosts.hide(); mode = 'fly'; return panel.say('No room on the coast right now', 5); }
+    ghosts.show(r.fits);
+    return panel.say('Someone just laid a Hand there: three new places', 7);
+  }
   ghosts.hide();
-  mine = { ...laying, pose: fit.pose };
+  mine = { ...laying, pose: r.pose ?? fit.pose, id: r.id ?? `local-${Date.now()}`, pending: !r.id };
+  delete mine.busy;
   try {
     saveHand(storage, mine);
   } catch (e) {
     console.warn('this browser keeps nothing: your Hand lasts until you close the page', e);
   }
-  rising = { t: 0 };
+  rising = { id: mine.id, t: 0 };
   mode = 'rise';
-  bake(MINE, mine);
-  panel.say(fit.rivers ? `${mine.name} joins the world · ${fit.rivers} river${fit.rivers > 1 ? 's' : ''} join` : `${mine.name} joins the world`, 7);
+  bake(mine);
+  panel.say(r.error ? `${mine.name} is laid here for now: the shared map will get it later` : fit.rivers ? `${mine.name} joins the world · ${fit.rivers} river${fit.rivers > 1 ? 's' : ''} join` : `${mine.name} joins the world`, 7);
 }
 // the ray from the mouse, or from your eyes along your gaze (world space)
 function mouseRay(e) {
@@ -315,7 +365,7 @@ addEventListener('keydown', (e) => {
   if ('123'.includes(e.key)) choose(+e.key - 1);
   else if (e.key === 'Enter') choose(ghosts.selected);
 });
-document.getElementById('forget').addEventListener('click', (e) => { e.preventDefault(); forgetHand(storage); location.reload(); });
+document.getElementById('forget').addEventListener('click', async (e) => { e.preventDefault(); if (mine?.id && !mine.pending) await net.washHand(mine.id); forgetHand(storage); location.reload(); });
 if (mine) document.getElementById('forget').classList.remove('hidden');
 
 // ---------- the loop ----------
@@ -352,6 +402,7 @@ function frame() {
   // shown while hands can steer (webcam or headset), even before a hand is seen
   card.update(dt, started && mode !== 'atelier' && (webcam || renderer.xr.isPresenting) ? { checks: best?.c ?? null, progress: best?.q.hold.progress ?? 0, steering: steeringNow, turn: steer.turn, climb: steer.climb } : null);
   if (mode !== 'atelier') glide.update(dt, steer, groundAt); // the world waits while you read your hand
+  roomLink?.send({ x: glide.pos[0], y: glide.pos[1], z: glide.pos[2], yaw: glide.yaw, pitch: glide.pitch, mode: ['fly', 'atelier', 'merge', 'rise'].indexOf(mode) }); // at most 5 a second
   creature.update(dt, glide.pos, { speed: glide.speed, pitch: glide.pitch, turn: steer.turn });
   // the camera chases the creature: behind and above it, easing after its turns (never rolling)
   const f = glide.forward(), follow = 1 - Math.exp(-dt * 3);
@@ -407,14 +458,15 @@ function frame() {
   ink.mesh.visible = streakInk.mesh.visible = !room;
   dim.visible = !inRoom;
   if (mode === 'merge') ghosts.update(camera.getWorldPosition(tmpChase));
-  if (rising) { // your Hand rises over 8 s once it has baked; the glider's floor rises with it
-    const h = hands.find((q) => q.id === MINE);
+  if (rising) { // a laid Hand rises over 8 s once it has baked; the glider's floor rises with it
+    const h = hands.find((q) => q.id === rising.id);
     if (h) {
       rising.t = Math.min(1, rising.t + dt / 8);
       h.rise = rising.t * rising.t * (3 - 2 * rising.t);
-      surface.setRise(MINE, h.rise);
-      if (rising.t === 1) { rising = null; mode = 'fly'; knots.push(...hatch(mine)); } // risen: its five scribbles hatch (spec 6.3)
+      surface.setRise(h.layer, h.rise);
+      if (rising.t === 1) { rising = null; if (mode === 'rise') mode = 'fly'; knots.push(...hatch(h)); } // risen: its five scribbles hatch (spec 6.3)
     }
+    for (const q of hands) if (q.rise < 1 && q.id !== rising?.id) { q.rise = 1; surface.setRise(q.layer, 1); knots.push(...hatch(q)); } // a rise cut short by a newer lay ends risen
   }
   surface.update(renderer.xr.isPresenting ? rig.localToWorld(camPos.copy(renderer.xr.getCamera().position)) : camera.getWorldPosition(camPos), viewFrustum());
   panel.update(dt, headLocal, headQuat);
@@ -464,7 +516,8 @@ renderer.setAnimationLoop(frame);
 // read-only peek for tests and curious players
 window.__pwc = {
   get state() {
-    return { hands: hands.length, pos: glide.pos.map(Math.round), yaw: +glide.yaw.toFixed(2), fps: Math.round(fps), scribbles: knots.length + creature.strands, started, webcam: webcam ? webcam.update().map((q) => q.handedness) : null, steering: xrHands.some((q) => q.engaged), palm: xrHands.map((q) => q.frame && q.frame.normal.map((v) => +v.toFixed(2))), hand: xrHands.map((q) => q.frame && { point: q.frame.forward.map((v) => +v.toFixed(2)), open: +q.frame.extension.toFixed(2), height: +q.frame.center[1].toFixed(2) }), speed: Math.round(glide.speed), calls: renderer.info.render.calls, xr: renderer.xr.isPresenting, lod: surface.centre.map(Math.round), patches: surface.patches, mode, mine: mine?.name ?? null };
+    return { hands: hands.length, pos: glide.pos.map(Math.round), yaw: +glide.yaw.toFixed(2), fps: Math.round(fps), scribbles: knots.length + creature.strands, started, webcam: webcam ? webcam.update().map((q) => q.handedness) : null, steering: xrHands.some((q) => q.engaged), palm: xrHands.map((q) => q.frame && q.frame.normal.map((v) => +v.toFixed(2))), hand: xrHands.map((q) => q.frame && { point: q.frame.forward.map((v) => +v.toFixed(2)), open: +q.frame.extension.toFixed(2), height: +q.frame.center[1].toFixed(2) }), speed: Math.round(glide.speed), calls: renderer.info.render.calls, xr: renderer.xr.isPresenting, lod: surface.centre.map(Math.round), patches: surface.patches, mode, mine: mine?.name ?? null, online, others: others.count, pending: !!mine?.pending, room: roomState };
   },
   atelier: { act: (a) => act(a), get flow() { return flow; }, choose: (i) => choose(i) },
+  net,
 };
