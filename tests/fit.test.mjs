@@ -1,7 +1,7 @@
 // tests/fit.test.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { findFits, scorePose, handSamples, riverMouths } from '../src/world/fit.js';
+import { findFits, scorePose, handSamples, riverMouths, overlaps } from '../src/world/fit.js';
 import { founders, toWorld, toHand, SOURCE_RADIUS } from '../src/world/founders.js';
 import { handShape, templatePalm, insideHand } from '../src/hand/shape.js';
 import { unpackPalm } from '../src/hand/dna.js';
@@ -31,6 +31,13 @@ test('no fit lies on the world or in the Source (Review Focus 3), and each one i
     assert.ok(fit.snug > 0 && fit.next.length >= 1);
     for (const i of fit.next) assert.ok(i >= -1 && i < world.length);
   }
+});
+
+test('overlaps: a founder on its own spot, a pose in the Source, never a found fit (shared with the server)', () => {
+  assert.equal(overlaps(world, world[0].shape, world[0].pose), true, 'on a founder');
+  assert.equal(overlaps(world, mine, { x: 0, z: 0, rot: 0, mirror: false }), true, 'in the Source');
+  for (const f of fits) assert.equal(overlaps(world, mine, f.pose), false, 'a found fit');
+  assert.equal(overlaps(world, mine, { x: 0, z: 200000, rot: 0, mirror: false }), false, 'far out at sea, off the grid');
 });
 
 test('a joined river counts for more than a snug coast, and crowding costs', () => {

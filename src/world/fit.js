@@ -55,7 +55,8 @@ const worldMouth = (pose, m) => {
   return { at: a, dir: [(b[0] - a[0]) / d, (b[1] - a[1]) / d] };
 };
 
-export function findFits(world, shape, { cell = 60, rotations = 48, stride = 3, keep = 3, apart = 3000 } = {}) {
+// the world on a grid: land and the Source are 0, every cell up to NEAR away knows its distance and owner
+export function buildGrid(world, cell = 60) {
   let minX = -SOURCE_RADIUS, maxX = SOURCE_RADIUS, minZ = -SOURCE_RADIUS, maxZ = SOURCE_RADIUS;
   for (const h of world) for (const [X, Y] of BOX) {
     const [x, z] = toWorld(h.pose, X, Y);
@@ -75,11 +76,43 @@ export function findFits(world, shape, { cell = 60, rotations = 48, stride = 3, 
     queue.push(r * W + c);
   }
   for (let q = 0; q < queue.length; q++) {
-    const i = queue[q], d = dist[i] + 1;
+    const i = queue[q], d = dist[i] + 1, c = i % W;
     if (d > NEAR) continue;
-    for (const j of [i - 1, i + 1, i - W, i + W]) if (dist[j] > d) { dist[j] = d; owner[j] = owner[i]; queue.push(j); }
+    for (const j of [c > 0 ? i - 1 : -1, c < W - 1 ? i + 1 : -1, i - W, i + W]) if (j >= 0 && j < W * H && dist[j] > d) { dist[j] = d; owner[j] = owner[i]; queue.push(j); }
   }
-  const { coast, inner } = handSamples(shape), samples = [...coast, ...inner].map(([X, Y]) => [X * WORLD, Y * WORLD]);
+  return { dist, owner, x0, z0, W, H, cell };
+}
+
+// one pose of the new Hand on the grid: out (null) when more than one sample lies on land; otherwise how
+// snug its coast is and whose land it touches. `samples` are in world metres, coast first. Off the grid is open sea.
+export function fitAt(g, samples, coastCount, { x: px, z: pz, rot }) {
+  const c = Math.cos(rot), s = Math.sin(rot);
+  let overlap = 0, snug = 0;
+  const next = new Set();
+  for (let n = 0; n < samples.length; n++) {
+    const [X, Y] = samples[n], gc = Math.floor((px + c * X + s * Y - g.x0) / g.cell), gr = Math.floor((pz + s * X - c * Y - g.z0) / g.cell);
+    if (gc < 0 || gr < 0 || gc >= g.W || gr >= g.H) continue;
+    const d = g.dist[gr * g.W + gc];
+    if (d <= 1 && ++overlap > 1) return null;
+    if (n < coastCount && d >= 2 && d <= NEAR) { snug++; next.add(g.owner[gr * g.W + gc]); }
+  }
+  return { snug, next: [...next] };
+}
+
+const worldSamples = (shape) => {
+  const { coast, inner } = handSamples(shape);
+  return { samples: [...coast, ...inner].map(([X, Y]) => [X * WORLD, Y * WORLD]), coastCount: coast.length };
+};
+
+// would this pose put the Hand on land or in the Source? The server asks before it keeps a Hand (spec 6.3)
+export function overlaps(world, shape, pose) {
+  const { samples, coastCount } = worldSamples(shape);
+  return fitAt(buildGrid(world), samples, coastCount, pose) === null;
+}
+
+export function findFits(world, shape, { cell = 60, rotations = 48, stride = 3, keep = 3, apart = 3000 } = {}) {
+  const g = buildGrid(world, cell), { dist, x0, z0, W, H } = g;
+  const { samples, coastCount } = worldSamples(shape);
   const mouths = riverMouths(shape), open = world.flatMap((h) => riverMouths(h.shape).map((m) => worldMouth(h.pose, m)));
   const centres = world.map((h) => toWorld(h.pose, 0, 230));
   const found = [];
@@ -90,18 +123,9 @@ export function findFits(world, shape, { cell = 60, rotations = 48, stride = 3, 
     for (let q = 0; q < rotations; q++) {
       const rot = (q / rotations) * Math.PI * 2, c = Math.cos(rot), s = Math.sin(rot);
       for (const [ax, ay] of ANCHORS) {
-        const px = fx - (c * ax + s * ay) * WORLD, pz = fz - (s * ax - c * ay) * WORLD;
-        let overlap = 0, snug = 0, ok = true;
-        const next = new Set();
-        for (let n = 0; n < samples.length; n++) {
-          const [X, Y] = samples[n], gc = Math.floor((px + c * X + s * Y - x0) / cell), gr = Math.floor((pz + s * X - c * Y - z0) / cell);
-          if (gc < 0 || gr < 0 || gc >= W || gr >= H) { ok = false; break; }
-          const d = dist[gr * W + gc];
-          if (d <= 1 && ++overlap > 1) { ok = false; break; }
-          if (n < coast.length && d >= 2 && d <= NEAR) { snug++; next.add(owner[gr * W + gc]); }
-        }
-        if (!ok || !snug) continue;
-        const pose = { x: px, z: pz, rot, mirror: false };
+        const pose = { x: fx - (c * ax + s * ay) * WORLD, z: fz - (s * ax - c * ay) * WORLD, rot, mirror: false };
+        const at = fitAt(g, samples, coastCount, pose);
+        if (!at || !at.snug) continue;
         let rivers = 0;
         for (const m of mouths) {
           const w = worldMouth(pose, m);
@@ -109,7 +133,7 @@ export function findFits(world, shape, { cell = 60, rotations = 48, stride = 3, 
         }
         const centre = toWorld(pose, 0, 230);
         const crowd = centres.filter(([x, z]) => Math.hypot(x - centre[0], z - centre[1]) < 1.6 * SPAN).length;
-        const fit = { pose, rivers, snug: snug / coast.length, centre, next: [...next] };
+        const fit = { pose, rivers, snug: at.snug / coastCount, centre, next: at.next };
         fit.score = scorePose({ rivers, snug: fit.snug, distance: Math.hypot(centre[0], centre[1]), crowd });
         found.push(fit);
       }
