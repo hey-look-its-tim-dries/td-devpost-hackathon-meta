@@ -9,6 +9,9 @@ import { toHalf } from './half.js';
 import { cellsOf } from '../world/where.js';
 
 onmessage = ({ data: { id, palm, prints, cell } }) => {
+  try { build(id, palm, prints, cell); } catch (e) { postMessage({ id, error: String(e?.stack ?? e) }); } // say what broke, not a bare error event
+};
+function build(id, palm, prints, cell) {
   const shape = handShape(unpackPalm(palm));
   const lab = labelHand(shape, cell);
   const b = bakeHand(shape, lab, prints.map(unpackPrint));
@@ -23,4 +26,4 @@ onmessage = ({ data: { id, palm, prints, cell } }) => {
     { id, w: b.w, h: b.h, cell: b.cell, x0: b.x0, y0: b.y0, height: b.height, texA, info: b.info, handbits: lab.handbits, cells },
     [b.height.buffer, texA.buffer, b.info.buffer, cells.buffer],
   );
-};
+}

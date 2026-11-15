@@ -7,6 +7,7 @@ import { overlaps, findFits } from '../../src/world/fit.js';
 import { handShape } from '../../src/hand/shape.js';
 import { unpackPalm, toB64, fromB64 } from '../../src/hand/dna.js';
 import { cleanName, HANDBIT_FEATURE, SUMMIT_FEATURE } from '../../src/world/names.js';
+import { slotFor, isSealed } from '../../src/world/community.js';
 
 
 const sha = async (s) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))].map((b) => b.toString(16).padStart(2, '0')).join('');
@@ -46,6 +47,8 @@ export class World extends DurableObject {
       this.chain = out.catch(() => {});
       return out;
     }
+    if (url.pathname === '/community' && req.method === 'GET') return Response.json(await this.community());
+    if (url.pathname === '/community' && req.method === 'POST') { const out = this.chain.then(() => this.donate(req)); this.chain = out.catch(() => {}); return out; }
     if (url.pathname === '/names' && req.method === 'GET') {
       const { results } = await this.env.DB.prepare('select hand_id, feature, name from place_name').all();
       const names = {};
@@ -105,6 +108,37 @@ export class World extends DurableObject {
     return Response.json({ id: hid, pose: hand.pose });
   }
 
+  async communityNo() { return (await this.ctx.storage.get('community')) ?? 1; }
+  async community() {
+    const no = await this.communityNo();
+    const { results } = await this.env.DB.prepare('select slot, hand_id, code, palette from community_slot where community_no = ?').bind(no).all();
+    return { no, sealed: no - 1, slots: results };
+  }
+  // one handbit of your own Hand into its slot of the Community Hand; the 22nd seals it (spec 6.4)
+  async donate(req) {
+    let b;
+    try { b = await req.json(); } catch { return Response.json({ error: 'bad json' }, { status: 400 }); }
+    const slot = slotFor(String(b?.code ?? ''));
+    if (!slot || typeof b?.token !== 'string') return Response.json({ error: 'not a slot' }, { status: 400 });
+    const me = await this.env.DB.prepare('select p.id as pid, h.id as hid, p.palette from player p join hand h on h.player_id = p.id where p.token_hash = ? and h.placed_at is not null').bind(await sha(b.token)).first();
+    if (!me) return Response.json({ error: 'lay your Hand first' }, { status: 403 });
+    const no = await this.communityNo();
+    const r = await this.env.DB.prepare('insert or ignore into community_slot (community_no, slot, hand_id, player_id, code, palette, at) values (?, ?, ?, ?, ?, ?, ?)').bind(no, slot, me.hid, me.pid, slot, me.palette, Date.now()).run();
+    if (!r.meta.changes) {
+      const mine = await this.env.DB.prepare('select 1 from community_slot where community_no = ? and player_id = ?').bind(no, me.pid).first();
+      return Response.json({ error: mine ? 'you have given to this one' : 'that slot is taken' }, { status: 409 });
+    }
+    await this.event('donated', me.hid, { no, slot });
+    const now = await this.community();
+    if (isSealed(now.slots)) {
+      await this.ctx.storage.put('community', no + 1);
+      await this.event('sealed', null, { no });
+      this.ctx.waitUntil(this.tell({ sealed: no }));
+    } else this.ctx.waitUntil(this.tell({ donated: { no, slot, hand_id: me.hid, palette: me.palette } }));
+    return Response.json({ no, slot });
+  }
+  async event(kind, handId, data) { await this.env.DB.prepare('insert into event (at, kind, hand_id, data) values (?, ?, ?, ?)').bind(Date.now(), kind, handId, JSON.stringify(data ?? null)).run(); }
+
   // a name for a place: handbits by the Hand's owner, summits by anyone with a Hand, first come (spec 6.4)
   async nameIt(req) {
     let b;
@@ -132,7 +166,7 @@ export class World extends DurableObject {
     if (typeof body?.token !== 'string') return Response.json({ error: 'no token' }, { status: 400 });
     const pid = (await this.env.DB.prepare('select h.player_id from hand h join player p on p.id = h.player_id where h.id = ? and h.founder = 0 and p.token_hash = ?').bind(id, await sha(body.token)).first())?.player_id;
     if (!pid) return Response.json({ error: 'not yours' }, { status: 404 });
-    await this.env.DB.batch([this.env.DB.prepare('delete from place_name where hand_id = ? or by_player = ?').bind(id, pid), this.env.DB.prepare('delete from hand where player_id = ?').bind(pid), this.env.DB.prepare('delete from player where id = ?').bind(pid)]);
+    await this.env.DB.batch([this.env.DB.prepare('delete from place_name where hand_id = ? or by_player = ?').bind(id, pid), this.env.DB.prepare('delete from community_slot where player_id = ?').bind(pid), this.env.DB.prepare('delete from hand where player_id = ?').bind(pid), this.env.DB.prepare('delete from player where id = ?').bind(pid)]);
     this.cache = null;
     this.ctx.waitUntil(this.tell({ left: id }));
     return new Response(null, { status: 204 });

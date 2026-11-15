@@ -10,4 +10,9 @@ class NoCache(http.server.SimpleHTTPRequestHandler):
         super().end_headers()
 
 
-http.server.ThreadingHTTPServer(('', int(sys.argv[1]) if len(sys.argv) > 1 else 8130), NoCache).serve_forever()
+class Server(http.server.ThreadingHTTPServer):
+    request_queue_size = 128  # the default 5 resets connections when a page loads 60 modules and 3 workers at once
+    daemon_threads = True
+
+
+Server(('', int(sys.argv[1]) if len(sys.argv) > 1 else 8130), NoCache).serve_forever()

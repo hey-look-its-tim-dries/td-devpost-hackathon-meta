@@ -33,6 +33,8 @@ import { createAtlas } from './atlas/card.js';
 import { createPalmUp, createPush } from './gesture.js';
 import { createPins, address } from './world/pins.js';
 import { placeName } from './world/names.js';
+import { createCommunityArt } from './community-art.js';
+import { slotFor } from './world/community.js';
 import { steerTo } from './autopilot.js';
 import { createOthers } from './others.js';
 
@@ -109,9 +111,24 @@ let online = false, roomLink = null, me = -1, roomState = 'closed'; // roomLink:
 const MAX_LAYERS = 64; // surface.js MAX_HANDS
 const layerOf = (id) => hands.find((h) => h.id === id)?.layer ?? [...pendingBake].find(([, h]) => h.id === id)?.[0] ?? -1;
 const freeLayer = () => { for (let i = 0; i < MAX_LAYERS; i++) if (!hands.some((h) => h.layer === i) && !pendingBake.has(i)) return i; return -1; };
-const workers = [0, 1, 2].map(() => new Worker(new URL('./hand/worker.js', import.meta.url), { type: 'module' }));
-for (const w of workers) {
-  w.onmessage = ({ data }) => {
+// three bakers; one that dies (a worker that fails to load, or runs out of memory) is replaced and its jobs
+// sent again, once each
+const retried = new Set();
+const workers = [];
+const spawnWorker = (k) => {
+  const w = new Worker(new URL('./hand/worker.js', import.meta.url), { type: 'module' });
+  w.onmessage = onBaked;
+  w.onerror = (e) => {
+    console.error('hand worker failed', e.message, e.filename, e.lineno);
+    e.preventDefault?.();
+    workers[k] = spawnWorker(k);
+    for (const [layer, f] of pendingBake) if (layer % workers.length === k && !retried.has(layer)) { retried.add(layer); workers[k].postMessage({ id: layer, palm: f.palm, prints: f.prints, cell: 0.75 }); }
+  };
+  return w;
+};
+for (let k = 0; k < 3; k++) workers.push(spawnWorker(k));
+function onBaked({ data }) {
+    if (data.error) { console.error('a Hand could not be built', data.error); pendingBake.delete(data.id); return; }
     const f = pendingBake.get(data.id);
     pendingBake.delete(data.id);
     if (!f) return;
@@ -124,8 +141,6 @@ for (const w of workers) {
     if (rise === 1) knots.push(...hatch({ ...f, data: kept })); // a rising Hand hatches when it has risen (below)
     const go = params.get('go')?.split('.'); // ?go=<handId>.<code>: an address link opens the game flying there
     if (go && go[0] === f.id) { const hb = kept.handbits.find((b) => b.code === go[1]); const [x, z] = toWorld(f.pose, hb?.cx ?? 0, hb?.cy ?? 230); flyTo = { x, z, label: hb ? `${f.name} ${hb.code}` : f.name }; }
-  };
-  w.onerror = (e) => console.error('hand worker failed', e.message, e.filename, e.lineno);
 }
 const bake = (f) => {
   const layer = freeLayer();
@@ -166,7 +181,7 @@ net.fetchWorld().then(({ hands: list, online: ok }) => {
   for (const h of list) if (h.id !== mine?.id) bake(h);
   if (mine) { if (ok && (!mine.id || mine.pending)) retryLay(); else bake(mine); }
   if (ok) refreshNames();
-  if (ok) roomLink = net.openRoom({ name: mine?.name ?? null, onHello: (id) => (me = id), onNames: (m) => others.setNames(m), onSnapshot: (s) => others.apply(s, me, glide.pos), onLaid: applyLaid, onLeft: removeHand, onState: (st) => (roomState = st) });
+  if (ok) roomLink = net.openRoom({ name: mine?.name ?? null, onHello: (id) => (me = id), onNames: (m) => others.setNames(m), onSnapshot: (s) => others.apply(s, me, glide.pos), onLaid: applyLaid, onLeft: removeHand, onState: (st) => (roomState = st), onCommunity: (m) => { if (m.donated) community.add(m.donated); if (m.sealed) { stamp(`Community Hand ${m.sealed}`, 'all 22 handbits given · the next one begins'); net.community().then((c) => community.set(c)); } } });
   else panel.say('Playing alone: the map could not be reached', 6);
 });
 const others = createOthers({ max: 60 }); // the other players in your room, as lighter creatures
@@ -259,10 +274,13 @@ const hud = createHud();
 camera.add(hud.group);
 const pins = createPins(storage); // up to five pinned places, on the compass
 let flyTo = null; // { x, z, label } while Fly here steers you
+const community = createCommunityArt(); // lies on the Source lake
+scene.add(community.mesh);
+let communityOn = false; // the map answered: donations possible
 let placeNames = {}, pickName = null; // handId -> { feature: name } from the map; the name being chosen { handId, feature, seed, name }
 const nameOf = (h, hb) => (hb ? placeNames[h.id]?.[hb.code] ?? hb.name : null);
 const summitOf = (h, hb) => (hb?.kind === 'tip' ? placeNames[h.id]?.[`summit:${hb.finger}`] ?? null : null);
-async function refreshNames() { if (online) placeNames = await net.names(); setTimeout(refreshNames, 60000); }
+async function refreshNames() { if (online) { placeNames = await net.names(); const c = await net.community(); if (c) { community.set(c); communityOn = true; } } setTimeout(refreshNames, 60000); }
 // ---------- the palm atlas: left palm up (or M) ----------
 const atlas = createAtlas();
 rig.add(atlas.mesh);
@@ -283,7 +301,7 @@ function atlasState() {
   const list = [];
   others.each((c, id, pos) => list.push({ pos, name: others.nameOf(id) }));
   const mineHand = mine && hands.find((h) => h.id === mine.id);
-  return { hands, chart, me: { pos: glide.pos, yaw: glide.yaw }, others: list, pins: pins.list(), selected: selected?.id ?? null, inspect: selected && inspectOf(selected), mine: mine && { name: mine.name, handbits: mineHand?.data.handbits ?? [] }, names: mine ? placeNames[mine.id] ?? {} : {}, pickName };
+  return { hands, chart, me: { pos: glide.pos, yaw: glide.yaw }, others: list, pins: pins.list(), selected: selected?.id ?? null, inspect: selected && inspectOf(selected), mine: mine && { name: mine.name, handbits: mineHand?.data.handbits ?? [] }, names: mine ? placeNames[mine.id] ?? {} : {}, pickName, community: communityOn ? { paint: (g, regions, tools) => community.paintTab(g, regions, tools) } : null };
 }
 function inspectOf(h) { // the inspector for a Hand (Task 7 adds its buttons' actions)
   const hb = inspectAt?.handbit;
@@ -291,7 +309,7 @@ function inspectOf(h) { // the inspector for a Hand (Task 7 adds its buttons' ac
     kicker: h.founder ? 'FOUNDER' : h.id === mine?.id ? 'YOUR HAND' : 'A PLAYER\'S HAND',
     title: h.name,
     lines: [hb ? `${hb.code} · ${nameOf(h, hb)}${summitOf(h, hb) ? ` · summit ${summitOf(h, hb)}` : ''}` : 'its rivers', `${chart.count(h.id)} of ${h.data.handbits.length} handbits charted${chart.sealed(h.id) ? ' · sealed' : ''}`, ...wrapText(address({ hand: h.name, handbit: hb?.name, code: hb?.code, ...placeOf(h, hb) }), 34)],
-    buttons: [...(hb?.kind === 'tip' && !summitOf(h, hb) && h.id !== mine?.id && online && mine?.id ? [{ id: 'name:summit', label: 'Name this summit' }] : []), { id: 'pin', label: pins.list().some((q) => q.handId === h.id && q.code === (hb?.code ?? null)) ? 'Pinned' : 'Pin it' }, { id: 'fly', label: 'Fly here', primary: true }],
+    buttons: [...(h.id === mine?.id && hb && slotFor(hb.code) && communityOn && !community.state.slots.some((q) => q.slot === hb.code) ? [{ id: 'donate', label: 'Give to the Community Hand' }] : []), ...(hb?.kind === 'tip' && !summitOf(h, hb) && h.id !== mine?.id && online && mine?.id ? [{ id: 'name:summit', label: 'Name this summit' }] : []), { id: 'pin', label: pins.list().some((q) => q.handId === h.id && q.code === (hb?.code ?? null)) ? 'Pinned' : 'Pin it' }, { id: 'fly', label: 'Fly here', primary: true }],
   };
 }
 // where a Hand's handbit (or its palm) lies in the world
@@ -311,6 +329,15 @@ function atlasDo(a) {
     pickName = null;
     net.nameIt({ handId: p.handId, feature: p.feature, name: p.name }).then((r) => {
       if (r.ok) { (placeNames[p.handId] ??= {})[p.feature] = p.name; panel.say(`Named: ${p.name}`, 4); } else panel.say(r.error === 'already named' ? 'Someone named it first' : `Not named: ${r.error}`, 4);
+      atlasPaint = 0;
+    });
+  }
+  else if (a.type === 'donate' && selected?.id === mine?.id && inspectAt?.handbit) {
+    const code = inspectAt.handbit.code;
+    net.donate(code).then((r) => {
+      if (r.error) return panel.say(r.error === 'you have given to this one' ? 'You have given to this Community Hand already' : `Not given: ${r.error}`, 4);
+      community.add({ no: r.no, slot: code, palette: unpackPalm(mine.palm).palette });
+      panel.say(`${code} given to Community Hand ${r.no}`, 4);
       atlasPaint = 0;
     });
   }

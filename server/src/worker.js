@@ -31,6 +31,7 @@ export default {
       return r.status === 204 ? new Response(null, { status: 204, headers: cors(req, env) }) : new Response(r.body, { status: r.status, headers: cors(req, env, { 'Content-Type': 'application/json' }) });
     };
     if (path === '/names' && (req.method === 'GET' || req.method === 'POST')) return passWorld('/names');
+    if (path === '/community' && (req.method === 'GET' || req.method === 'POST')) return passWorld('/community');
     if (path === '/stats' && req.method === 'GET') {
       const r = await world.fetch(new Request('https://world/stats'));
       return new Response(r.body, { status: r.status, headers: cors(req, env, { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=10' }) });

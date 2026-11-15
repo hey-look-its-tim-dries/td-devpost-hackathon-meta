@@ -101,3 +101,11 @@ test('names: a map of Hands to their named places; empty when the map is away; n
   const taken = createNet({ storage: memory(), fetchFn: async () => new Response(JSON.stringify({ error: 'already named' }), { status: 409 }) });
   assert.deepEqual(await taken.nameIt({ handId: 'h1', feature: 'summit:0', name: 'X' }), { error: 'already named' });
 });
+
+test('community: the current Community Hand, null offline; donating says why it failed', async () => {
+  const c = { no: 2, sealed: 1, slots: [{ slot: 'I1', hand_id: 'h', code: 'I1', palette: 3 }] };
+  assert.deepEqual(await createNet({ storage: memory(), fetchFn: async () => new Response(JSON.stringify(c)) }).community(), c);
+  const off = createNet({ storage: memory(), fetchFn: async () => { throw new Error('down'); } });
+  assert.equal(await off.community(), null);
+  assert.deepEqual(await off.donate('I1'), { error: 'offline' });
+});

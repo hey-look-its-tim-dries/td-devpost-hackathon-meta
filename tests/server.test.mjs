@@ -162,3 +162,32 @@ test('naming: owners name their handbits, anyone with a Hand names a summit firs
   await wash(a, tokA);
   assert.equal((await (await fetch(API + '/names')).json()).names[a], undefined, 'a wash takes its names along');
 });
+
+test('the Community Hand: 22 donors seal it, the 23rd starts the next; one donation each (Task 9, Review Focus 5)', { skip }, async () => {
+  for (const h of (await world()).filter((h) => /^Donor \d+$/.test(h.name))) await wash(h.id, `cm${h.name.split(' ')[1].padStart(2, '0')}`.padEnd(40, 'x')); // a previous run
+  const before = await (await fetch(API + '/community')).json();
+  const no = before.no, filled = new Set(before.slots.map((s) => s.slot));
+  const codes = ['T1', 'T2', 'T3', 'I1', 'I2', 'I3', 'M1', 'M2', 'M3', 'R1', 'R2', 'R3', 'L1', 'L2', 'L3', 'P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7'].filter((c) => !filled.has(c));
+  const donors = [], shapesNow = shapes(await world());
+  const fitFor = (seed) => findFits(shapesNow, handShape(templatePalm({ seed })))[0].pose;
+  for (let i = 0; i <= codes.length; i++) {
+    const token = `cm${String(i).padStart(2, '0')}`.padEnd(40, 'x'), r = await post(body(fitFor(200 + i), { token, seed: 200 + i, name: `Donor ${i}` }));
+    const j = await r.json();
+    if (j.conflict) { const r2 = await post(body(j.fits[0].pose, { token, seed: 200 + i, name: `Donor ${i}` })); donors.push({ token, id: (await r2.json()).id }); }
+    else donors.push({ token, id: j.id });
+    shapesNow.push(...shapes([(await world()).find((h) => h.id === donors.at(-1).id)]));
+  }
+  const give = (token, code) => fetch(API + '/community', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, code }) });
+  assert.equal((await give(donors[0].token, codes[0])).status, 200);
+  assert.equal((await give(donors[0].token, codes[1])).status, 409, 'one donation each');
+  const results = await Promise.all(codes.slice(1).map((code, i) => give(donors[i + 1].token, code))); // all at once: the World takes them one by one
+  assert.ok(results.every((r) => r.status === 200), results.map((r) => r.status).join(','));
+  const after = await (await fetch(API + '/community')).json();
+  assert.equal(after.no, no + 1, 'sealed: the next one started');
+  assert.equal(after.sealed, no);
+  const last = await give(donors[codes.length].token, 'I1');
+  assert.equal(last.status, 200);
+  assert.equal((await last.json()).no, no + 1);
+  assert.equal((await give('zz'.repeat(20), 'I1')).status, 403, 'only players with a Hand donate');
+  for (const d of donors) await wash(d.id, d.token);
+});

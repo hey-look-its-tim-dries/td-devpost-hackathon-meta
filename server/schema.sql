@@ -31,3 +31,23 @@ create table if not exists place_name (
   at integer not null,
   primary key (hand_id, feature)
 );
+
+-- spec 8.4: the Community Hand's slots, and the world's events (lays, washes, names, seals)
+create table if not exists community_slot (
+  community_no integer not null,
+  slot text not null,
+  hand_id text not null,
+  player_id text not null,
+  code text not null,
+  palette integer not null default 0,
+  at integer not null,
+  primary key (community_no, slot)
+);
+create unique index if not exists community_once on community_slot(community_no, player_id);
+create table if not exists event (
+  id integer primary key autoincrement,
+  at integer not null,
+  kind text not null,
+  hand_id text,
+  data text
+);

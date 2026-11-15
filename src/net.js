@@ -52,6 +52,22 @@ export function createNet({ api = API, storage = null, fetchFn = globalThis.fetc
         return { error: 'offline' };
       }
     },
+    async community() {
+      try {
+        const { status, body } = await call('/community');
+        return status === 200 && Number.isInteger(body?.no) && Array.isArray(body.slots) ? body : null;
+      } catch {
+        return null;
+      }
+    },
+    async donate(code) {
+      try {
+        const { status, body } = await call('/community', { method: 'POST', body: JSON.stringify({ token, code }) });
+        return status === 200 ? body : { error: body?.error ?? `server ${status}` };
+      } catch {
+        return { error: 'offline' };
+      }
+    },
     async names() {
       try {
         const { status, body } = await call('/names');
@@ -80,7 +96,7 @@ export function createNet({ api = API, storage = null, fetchFn = globalThis.fetc
       try { return (await call(`/hands/${id}`, { method: 'DELETE', body: JSON.stringify({ token }) })).status === 204; } catch { return false; }
     },
     // the live room: poses out (at most 5 a second), snapshots and lay events in; reconnects by itself
-    openRoom({ name = null, onHello, onNames, onSnapshot, onLaid, onLeft, onState } = {}) {
+    openRoom({ name = null, onHello, onNames, onSnapshot, onLaid, onLeft, onState, onCommunity } = {}) {
       let ws = null, closed = false, wait = 1000, lastSent = 0, shard = 0, followed = false;
       const retry = () => { if (closed) return; setTimeout(connect, followed ? 0 : wait); wait = Math.min(30000, wait * 2); };
       function connect() {
@@ -96,6 +112,7 @@ export function createNet({ api = API, storage = null, fetchFn = globalThis.fetc
           if (m.hello !== undefined) onHello?.(m.hello);
           else if (m.laid) onLaid?.(rowToHand(m.laid));
           else if (m.left) onLeft?.(m.left);
+          else if (m.sealed || m.donated) onCommunity?.(m);
           else if (m.full && !followed) { followed = true; shard = +m.full.split('-').pop() || 0; } // the close that follows reconnects to the next shard
         };
         ws.onclose = () => { onState?.('closed'); retry(); };
