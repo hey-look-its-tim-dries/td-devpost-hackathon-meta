@@ -17,7 +17,7 @@
     </script>
   </head>
   <body>
-    <div class="banner" id="banner">
+    <div class="banner loading" id="banner">
       <div class="banner-inner">
         <p class="eyebrow">Every hand is a piece of the map</p>
         <h1>Palm Whorl Cities</h1>
@@ -26,6 +26,7 @@
           are print lands, and black-ink scribbles hatched from the prints knot above them. Glide over
           the first piece of a world that grows with every hand.
         </p>
+        <p id="status" class="small">Loading the world…</p>
         <button id="xrButton" class="hidden">Enter in headset</button>
         <button id="previewButton" class="quiet">Preview in the browser</button>
         <button id="webcamButton" class="quiet">Use my webcam as hands</button>
@@ -35,6 +36,12 @@
         </p>
       </div>
     </div>
+    <script>
+      // the buttons wait for the world; if the game cannot load (offline, a blocked CDN, a crash), say so
+      addEventListener('error', () => {
+        if (document.getElementById('banner').classList.contains('loading')) document.getElementById('status').textContent = 'The world could not load. Check your connection and reload.';
+      }, true);
+    </script>
     <script type="module" src="./src/main.js"></script>
   </body>
 </html>

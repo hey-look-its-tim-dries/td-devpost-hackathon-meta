@@ -134,3 +134,9 @@ button:focus-visible {
   opacity: 0.85;
   z-index: 2;
 }
+
+/* until the game has loaded: no buttons to press in vain */
+.banner.loading button,
+.banner:not(.loading) #status {
+  display: none;
+}

@@ -534,6 +534,7 @@ addEventListener('resize', () => {
 if (params.has('play')) start();
 if (params.has('webcam')) { start(); useWebcam(); }
 renderer.setAnimationLoop(frame);
+banner.classList.remove('loading'); // the world is drawing: the buttons may show
 
 // read-only peek for tests and curious players
 window.__pwc = {
