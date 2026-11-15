@@ -6,12 +6,13 @@ import { handShape } from './shape.js';
 import { labelHand } from './label.js';
 import { bakeHand } from './bake.js';
 import { toHalf } from './half.js';
+import { cellsOf } from '../world/where.js';
 
 onmessage = ({ data: { id, palm, prints, cell } }) => {
   const shape = handShape(unpackPalm(palm));
   const lab = labelHand(shape, cell);
   const b = bakeHand(shape, lab, prints.map(unpackPrint));
-  const N = b.w * b.h, texA = new Uint16Array(N * 4);
+  const N = b.w * b.h, texA = new Uint16Array(N * 4), cells = cellsOf(lab); // the handbit under each cell, for charting (world/where.js)
   for (let i = 0; i < N; i++) {
     texA[i * 4] = toHalf(b.height[i]);
     texA[i * 4 + 1] = toHalf(b.cos[i]);
@@ -19,7 +20,7 @@ onmessage = ({ data: { id, palm, prints, cell } }) => {
     texA[i * 4 + 3] = toHalf(b.water[i]);
   }
   postMessage(
-    { id, w: b.w, h: b.h, cell: b.cell, x0: b.x0, y0: b.y0, height: b.height, texA, info: b.info, handbits: lab.handbits },
-    [b.height.buffer, texA.buffer, b.info.buffer],
+    { id, w: b.w, h: b.h, cell: b.cell, x0: b.x0, y0: b.y0, height: b.height, texA, info: b.info, handbits: lab.handbits, cells },
+    [b.height.buffer, texA.buffer, b.info.buffer, cells.buffer],
   );
 };
