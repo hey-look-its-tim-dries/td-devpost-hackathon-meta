@@ -23,6 +23,8 @@ import { findFits } from './world/fit.js';
 import { createGhosts } from './world/ghosts.js';
 import { loadHand, saveHand, forgetHand } from './world/mine.js';
 import { createNet, settleLay, API } from './net.js';
+import { createLabel } from './labels.js';
+import { createBraid } from './braid.js';
 import { createOthers } from './others.js';
 
 // Palm Whorl Cities, first milestone: the First Ten. Ten founding hands lie in a ring around the
@@ -108,7 +110,7 @@ for (const w of workers) {
     surface.addHand(data.id, data, f.pose, rise);
     const { texA, info, ...kept } = data; // the textures live in the surface now; the ground keeps heights only
     hands.push({ ...f, layer: data.id, data: kept, rise });
-    if (rise === 1) knots.push(...hatch(f)); // a rising Hand hatches when it has risen (below)
+    if (rise === 1) knots.push(...hatch({ ...f, data: kept })); // a rising Hand hatches when it has risen (below)
   };
   w.onerror = (e) => console.error('hand worker failed', e);
 }
@@ -148,10 +150,29 @@ net.fetchWorld().then(({ hands: list, online: ok }) => {
   online = ok;
   for (const h of list) if (h.id !== mine?.id) bake(h);
   if (mine) { if (ok && (!mine.id || mine.pending)) retryLay(); else bake(mine); }
-  if (ok) roomLink = net.openRoom({ onHello: (id) => (me = id), onSnapshot: (s) => others.apply(s, me, glide.pos), onLaid: applyLaid, onLeft: removeHand, onState: (st) => (roomState = st) });
+  if (ok) roomLink = net.openRoom({ name: mine?.name ?? null, onHello: (id) => (me = id), onNames: (m) => others.setNames(m), onSnapshot: (s) => others.apply(s, me, glide.pos), onLaid: applyLaid, onLeft: removeHand, onState: (st) => (roomState = st) });
   else panel.say('Playing alone: the map could not be reached', 6);
 });
 const others = createOthers({ max: 60 }); // the other players in your room, as lighter creatures
+const braid = createBraid(), braidList = [], CALM = params.has('calm'); // the greeting; ?calm: reduced motion, no braiding
+let braiding = null; // { id, k } while two swarms braid
+const tags = new Map(); // id -> name tag over that player
+const greeted = new Set(); // players you have been told about
+const eyeW = new THREE.Vector3();
+function updateTags() {
+  camera.getWorldPosition(eyeW);
+  const seen = new Set();
+  others.each((c, id, pos) => {
+    seen.add(id);
+    let t = tags.get(id);
+    if (!t) { t = createLabel(); scene.add(t.sprite); tags.set(id, t); }
+    const name = others.nameOf(id);
+    t.set(name ?? 'a traveller');
+    t.update(pos, eyeW);
+    if (started && mode === 'fly' && !greeted.has(id)) { greeted.add(id); panel.say(`${name ?? 'A traveller'} joined your sky`, 4); }
+  });
+  for (const [id, t] of tags) if (!seen.has(id)) { scene.remove(t.sprite); t.dispose(); tags.delete(id); greeted.delete(id); }
+}
 
 // height of the world at (x, z), for flight clearance (the GPU surface follows the same rule)
 const groundAt = (x, z) => groundAtWorld(hands, x, z);
@@ -160,11 +181,14 @@ const groundAt = (x, z) => groundAtWorld(hands, x, z);
 
 const LINE = { points: 90, spacing: 3 }; // lines about 270 m long, at world scale
 const TAPER = (s) => 0.12 + 0.88 * Math.pow(Math.sin(Math.PI * s), 0.6);
-// a Hand's five scribbles, one knot per print, hatched above its palm
+// a Hand's five scribbles, one knot per print, above its palm. Each hatches out of its own print land
+// (spec 9): its head lifts off the fingertip and the line peels up after it, then it knots
 const hatch = (f) => f.prints.map(unpackPrint).map((p, j) => {
   const [cx, cz] = toWorld(f.pose, 0, 230);
   const knot = createKnot({ cls: p.cls, seed: p.seed, center: [cx, 480 + j * 35, cz], radius: 110 + j * 20, tilt: 0.35 + j * 0.18 }); // above the palms
-  return { hand: f.id, knot, line: createScribble({ ...LINE, at: knot.step(0, 0), seed: p.seed }) };
+  const tip = f.data?.handbits?.find((b) => b.code === `${'TIMRL'[j]}1`);
+  const at = tip ? (([x, z]) => [x, groundAt(x, z) + 4, z])(toWorld(f.pose, tip.cx, tip.cy)) : knot.step(0, 0);
+  return { hand: f.id, knot, line: createScribble({ ...LINE, at, dir: [0, 1, 0], seed: p.seed }) };
 });
 const knots = []; // filled as Hands bake
 // faster the higher you fly (30 m/s skimming the ridges, 220 m/s high over the wilderness), and diving adds half again
@@ -349,6 +373,7 @@ async function choose(i) { // a ghost chosen once is picked, chosen again is lai
     return panel.say(`This device already has a Hand on the map: ${mine.name}`, 7);
   }
   mine = { ...laying, pose: r.pose ?? fit.pose, id: r.id ?? `local-${Date.now()}`, pending: !r.id };
+  roomLink?.rename(mine.name); // others now see your Hand's name over you
   delete mine.busy;
   try {
     saveHand(storage, mine);
@@ -439,6 +464,16 @@ function frame() {
   roomLink?.send({ x: glide.pos[0], y: glide.pos[1], z: glide.pos[2], yaw: glide.yaw, pitch: glide.pitch, mode: ['fly', 'atelier', 'merge', 'rise'].indexOf(mode) }); // at most 5 a second
   creature.update(dt, glide.pos, { speed: 70 + 200 * rush(), pitch: glide.pitch, turn: steer.turn }); // the creature's own scale: 70 calm .. 270 a spear
   others.update(dt);
+  updateTags();
+  // the greeting: near another player your swarms braid for a few seconds
+  braidList.length = 0;
+  others.each((c, id, pos) => braidList.push({ id, pos, c }));
+  const b = started && mode === 'fly' ? braid.update(dt, glide.pos, braidList) : null;
+  if (b && b.id !== braiding?.id) panel.say(`You met ${others.nameOf(b.id) ?? 'a traveller'}`, 4);
+  braiding = b;
+  const other = b && braidList.find((o) => o.id === b.id);
+  creature.pull(other && !CALM ? other.pos : null, b ? b.k * 0.6 : 0);
+  for (const o of braidList) o.c.pull(other === o && !CALM ? glide.pos : null, other === o ? b.k * 0.6 : 0);
   // the camera chases the creature: behind and above it, easing after its turns (never rolling)
   const f = glide.forward(), follow = 1 - Math.exp(-dt * 3);
   const cx = glide.pos[0] - f[0] * CHASE.back, cz = glide.pos[2] - f[2] * CHASE.back;
@@ -553,11 +588,22 @@ if (params.has('play')) start();
 if (params.has('webcam')) { start(); useWebcam(); }
 renderer.setAnimationLoop(frame);
 banner.classList.remove('loading'); // the world is drawing: the buttons may show
+// the front door's live counts, refreshed while it shows
+const live = document.getElementById('live');
+const fmt = (n) => n.toLocaleString('en');
+async function showStats() {
+  if (!banner.classList.contains('hidden')) {
+    const st = await net.stats();
+    live.textContent = st ? `${fmt(st.hands)} Hands · ${fmt(st.flying)} flying now` : '';
+  }
+  setTimeout(showStats, 15000);
+}
+showStats();
 
 // read-only peek for tests and curious players
 window.__pwc = {
   get state() {
-    return { hands: hands.length, pos: glide.pos.map(Math.round), yaw: +glide.yaw.toFixed(2), fps: Math.round(fps), scribbles: knots.length + creature.strands, started, webcam: webcam ? webcam.update().map((q) => q.handedness) : null, steering: xrHands.some((q) => q.engaged), palm: xrHands.map((q) => q.frame && q.frame.normal.map((v) => +v.toFixed(2))), hand: xrHands.map((q) => q.frame && { point: q.frame.forward.map((v) => +v.toFixed(2)), open: +q.frame.extension.toFixed(2), height: +q.frame.center[1].toFixed(2) }), speed: Math.round(glide.speed), calls: renderer.info.render.calls, xr: renderer.xr.isPresenting, lod: surface.centre.map(Math.round), patches: surface.patches, mode, mine: mine?.name ?? null, online, others: others.count, pending: !!mine?.pending, room: roomState };
+    return { hands: hands.length, pos: glide.pos.map(Math.round), yaw: +glide.yaw.toFixed(2), fps: Math.round(fps), scribbles: knots.length + creature.strands, started, webcam: webcam ? webcam.update().map((q) => q.handedness) : null, steering: xrHands.some((q) => q.engaged), palm: xrHands.map((q) => q.frame && q.frame.normal.map((v) => +v.toFixed(2))), hand: xrHands.map((q) => q.frame && { point: q.frame.forward.map((v) => +v.toFixed(2)), open: +q.frame.extension.toFixed(2), height: +q.frame.center[1].toFixed(2) }), speed: Math.round(glide.speed), calls: renderer.info.render.calls, xr: renderer.xr.isPresenting, lod: surface.centre.map(Math.round), patches: surface.patches, mode, mine: mine?.name ?? null, braid: braiding, online, others: others.count, pending: !!mine?.pending, room: roomState };
   },
   atelier: { act: (a) => act(a), get flow() { return flow; }, choose: (i) => choose(i) },
   // where things are in your own space (the rig's), for the film script (tools/film.mjs)

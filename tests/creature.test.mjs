@@ -79,3 +79,15 @@ test('a complex creature: strands of different sizes and line weights, a few bol
   assert.ok(Math.max(...widths) >= 2.5 * Math.min(...widths), `weights ${widths}`);
 });
 
+
+test('pull: a braiding creature reaches its strands toward the other player, and lets go at k = 0', () => {
+  const fly = (c) => { for (let i = 0; i < 200; i++) c.update(1 / 60, [0, 500, -i * 3], { speed: 120 }); };
+  const mid = (c) => { const { xyz, count } = c.strand(0), m = Math.floor(count / 2) * 3; return [xyz[m], xyz[m + 1], xyz[m + 2]]; };
+  const target = [200, 500, -300];
+  const a = createCreature({ strands: 9, points: 70, spacing: 2, radius: 13 }); fly(a);
+  const b = createCreature({ strands: 9, points: 70, spacing: 2, radius: 13 }); b.pull(target, 1); fly(b);
+  const d = (p) => Math.hypot(p[0] - target[0], p[1] - target[1], p[2] - target[2]);
+  assert.ok(d(mid(b)) < d(mid(a)) - 20, `${d(mid(b))} vs ${d(mid(a))}`);
+  b.pull(null, 0); b.update(1 / 60, [0, 500, -603], { speed: 120 });
+  assert.ok(Math.abs(d(mid(b)) - d(mid(a))) < 15, 'let go');
+});

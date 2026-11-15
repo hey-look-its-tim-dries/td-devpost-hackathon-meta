@@ -18,6 +18,7 @@ export function createCreature({ strands = 5, points = 40, spacing = 5, radius =
     return { reach: bold ? 0.9 + 0.3 * h : 0.25 + 0.45 * h, twist: 0.7 + 0.8 * ((k * 0.381966) % 1), weight: bold ? 1 : 0.28 + 0.2 * h, phase: k * 2.399963 };
   });
   let newest = -1, filled = 0, count = 0, t = 0;
+  let pullTo = null, pullK = 0; // the greeting: strands reach toward another player
   const push = (x, y, z) => {
     newest = (newest + 1) % points;
     trail[newest * 3] = x;
@@ -60,6 +61,7 @@ export function createCreature({ strands = 5, points = 40, spacing = 5, radius =
         o[m] = spine[m] + r * (p * bx + q * nx) + sway * bx + bob * nx;
         o[m + 1] = spine[m + 1] + r * (p * by + q * ny) + sway * by + bob * ny;
         o[m + 2] = spine[m + 2] + r * (p * bz + q * nz) + sway * bz + bob * nz;
+        if (pullK > 0) { const w = pullK * e * (c.weight > 0.9 ? 0.55 : 0.25); o[m] += (pullTo[0] - o[m]) * w; o[m + 1] += (pullTo[1] - o[m + 1]) * w; o[m + 2] += (pullTo[2] - o[m + 2]) * w; } // bold strands reach furthest
       }
     }
   }
@@ -90,6 +92,8 @@ export function createCreature({ strands = 5, points = 40, spacing = 5, radius =
     },
     spine() { return { xyz: spine, count }; },
     strand(k) { return { xyz: lines[k], count }; },
+    // braid toward a world point with weight k (0..1); pull(null, 0) lets go
+    pull(to, k) { pullTo = to; pullK = to ? Math.max(0, Math.min(1, k)) : 0; },
     weight(k) { return kind[k].weight; }, // how heavy strand k's line is, 0..1
   };
 }
