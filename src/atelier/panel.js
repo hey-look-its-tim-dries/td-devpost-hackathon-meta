@@ -27,7 +27,7 @@ export function createAtelierPanel() {
   tex.colorSpace = THREE.SRGBColorSpace;
   const mesh = new THREE.Mesh(
     new THREE.PlaneGeometry(0.6, 0.45),
-    new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false }),
+    new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }), // depth-tested: the hand that touches the card shows in front of it
   );
   mesh.renderOrder = 25;
   mesh.visible = false;

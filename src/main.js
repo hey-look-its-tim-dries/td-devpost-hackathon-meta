@@ -39,6 +39,17 @@ if (params.has('emulate')) {
   const device = new XRDevice(params.get('device') === 'glasses' ? metaVRGlasses : metaQuest3);
   device.installRuntime({ forceInstall: true });
   window.__device = device;
+  // a scanned sample room stands in for yours, so passthrough shows something (&room=office_small for another)
+  try {
+    const { SyntheticEnvironmentModule } = await import('https://esm.sh/@iwer/sem@2.5.0');
+    device.installSEM(SyntheticEnvironmentModule);
+    fetch(`https://unpkg.com/@iwer/sem@2.5.0/captures/${params.get('room') || 'living_room'}.json`)
+      .then((r) => r.json())
+      .then((json) => device.sem.loadEnvironment(json))
+      .catch((e) => console.warn('IWER room unavailable', e));
+  } catch (e) {
+    console.warn('IWER synthetic environment unavailable', e);
+  }
   if (!params.has('nodevui')) {
     try {
       const { DevUI } = await import('https://esm.sh/@iwer/devui@2.5.0');
@@ -157,15 +168,18 @@ const hatch = (f) => f.prints.map(unpackPrint).map((p, j) => {
 });
 const knots = []; // filled as Hands bake
 // faster the higher you fly (30 m/s skimming the ridges, 220 m/s high over the wilderness), and diving adds half again
-const glide = createGlide({ pos: params.get('at')?.split(',').map(Number) ?? [0, 1100, 15000], turnRate: 0.9, clearance: 25, ceiling: 1500 }); // ?at=x,y,z to start elsewhere
+// fast, and faster the lower you dare: 170 m/s level, 560 m/s out of a full dive, and skimming the land keeps you well above cruise
+const CRUISE = 170, TERMINAL = 560;
+const glide = createGlide({ pos: params.get('at')?.split(',').map(Number) ?? [0, 650, 15000], speed: CRUISE, cruise: CRUISE, terminal: TERMINAL, minSpeed: 70, gravity: 55, groundBoost: 30, groundBand: 150, turnRate: 0.9, clearance: 25, ceiling: 1500 });
+const rush = () => Math.max(0, Math.min(1, (glide.speed - CRUISE) / (TERMINAL - CRUISE))); // 0 level .. 1 flat out // ?at=x,y,z to start elsewhere
 // you: the Whorl, ink strands winding round your own flight path; the camera chases it
 const creature = createCreature({ strands: 9, points: 70, spacing: 2, radius: 13 });
 const CHASE = { back: 190, up: 40 }; // further back than the creature is long, so all of it is in front of you
 const chase = { pos: new THREE.Vector3(glide.pos[0], glide.pos[1] + CHASE.up, glide.pos[2] + CHASE.back), yaw: glide.yaw };
 const ink = createInk(MAX_LAYERS * 5 * (LINE.points + 1) + creature.strands * 71 + 60 * 5 * 41, { width: 1.1, color: '#16100e' }); // every Hand's five, you, and up to 60 others
 // speed lines: ink streaks hanging in the air that rush past when you are fast
-const streaks = Array.from({ length: 60 }, () => new THREE.Vector3(Infinity, 0, 0));
-const streakInk = createInk(streaks.length, { width: 0.5, color: '#16100e' });
+const streaks = Array.from({ length: 160 }, () => new THREE.Vector3(Infinity, 0, 0));
+const streakInk = createInk(streaks.length, { width: 0.7, color: '#16100e' });
 scene.add(streakInk.mesh);
 scene.add(ink.mesh);
 
@@ -423,7 +437,7 @@ function frame() {
   card.update(dt, started && mode !== 'atelier' && (webcam || renderer.xr.isPresenting) ? { checks: best?.c ?? null, progress: best?.q.hold.progress ?? 0, steering: steeringNow, turn: steer.turn, climb: steer.climb } : null);
   if (mode !== 'atelier') glide.update(dt, steer, groundAt); // the world waits while you read your hand
   roomLink?.send({ x: glide.pos[0], y: glide.pos[1], z: glide.pos[2], yaw: glide.yaw, pitch: glide.pitch, mode: ['fly', 'atelier', 'merge', 'rise'].indexOf(mode) }); // at most 5 a second
-  creature.update(dt, glide.pos, { speed: glide.speed, pitch: glide.pitch, turn: steer.turn });
+  creature.update(dt, glide.pos, { speed: 70 + 200 * rush(), pitch: glide.pitch, turn: steer.turn }); // the creature's own scale: 70 calm .. 270 a spear
   others.update(dt);
   // the camera chases the creature: behind and above it, easing after its turns (never rolling)
   const f = glide.forward(), follow = 1 - Math.exp(-dt * 3);
@@ -433,11 +447,13 @@ function frame() {
   rig.position.copy(chase.pos);
   rig.rotation.y = chase.yaw;
   if (!renderer.xr.isPresenting) {
-    camera.rotation.set(look.pitch, look.yaw, 0, 'YXZ');
-    // on a screen the view widens a little with speed, so you feel it (never in the headset: comfort)
-    const fov = 65 + 14 * Math.min(1, Math.max(0, (glide.speed - 70) / 230));
+    // on a screen you feel the speed: the view widens, banks into your turns and trembles when you are
+    // flat out (never in the headset: comfort; there the land and the streaks rushing past do it)
+    const r = rush(), shake = 0.004 * r * r;
+    camera.rotation.set(look.pitch + shake * Math.sin(t * 71), look.yaw + shake * Math.sin(t * 53 + 1), -0.14 * steer.turn * (0.5 + 0.5 * r), 'YXZ');
+    const fov = 65 + 30 * r;
     if (Math.abs(camera.fov - fov) > 0.05) {
-      camera.fov += (fov - camera.fov) * (1 - Math.exp(-dt * 2));
+      camera.fov += (fov - camera.fov) * (1 - Math.exp(-dt * 2.5));
       camera.updateProjectionMatrix();
     }
   }
@@ -456,16 +472,18 @@ function frame() {
   }
   others.each((c) => { for (let k = 0; k < c.strands; k++) { const l = c.strand(k), w = c.weight(k); ink.stroke(l.xyz, l.count, (s) => TAPER(s) * 0.7 * w); } }); // other players, a little lighter than you
   ink.end();
-  // speed lines: streaks fixed in the air round you, drawn along your motion, longer the faster you go
-  const fast = Math.max(0, Math.min(1, (glide.speed - 90) / 180)), vel = tmpChase.set(f[0] * Math.cos(glide.pitch), Math.sin(glide.pitch), f[2] * Math.cos(glide.pitch)).multiplyScalar(glide.speed);
+  // speed lines: streaks fixed in the air round you, drawn along your motion; there from cruise on, and
+  // longer and bolder the faster you go, so the air itself rushes past (this is what a headset shows of speed)
+  const fast = 0.3 + 0.7 * rush(), vel = tmpChase.set(f[0] * Math.cos(glide.pitch), Math.sin(glide.pitch), f[2] * Math.cos(glide.pitch)).multiplyScalar(glide.speed);
   streakInk.begin();
   for (const p of streaks) {
     const rel = p.clone().sub(chase.pos);
-    if (!Number.isFinite(p.x) || rel.dot(vel) < -40 * glide.speed || rel.length() > 900) { // behind you or lost: put it ahead again
-      const a = Math.random() * Math.PI * 2, r = 25 + Math.random() * 90, ahead = 150 + Math.random() * 600;
-      p.set(chase.pos.x + f[0] * ahead + Math.cos(a) * r * f[2], chase.pos.y + Math.sin(a) * r * 0.6 - 20, chase.pos.z + f[2] * ahead - Math.cos(a) * r * f[0]);
+    if (!Number.isFinite(p.x) || rel.dot(vel) < -40 * glide.speed || rel.length() > Math.max(900, glide.speed * 3.5)) { // behind you or lost: put it ahead again
+      const a = Math.random() * Math.PI * 2, r = 14 + Math.random() * 130, ahead = glide.speed * (0.8 + Math.random() * 2.2);
+      const sx = chase.pos.x + f[0] * ahead + Math.cos(a) * r * f[2], sz = chase.pos.z + f[2] * ahead - Math.cos(a) * r * f[0];
+      p.set(sx, Math.max(chase.pos.y + Math.sin(a) * r * 0.6 - 20, groundAt(sx, sz) + 4), sz); // in the air, never under the land
     }
-    if (fast > 0) streakInk.segment(p, p.clone().addScaledVector(vel, -0.06 * fast), fast, 0);
+    streakInk.segment(p, p.clone().addScaledVector(vel, -0.04 - 0.11 * rush()), fast, 0);
   }
   streakInk.end();
 
@@ -542,5 +560,13 @@ window.__pwc = {
     return { hands: hands.length, pos: glide.pos.map(Math.round), yaw: +glide.yaw.toFixed(2), fps: Math.round(fps), scribbles: knots.length + creature.strands, started, webcam: webcam ? webcam.update().map((q) => q.handedness) : null, steering: xrHands.some((q) => q.engaged), palm: xrHands.map((q) => q.frame && q.frame.normal.map((v) => +v.toFixed(2))), hand: xrHands.map((q) => q.frame && { point: q.frame.forward.map((v) => +v.toFixed(2)), open: +q.frame.extension.toFixed(2), height: +q.frame.center[1].toFixed(2) }), speed: Math.round(glide.speed), calls: renderer.info.render.calls, xr: renderer.xr.isPresenting, lod: surface.centre.map(Math.round), patches: surface.patches, mode, mine: mine?.name ?? null, online, others: others.count, pending: !!mine?.pending, room: roomState };
   },
   atelier: { act: (a) => act(a), get flow() { return flow; }, choose: (i) => choose(i) },
+  // where things are in your own space (the rig's), for the film script (tools/film.mjs)
+  space: {
+    head: () => headLocal.toArray(),
+    tip: (i) => (xrHands[i].frame ? xrHands[i].store['index-finger-tip'].slice() : null),
+    card: () => (atelier.isOpen ? { pos: atelier.mesh.position.toArray(), quat: atelier.mesh.quaternion.toArray() } : null),
+    toRig: (x, y, z) => rig.worldToLocal(new THREE.Vector3(x, y, z)).toArray(),
+    fits: () => ghosts.fits.map((f) => [f.centre[0], groundAt(...f.centre), f.centre[1]]),
+  },
   net,
 };
