@@ -202,3 +202,13 @@ export function createShadowBird({ maxWristGap = 0.12, holdOn = 0.5, exitGap = 0
     },
   };
 }
+
+// The atlas gesture (spec 11.3 step 9): your palm turned up, held in front of you (not on your lap),
+// open, for a moment. Turning it down again closes the atlas.
+export function createPalmUp({ holdOn = 0.4, holdOff = 0.35, dropTolerance = 0.3 } = {}) {
+  const l = latch(holdOn, holdOff, dropTolerance);
+  return {
+    get active() { return l.active; },
+    update(frame, floorY, dt) { return frame ? l.update(frame.normal[1] > 0.6 && frame.extension > 0.3 && frame.center[1] > floorY, dt) : l.update(null, dt); },
+  };
+}

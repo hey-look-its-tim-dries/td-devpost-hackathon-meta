@@ -29,6 +29,8 @@ import { createChart } from './world/chart.js';
 import { whereAt } from './world/where.js';
 import { createStamp } from './stamp.js';
 import { createHud } from './hud.js';
+import { createAtlas } from './atlas/card.js';
+import { createPalmUp } from './gesture.js';
 import { createOthers } from './others.js';
 
 // Palm Whorl Cities, first milestone: the First Ten. Ten founding hands lie in a ring around the
@@ -115,10 +117,10 @@ for (const w of workers) {
     if (mine && f.id === mine.id) chart.fill(f.id, data.handbits.length); // your own Hand you know by heart
     surface.setCharted(data.id, chart.mask(f.id));
     const { texA, info, ...kept } = data; // the textures live in the surface now; the ground keeps heights only
-    hands.push({ ...f, layer: data.id, data: kept, rise });
+    hands.push({ ...f, layer: data.id, data: kept, rise, palette: unpackPalm(f.palm).palette });
     if (rise === 1) knots.push(...hatch({ ...f, data: kept })); // a rising Hand hatches when it has risen (below)
   };
-  w.onerror = (e) => console.error('hand worker failed', e);
+  w.onerror = (e) => console.error('hand worker failed', e.message, e.filename, e.lineno);
 }
 const bake = (f) => {
   const layer = freeLayer();
@@ -249,6 +251,63 @@ camera.add(seal.mesh);
 const hud = createHud();
 camera.add(hud.group);
 const pins = []; // { label, x, z } (Task 7 fills these from the atlas)
+// ---------- the palm atlas: left palm up (or M) ----------
+const atlas = createAtlas();
+rig.add(atlas.mesh);
+const palmUp = createPalmUp();
+let atlasPress = false, atlasByPalm = false, atlasPaint = 0, selected = null, inspectAt = null;
+const atlasUV = () => (atlas.isOpen ? raycaster.intersectObject(atlas.mesh, false)[0]?.uv ?? null : null);
+function openAtlas(byPalm) {
+  if (mode !== 'fly' || !started) return;
+  mode = 'atlas';
+  atlasByPalm = byPalm;
+  atlas.fit(hands);
+  atlas.open(headLocal, headQuat, !renderer.xr.isPresenting);
+  atlasPaint = 0;
+}
+function closeAtlas() { if (mode !== 'atlas') return; atlas.close(); mode = 'fly'; selected = null; }
+// what the atlas shows right now
+function atlasState() {
+  const list = [];
+  others.each((c, id, pos) => list.push({ pos, name: others.nameOf(id) }));
+  const mineHand = mine && hands.find((h) => h.id === mine.id);
+  return { hands, chart, me: { pos: glide.pos, yaw: glide.yaw }, others: list, pins, selected: selected?.id ?? null, inspect: selected && inspectOf(selected), mine: mine && { name: mine.name, handbits: mineHand?.data.handbits ?? [] } };
+}
+function inspectOf(h) { // the inspector for a Hand (Task 7 adds its buttons' actions)
+  const hb = inspectAt?.handbit;
+  return {
+    kicker: h.founder ? 'FOUNDER' : h.id === mine?.id ? 'YOUR HAND' : 'A PLAYER\'S HAND',
+    title: h.name,
+    lines: [hb ? `${hb.code} · ${hb.name}` : 'its rivers', `${chart.count(h.id)} of ${h.data.handbits.length} handbits charted${chart.sealed(h.id) ? ' · sealed' : ''}`],
+    buttons: [{ id: 'pin', label: 'Pin it' }, { id: 'fly', label: 'Fly here', primary: true }],
+  };
+}
+function atlasDo(a) {
+  if (!a) return;
+  if (a.type === 'close') return closeAtlas();
+  if (a.type === 'tab') atlas.setTab(a.tab);
+  else if (a.type === 'layer') atlas.toggle(a.layer);
+  else if (a.type === 'pick') { inspectAt = whereAt(hands, a.x, a.z); selected = inspectAt?.hand ?? null; }
+  atlasPaint = 0;
+}
+function atlasFrame(dt) {
+  if (!atlas.isOpen) {
+    if (renderer.xr.isPresenting && started && mode === 'fly') { const l = xrHands.find((q) => q.handedness === 'left'); if (palmUp.update(l?.frame ?? null, handFloor(), dt)) openAtlas(true); }
+    return;
+  }
+  if (atlasByPalm) {
+    const l = xrHands.find((q) => q.handedness === 'left');
+    if (!palmUp.update(l?.frame ?? null, handFloor(), dt)) return closeAtlas(); // palm down: closed
+    if (l?.frame) atlas.follow(l.frame.center, headLocal, dt);
+  }
+  if (renderer.xr.isPresenting) poke(atlas.mesh, (uv) => atlasDo(atlas.down(uv)), (uv) => atlasDo(atlas.move(uv)), () => atlasDo(atlas.up()));
+  if ((atlasPaint -= dt) <= 0) { atlasPaint = 0.2; atlas.paint(atlasState()); } // five times a second, and at once after a tap
+}
+addEventListener('keydown', (e) => {
+  if (e.key === 'm' || e.key === 'M') mode === 'atlas' ? closeAtlas() : openAtlas(false);
+  else if (e.key === 'Escape') closeAtlas();
+});
+renderer.domElement.addEventListener('wheel', (e) => { if (mode === 'atlas') { atlas.zoom(Math.exp(-e.deltaY * 0.0015)); atlasPaint = 0; e.preventDefault(); } }, { passive: false });
 xrHands.forEach((h) => (h.smooth = new OneEuro({ minCutoff: 1.5, beta: 0.5 })));
 async function useWebcam() {
   if (webcam) return;
@@ -301,16 +360,19 @@ addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()));
 const look = { yaw: 0, pitch: +(params.get('pitch') ?? -0.22), drag: false }; // ?pitch= for screenshots
 renderer.domElement.addEventListener('pointerdown', (e) => {
   const ray = mouseRay(e), uv = mode === 'atelier' ? cardUV() : null;
+  if (mode === 'atlas') { const u = atlasUV(); if (u) { atlasPress = true; return atlasDo(atlas.down(u)); } }
   if (uv) { drawing = true; return act(atelier.down(uv, flow)); }
   if (mode === 'merge') { const i = ghosts.aim(ray.origin, ray.direction); if (i >= 0) return choose(i); }
   look.drag = true;
 });
 addEventListener('pointerup', () => {
   look.drag = false;
+  if (atlasPress) { atlasPress = false; atlasDo(atlas.up()); }
   if (drawing) { drawing = false; act(atelier.up(flow)); }
 });
 addEventListener('pointermove', (e) => {
   if (drawing) { mouseRay(e); const uv = cardUV(); if (uv) atelier.move(uv, flow); return; }
+  if (atlasPress) { mouseRay(e); const u = atlasUV(); if (u) atlasDo(atlas.move(u)); return; }
   if (!look.drag) return;
   look.yaw -= e.movementX * 0.003;
   look.pitch = Math.max(-1.3, Math.min(0.6, look.pitch - e.movementY * 0.003));
@@ -425,20 +487,21 @@ function gazeRay() {
 }
 const cardUV = () => (atelier.isOpen ? raycaster.intersectObject(atelier.mesh, false)[0]?.uv ?? null : null); // after a ray is set; the card only: the dim backdrop behind it is its child
 // headset: your index fingertip pressed against the card is a touch, and dragging it draws
-function poke() {
+function poke(mesh = atelier.mesh, down = (uv) => act(atelier.down(uv, flow)), move = (uv) => atelier.move(uv, flow), up = () => act(atelier.up(flow))) {
   for (const h of xrHands) {
     if (!h.frame) continue;
-    const p = atelier.mesh.worldToLocal(rig.localToWorld(tipW.fromArray(h.store['index-finger-tip'])));
+    const p = mesh.worldToLocal(rig.localToWorld(tipW.fromArray(h.store['index-finger-tip'])));
     const on = Math.abs(p.x) < 0.3 && Math.abs(p.y) < 0.225, uv = { x: p.x / 0.6 + 0.5, y: p.y / 0.45 + 0.5 };
-    if (!poking && on && p.z < 0.01 && p.z > -0.03) { poking = h; act(atelier.down(uv, flow)); }
-    else if (poking === h && (p.z > 0.03 || !on)) { poking = null; act(atelier.up(flow)); }
-    else if (poking === h) atelier.move(uv, flow);
+    if (!poking && on && p.z < 0.01 && p.z > -0.03) { poking = h; down(uv); }
+    else if (poking === h && (p.z > 0.03 || !on)) { poking = null; up(); }
+    else if (poking === h) move(uv);
   }
 }
 // a pinch: in the atelier it touches the card where you look; on the way to the merge it chooses the ghost you look at
 [0, 1].forEach((i) => renderer.xr.getController(i).addEventListener('select', () => {
   gazeRay();
   if (mode === 'atelier') { const uv = cardUV(); if (uv) { act(atelier.down(uv, flow)); act(atelier.up(flow)); } }
+  else if (mode === 'atlas') { const uv = atlasUV(); if (uv) { atlasDo(atlas.down(uv)); atlasDo(atlas.up()); } }
   else if (mode === 'merge') choose(ghosts.aim(raycaster.ray.origin, raycaster.ray.direction));
 }));
 addEventListener('keydown', (e) => {
@@ -486,9 +549,9 @@ function frame() {
   const best = seen.find((x) => x.q.engaged) ?? seen.sort((a, b) => ['open', 'raised'].filter((k) => b.c[k].ok).length - ['open', 'raised'].filter((k) => a.c[k].ok).length)[0];
   const steeringNow = !!best?.q.engaged;
   // shown while hands can steer (webcam or headset), even before a hand is seen
-  card.update(dt, started && mode !== 'atelier' && (webcam || renderer.xr.isPresenting) ? { checks: best?.c ?? null, progress: best?.q.hold.progress ?? 0, steering: steeringNow, turn: steer.turn, climb: steer.climb } : null);
-  if (mode !== 'atelier') glide.update(dt, steer, groundAt); // the world waits while you read your hand
-  roomLink?.send({ x: glide.pos[0], y: glide.pos[1], z: glide.pos[2], yaw: glide.yaw, pitch: glide.pitch, mode: ['fly', 'atelier', 'merge', 'rise'].indexOf(mode) }); // at most 5 a second
+  card.update(dt, started && mode !== 'atelier' && mode !== 'atlas' && (webcam || renderer.xr.isPresenting) ? { checks: best?.c ?? null, progress: best?.q.hold.progress ?? 0, steering: steeringNow, turn: steer.turn, climb: steer.climb } : null);
+  if (mode !== 'atelier' && mode !== 'atlas') glide.update(dt, steer, groundAt); // the world waits while you read your hand or your atlas
+  roomLink?.send({ x: glide.pos[0], y: glide.pos[1], z: glide.pos[2], yaw: glide.yaw, pitch: glide.pitch, mode: Math.max(0, ['fly', 'atelier', 'merge', 'rise'].indexOf(mode)) }); // at most 5 a second
   creature.update(dt, glide.pos, { speed: 70 + 200 * rush(), pitch: glide.pitch, turn: steer.turn }); // the creature's own scale: 70 calm .. 270 a spear
   others.update(dt);
   updateTags();
@@ -564,6 +627,7 @@ function frame() {
   // the terrain's detail centres on your eyes; the headset camera's pose is in the rig's space
   rig.updateMatrixWorld();
   if (mode === 'atelier' && renderer.xr.isPresenting) poke();
+  atlasFrame(dt);
   // reading your hand in your own room: only the card and your hands; the world comes back after
   const room = mode === 'atelier' && inRoom;
   world.sky.visible = !room;
@@ -641,7 +705,7 @@ showStats();
 // read-only peek for tests and curious players
 window.__pwc = {
   get state() {
-    return { hands: hands.length, pos: glide.pos.map(Math.round), yaw: +glide.yaw.toFixed(2), fps: Math.round(fps), scribbles: knots.length + creature.strands, started, webcam: webcam ? webcam.update().map((q) => q.handedness) : null, steering: xrHands.some((q) => q.engaged), palm: xrHands.map((q) => q.frame && q.frame.normal.map((v) => +v.toFixed(2))), hand: xrHands.map((q) => q.frame && { point: q.frame.forward.map((v) => +v.toFixed(2)), open: +q.frame.extension.toFixed(2), height: +q.frame.center[1].toFixed(2) }), speed: Math.round(glide.speed), calls: renderer.info.render.calls, xr: renderer.xr.isPresenting, lod: surface.centre.map(Math.round), patches: surface.patches, mode, mine: mine?.name ?? null, braid: braiding, online, others: others.count, pending: !!mine?.pending, room: roomState };
+    return { hands: hands.length, pos: glide.pos.map(Math.round), yaw: +glide.yaw.toFixed(2), fps: Math.round(fps), scribbles: knots.length + creature.strands, started, webcam: webcam ? webcam.update().map((q) => q.handedness) : null, steering: xrHands.some((q) => q.engaged), palm: xrHands.map((q) => q.frame && q.frame.normal.map((v) => +v.toFixed(2))), hand: xrHands.map((q) => q.frame && { point: q.frame.forward.map((v) => +v.toFixed(2)), open: +q.frame.extension.toFixed(2), height: +q.frame.center[1].toFixed(2) }), speed: Math.round(glide.speed), calls: renderer.info.render.calls, xr: renderer.xr.isPresenting, lod: surface.centre.map(Math.round), patches: surface.patches, mode, mine: mine?.name ?? null, braid: braiding, atlas: { tab: atlas.tab, selected: selected?.name ?? null }, online, others: others.count, pending: !!mine?.pending, room: roomState };
   },
   atelier: { act: (a) => act(a), get flow() { return flow; }, choose: (i) => choose(i) },
   // where things are in your own space (the rig's), for the film script (tools/film.mjs)

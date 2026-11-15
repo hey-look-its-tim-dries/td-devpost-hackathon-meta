@@ -166,3 +166,19 @@ test('any raised hand that is not a fist engages after the hold; palm direction 
   d.update(upright, -Infinity, 0.05); // eight steps of 0.05 s sum to 0.39999... in floating point
   assert.equal(d.active, true);
 });
+
+test('palm up, raised and open, held 0.4 s, opens the atlas; turning it down closes it', async () => {
+  const { createPalmUp } = await import('../src/gesture.js');
+  const up = { normal: [0, 0.9, -0.2], extension: 0.8, center: [0, 0, -0.4], forward: [0, 0.2, -1] };
+  const down = { ...up, normal: [0, -0.9, -0.2] };
+  const p = createPalmUp();
+  for (let i = 0; i < 18; i++) p.update(up, -0.6, 1 / 60);
+  assert.equal(p.active, false, 'not before 0.4 s');
+  for (let i = 0; i < 10; i++) p.update(up, -0.6, 1 / 60);
+  assert.equal(p.active, true);
+  for (let i = 0; i < 30; i++) p.update(down, -0.6, 1 / 60);
+  assert.equal(p.active, false);
+  const lap = createPalmUp();
+  for (let i = 0; i < 60; i++) lap.update({ ...up, center: [0, -0.9, -0.3] }, -0.6, 1 / 60);
+  assert.equal(lap.active, false, 'a palm up on your lap opens nothing');
+});
