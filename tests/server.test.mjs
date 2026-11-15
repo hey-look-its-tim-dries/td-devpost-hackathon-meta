@@ -212,3 +212,20 @@ test('the journal: a lay and a wash are events, a lay that joins rivers records 
   assert.ok(ev2.some((e) => e.kind === 'washed' && e.data.name === 'Journaler'));
   assert.ok(!(await (await fetch(API + '/watersheds')).json()).pairs.some((p) => p.includes(id)), 'its confluences leave with it');
 });
+
+test('pairing relay: create, send once, collect once; junk and unknown codes refused (Task 12)', { skip }, async () => {
+  const { code } = await (await fetch(API + '/pair', { method: 'POST' })).json();
+  assert.match(code, /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6}$/);
+  assert.equal((await fetch(`${API}/pair/${code}`)).status, 204, 'waiting');
+  const dna = body({ x: 0, z: 0, rot: 0 });
+  const send = (c, b) => fetch(`${API}/pair/${c}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) });
+  assert.equal((await send(code, { palm: 'AAAA', prints: [] })).status, 400, 'not DNA');
+  assert.equal((await send(code, { palm: dna.palm, prints: dna.prints, name: 'Phoned' })).status, 200);
+  const got = await fetch(`${API}/pair/${code}`);
+  assert.equal(got.status, 200);
+  const j = await got.json();
+  assert.equal(j.palm, dna.palm);
+  assert.equal(j.name, 'Phoned');
+  assert.equal((await fetch(`${API}/pair/${code}`)).status, 404, 'collected once');
+  assert.equal((await send('QQQQQQ', { palm: dna.palm, prints: dna.prints })).status, 404);
+});

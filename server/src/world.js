@@ -3,6 +3,8 @@
 // checked one after the other (spec 6.3). It also remembers which Rooms exist, to tell them of a lay.
 import { DurableObject } from 'cloudflare:workers';
 import { checkHand } from '../../src/world/mine.js';
+
+const PAIR_ABC = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789', PAIR_TTL = 10 * 60 * 1000;
 import { overlaps, findFits, confluences } from '../../src/world/fit.js';
 import { handShape } from '../../src/hand/shape.js';
 import { unpackPalm, toB64, fromB64 } from '../../src/hand/dna.js';
@@ -26,6 +28,7 @@ export class World extends DurableObject {
     this.cache = null; // { etag, body }
     this.rooms = new Set();
     this.counts = new Map(); // room name -> { n, at }: how many fly there, as the Room last said
+    this.pairs = new Map(); // code -> { at, dna }: the pairing relay, in memory only, ten minutes (spec 10)
     this.chain = Promise.resolve(); // lays and washes, one at a time: D1 calls let other requests in while they wait
     ctx.blockConcurrencyWhile(async () => { this.rooms = new Set((await ctx.storage.get('rooms')) ?? []); });
   }
@@ -48,6 +51,8 @@ export class World extends DurableObject {
       this.chain = out.catch(() => {});
       return out;
     }
+    const pairM = url.pathname.match(/^\/pair(?:\/([A-Z2-9]{6}))?$/);
+    if (pairM) return this.pair(req, pairM[1]);
     if (url.pathname === '/events' && req.method === 'GET') {
       const { results } = await this.env.DB.prepare('select id, at, kind, hand_id, data from event order by id desc limit 100').all();
       return Response.json({ events: results.map((e) => ({ ...e, data: JSON.parse(e.data ?? 'null') })) });
@@ -123,6 +128,32 @@ export class World extends DurableObject {
     const out = { id: hid, name: hand.name, palette: palm.palette, side: palm.side, palm: toB64(hand.palm), prints: hand.prints.map(toB64), pose: hand.pose, founder: false, placed_at: now };
     this.ctx.waitUntil(this.tell({ laid: out }));
     return Response.json({ id: hid, pose: hand.pose });
+  }
+
+  // the pairing relay: nothing stored, nothing kept past ten minutes or past its one collection
+  async pair(req, code) {
+    const now = Date.now();
+    for (const [k, v] of this.pairs) if (now - v.at > PAIR_TTL) this.pairs.delete(k);
+    if (!code && req.method === 'POST') {
+      if (this.pairs.size > 5000) return Response.json({ error: 'busy' }, { status: 503 });
+      let c;
+      do { c = Array.from(crypto.getRandomValues(new Uint8Array(6)), (b) => PAIR_ABC[b % PAIR_ABC.length]).join(''); } while (this.pairs.has(c));
+      this.pairs.set(c, { at: now, dna: null });
+      return Response.json({ code: c });
+    }
+    const p = code && this.pairs.get(code);
+    if (!p) return Response.json({ error: 'no such code' }, { status: 404 });
+    if (req.method === 'POST') {
+      let b;
+      try { b = await req.json(); } catch { return Response.json({ error: 'bad json' }, { status: 400 }); }
+      const h = checkHand({ palm: b?.palm, prints: b?.prints, pose: { x: 0, z: 0, rot: 0 }, name: 'paired' });
+      if (!h) return Response.json({ error: 'not a Hand' }, { status: 400 });
+      p.dna = { palm: b.palm, prints: b.prints, name: cleanName(b.name ?? '') };
+      return Response.json({ ok: true });
+    }
+    if (!p.dna) return new Response(null, { status: 204 });
+    this.pairs.delete(code);
+    return Response.json(p.dna);
   }
 
   async communityNo() { return (await this.ctx.storage.get('community')) ?? 1; }

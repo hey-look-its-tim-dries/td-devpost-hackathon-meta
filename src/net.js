@@ -68,6 +68,30 @@ export function createNet({ api = API, storage = null, fetchFn = globalThis.fetc
         return { error: 'offline' };
       }
     },
+    // pairing (spec 10): the headset asks for a code, the phone sends its finished DNA to it, the headset collects it
+    async pair() {
+      try { const { status, body } = await call('/pair', { method: 'POST', body: '{}' }); return status === 200 && /^[A-Z2-9]{6}$/.test(body?.code) ? { code: body.code } : null; } catch { return null; }
+    },
+    async sendPair(code, { palm, prints, name = null }) {
+      try {
+        const { status, body } = await call(`/pair/${code}`, { method: 'POST', body: JSON.stringify({ palm: toB64(palm), prints: prints.map(toB64), name }) });
+        return status === 200 ? { ok: true } : { error: body?.error ?? `server ${status}` };
+      } catch {
+        return { error: 'offline' };
+      }
+    },
+    async waitPair(code, { every = 2000, signal = null } = {}) {
+      const nap = () => new Promise((r) => setTimeout(r, every));
+      while (!signal?.aborted) {
+        try {
+          const { status, body } = await call(`/pair/${code}`);
+          if (status === 200) return { palm: fromB64(body.palm), prints: body.prints.map(fromB64), name: body.name ?? null };
+          if (status !== 204) return null; // expired or unknown
+        } catch {} // the map blinked: keep waiting
+        await nap();
+      }
+      return null;
+    },
     async events() {
       try {
         const { status, body } = await call('/events');

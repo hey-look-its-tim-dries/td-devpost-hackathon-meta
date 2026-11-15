@@ -123,3 +123,26 @@ test('a Hand from the map keeps when it was laid (the timeline needs it)', () =>
   const f = founders()[0];
   assert.equal(rowToHand(row(f, 7)).placed_at, 7);
 });
+
+test('pairing: a code from the map; the headset waits (204) until the phone has sent its DNA', async () => {
+  const f = founders()[0];
+  let polls = 0;
+  const fetchFn = async (url, init) => {
+    if (url.endsWith('/pair') && init?.method === 'POST') return new Response(JSON.stringify({ code: 'ABC234' }));
+    if (url.endsWith('/pair/ABC234') && !init?.method) return ++polls < 3 ? new Response(null, { status: 204 }) : new Response(JSON.stringify({ palm: toB64(f.palm), prints: f.prints.map(toB64), name: 'Oru' }));
+    return new Response('{}', { status: 404 });
+  };
+  const net = createNet({ storage: memory(), fetchFn });
+  assert.deepEqual(await net.pair(), { code: 'ABC234' });
+  const got = await net.waitPair('ABC234', { every: 5 });
+  assert.equal(polls, 3);
+  assert.deepEqual([...got.palm], [...f.palm]);
+  assert.equal(got.prints.length, 5);
+  assert.equal(got.name, 'Oru');
+  const off = createNet({ storage: memory(), fetchFn: async () => { throw new Error('down'); } });
+  assert.equal(await off.pair(), null);
+  const ctl = new AbortController();
+  const waiting = off.waitPair('ZZZZZZ', { every: 5, signal: ctl.signal });
+  ctl.abort();
+  assert.equal(await waiting, null, 'stops when the headset gives up');
+});
