@@ -86,6 +86,8 @@ renderer.setSize(innerWidth, innerHeight);
 renderer.xr.enabled = true;
 renderer.xr.setReferenceSpaceType('local');
 renderer.xr.setFoveation(1);
+// Quest: 90% of the default eye buffer keeps 72 fps with room to spare; set before a session starts (it cannot change during one)
+if (/OculusBrowser|Quest/.test(navigator.userAgent)) renderer.xr.setFramebufferScaleFactor(0.9);
 document.body.prepend(renderer.domElement);
 
 const scene = new THREE.Scene();
@@ -757,7 +759,7 @@ function frame() {
     // by hand: a palm held down holds the ghost it points at; push it 8 cm lower to lay your Hand there
     const h = xrHands.find((q) => q.handedness === 'right' && q.frame) ?? xrHands.find((q) => q.frame);
     if (renderer.xr.isPresenting && h) {
-      const r = push.update(h.frame, dt);
+      const r = push.update(h.frame, dt, handFloor());
       if (push.holding) {
         raycaster.ray.origin.fromArray(h.frame.center).applyMatrix4(rig.matrixWorld);
         raycaster.ray.direction.fromArray(h.frame.forward).applyQuaternion(rig.quaternion).normalize();
@@ -822,6 +824,12 @@ if (params.has('play')) start();
 if (params.has('webcam')) { start(); useWebcam(); }
 renderer.setAnimationLoop(frame);
 banner.classList.remove('loading'); // the world is drawing: the buttons may show
+// ?perf: frame rate, draw calls and terrain patches in a corner (and once a second in the console in the headset)
+if (params.has('perf')) {
+  const box = Object.assign(document.createElement('div'), { style: 'position:fixed;right:8px;top:8px;z-index:9;font:12px monospace;background:rgba(22,16,14,.75);color:#f3e4d2;padding:6px 8px;border-radius:6px;pointer-events:none' });
+  document.body.append(box);
+  setInterval(() => { const st = window.__pwc.state, line = `${st.fps} fps · ${st.calls} calls · ${st.patches} patches · ${st.hands} Hands`; box.textContent = line; if (renderer.xr.isPresenting) console.log(line); }, 1000);
+}
 // the front door's live counts, refreshed while it shows
 const live = document.getElementById('live');
 const fmt = (n) => n.toLocaleString('en');
@@ -847,6 +855,7 @@ window.__pwc = {
     card: () => (atelier.isOpen ? { pos: atelier.mesh.position.toArray(), quat: atelier.mesh.quaternion.toArray() } : null),
     toRig: (x, y, z) => rig.worldToLocal(new THREE.Vector3(x, y, z)).toArray(),
     fits: () => ghosts.fits.map((f) => [f.centre[0], groundAt(...f.centre), f.centre[1]]),
+    others: () => { const l = []; others.each((c, id, pos) => l.push({ id, name: others.nameOf(id), pos: pos.slice() })); return l; },
   },
   net,
 };

@@ -191,10 +191,20 @@ test('push: a palm held down, then pushed 8 cm lower, lays (once); a palm that t
   assert.equal(p.holding, true, 'held after a moment palm down');
   let laid = 0;
   for (let i = 0; i < 30; i++) if (p.update(at(-0.2 - 0.004 * i), 1 / 60) === 'push') laid++;
+  for (let i = 0; i < 30; i++) if (p.update(at(-0.316), 1 / 60) === 'push') laid++; // and it comes to rest: that is the press
   assert.equal(laid, 1);
   const q = createPush();
   for (let i = 0; i < 40; i++) q.update(at(-0.2), 1 / 60);
   for (let i = 0; i < 30; i++) q.update(at(-0.2, true), 1 / 60);
   assert.equal(q.holding, false);
   for (let i = 0; i < 30; i++) assert.equal(q.update(at(-0.35, true), 1 / 60), null, 'a palm up never pushes');
+});
+
+test('push: a hand dropping to your lap palm down never lays (it must be raised, above the floor)', async () => {
+  const { createPush } = await import('../src/gesture.js');
+  const at = (y) => ({ normal: [0, -0.9, -0.2], extension: 0.8, center: [0, y, -0.4], forward: [0, 0, -1] });
+  const p = createPush();
+  let pushed = false;
+  for (let i = 0; i < 90; i++) if (p.update(at(-0.3 - i * 0.006), 1 / 60, -0.6) === 'push') pushed = true; // from -0.3 down to -0.84
+  assert.equal(pushed, false);
 });

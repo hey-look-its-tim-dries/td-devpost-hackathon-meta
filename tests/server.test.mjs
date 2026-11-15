@@ -196,6 +196,7 @@ test('the journal: a lay and a wash are events, a lay that joins rivers records 
   const w0 = await world();
   const fit = findFits(shapes(w0), handShape(templatePalm({ seed: 5 }))).find((f) => f.rivers > 0) ?? findFits(shapes(w0), handShape(templatePalm({ seed: 5 })))[0];
   const tok = 'j'.repeat(40);
+  for (const h of (await world()).filter((h) => h.name === 'Journaler')) await wash(h.id, tok); // a previous run
   const r = await post(body(fit.pose, { token: tok, seed: 5, name: 'Journaler' }));
   const { id } = await r.json();
   const ev = (await (await fetch(API + '/events')).json()).events;

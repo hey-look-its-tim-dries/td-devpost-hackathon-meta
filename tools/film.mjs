@@ -3,17 +3,25 @@
 // a pinch for the place, a raised hand that points to fly. Captions are laid over the page.
 //   node tools/film.mjs [out.mp4]       needs serve.py on :8130, Chrome, ffmpeg on the PATH
 //   SHOTS=dir node tools/film.mjs       no recording: a still every 2 s into dir, to check the takes
+//   API=http://localhost:8787 (default): the shared map (wrangler dev); a second player, Oruvel, flies there too
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import puppeteer from '/Users/timdries/Desktop/Projects/TD-GAME-LINKSAWAKENING/tests/node_modules/puppeteer-core/lib/esm/puppeteer/puppeteer-core.js';
 
 const OUT = process.argv[2] ?? 'media/palm-whorl-cities-demo.mp4', SHOTS = process.env.SHOTS;
 const [W, H] = (process.env.SIZE ?? '1280x720').split('x').map(Number);
-const URL_ = process.env.URL_ ?? 'http://localhost:8130/?emulate&nodevui&at=0,1100,11800';
+const API = process.env.API ?? 'http://localhost:8787';
+const URL_ = process.env.URL_ ?? `http://localhost:8130/?emulate&nodevui&at=0,1100,11800&api=${API}`;
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const browser = await puppeteer.launch({ headless: 'new', executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', args: ['--use-angle=metal', '--enable-gpu', `--window-size=${W},${H}`] });
-const page = await browser.newPage();
+// a second player on the same map, circling near the route: the one you meet
+const friend = await (await browser.createBrowserContext()).newPage();
+await friend.setViewport({ width: 640, height: 360 });
+await friend.goto('http://localhost:8130/', { waitUntil: 'load' });
+await friend.evaluate(async () => { const F = await import('/src/world/founders.js'), M = await import('/src/world/mine.js'); const f = F.founders()[6]; M.saveHand(localStorage, { palm: f.palm, prints: f.prints, pose: { x: -9000, z: 21000, rot: 2.6, mirror: false }, name: 'Oruvel', pending: true }); });
+await friend.goto(`http://localhost:8130/?play&auto&api=${API}&at=400,420,3600`, { waitUntil: 'load' });
+const page = await (await browser.createBrowserContext()).newPage();
 await page.setViewport({ width: W, height: H, deviceScaleFactor: 1 });
 page.on('pageerror', (e) => console.log('PAGEERROR', e.message));
 await page.goto(URL_, { waitUntil: 'load' });
@@ -132,7 +140,7 @@ await page.evaluate(() => {
         if (!f0 && h && len(sub(cur.r.quat, REST)) < 0.02) f0 = norm(h.point); // where the fingers point when the hand is not turned
         const mv = sub(p, prev);
         if (len(mv) > 2) { vel = norm([mv[0], 0, mv[2]]); prev = p; }
-        const w = points[i], to = [w[0] - p[0], 0, w[2] - p[2]], dist = len(to), t = norm(to);
+        const w = (typeof points[i] === 'function' ? points[i]() : points[i]) ?? p, to = [w[0] - p[0], 0, w[2] - p[2]], dist = len(to), t = norm(to);
         if (dist < 500 && i < points.length - 1) i++;
         else if (dist < 500 && onDone) { onDone(); onDone = null; }
         const wantTurn = Math.max(-1, Math.min(1, 2.5 * (vel[0] * t[2] - vel[2] * t[0]))), wantClimb = Math.max(-1, Math.min(1, (w[1] - p[1]) / 160));
@@ -143,6 +151,13 @@ await page.evaluate(() => {
       };
     },
     stopFly() { T.fly = null; },
+    // the left palm turned up in front of you (the atlas gesture), or back down on your lap
+    palmUp(on) {
+      T.l.pose = 'default'; T.l.rate = 4;
+      T.l.quat = on ? qaxis([0, 0, 1], Math.PI) : REST;
+      T.l.pos = on ? add(S.head(), [-0.1, -0.2, -0.36]) : [-0.28, -0.75, -0.25];
+    },
+    friend() { const o = S.others()[0]; return o ? [o.pos[0], o.pos[1], o.pos[2]] : null; },
   };
 });
 const film = (fn, ...a) => page.evaluate(fn, ...a);
@@ -161,6 +176,7 @@ await caption('First, in your own room: read your hand by eye.');
 log(`tip ${JSON.stringify(await film(() => __film.ready()))}`);
 await film(() => __film.lean(-0.27)); // lean in to the card
 await wait(1600);
+if (await film(() => __pwc.state.online)) { await poke(310, 480); await wait(500); } // Read by eye (Use my phone is the other way in)
 await caption('Look at each fingertip. Touch the pattern that matches.');
 const PLATE = { arch: [175, 400], tented: [475, 400], ulnar: [775, 400], whorl: [175, 700], pocket: [475, 700], double: [775, 700] };
 for (const cls of ['whorl', 'ulnar', 'ulnar', 'pocket', 'arch']) await poke(...PLATE[cls]);
@@ -198,9 +214,27 @@ await film(([x, y, z]) => { __film.rest(); __film.lookWorld(x, y + 150, z, 1.5);
 await until((s) => s.mode === 'fly' && s.mine, 'risen', 20000);
 await wait(1500);
 await caption('Raise a hand and point. Your fingers are the arrow.');
-await film(() => { __film.lookAhead(-0.14); __film.fly([[0, 260, 8600], [0, 110, 6400], [500, 140, 4400], [0, 700, 1500], [0, 1000, -3000]], () => (window.__filmDone = true)); });
-const beats = [[7000, 'Dive, and you build speed.'], [9000, 'Every palm line is a river. Every fingertip is a hill of ridges.'], [10000, 'Every Hand here is a player. The world only grows when someone joins.'], [9000, null]];
-for (const [ms, text] of beats) { await wait(ms); log(`flight ${JSON.stringify(await film(() => __film.flight))}`); await caption(text); }
+await film(() => { __film.lookAhead(-0.14); __film.fly([[0, 260, 8600], [0, 110, 6400], [500, 140, 4600]]); });
+for (const [ms, text] of [[6000, 'Dive, and you build speed.'], [8000, 'Fly low over a Hand and you chart it: its handbits ink in.'], [6000, 'Every palm line is a river. Every fingertip is a hill of ridges.']]) { await wait(ms); log(`flight ${JSON.stringify(await film(() => __film.flight))}`); await caption(text); }
+await wait(5000);
+await caption('Turn your left palm up: the atlas of the whole world.');
+await film(() => __film.palmUp(true));
+await until((s) => s.mode === 'atlas', 'the atlas', 6000);
+await film(() => { __film.T.lookRate = 3; __film.T.look = () => { const h = window.__pwc.space.head(); return [h[0] - 0.1, h[1] + 0.05, h[2] - 0.36]; }; });
+await wait(6500);
+await caption(null);
+await film(() => { __film.palmUp(false); __film.lookAhead(-0.12); });
+await until((s) => s.mode === 'fly', 'atlas closed', 6000);
+await caption('Other players fly beside you.');
+await film(() => __film.fly([() => __film.friend(), [0, 600, 0], [0, 800, -2500]]));
+for (let i = 0; i < 40 && !(await film(() => window.__pwc.state.braid)); i++) await wait(500);
+log(`braid ${JSON.stringify(await film(() => window.__pwc.state.braid))}`);
+await caption('Meet one, and your swarms braid: that is the greeting.');
+await wait(6000);
+await caption('At the Source, everyone builds the Community Hand together.');
+await film(() => { __film.T.lookRate = 1.2; __film.T.look = () => window.__pwc.space.toRig(0, 120, 0); });
+await wait(9000);
+await caption(null);
 await film(() => __film.title('<div><p style="font:600 1.2vw Inter,system-ui,sans-serif;letter-spacing:.3em;text-transform:uppercase;color:#ffcfa8;margin:0 0 1vw">Every hand is a piece of the map</p><h1 style="font:600 6.5vw Georgia,serif;margin:0;line-height:.95">Palm Whorl Cities</h1><p style="font:400 1.5vw Inter,system-ui,sans-serif;margin:2vw 0 0;opacity:.85">Hands only · Meta Quest · WebXR</p></div>'));
 await wait(4500);
 log('cut');

@@ -214,20 +214,27 @@ export function createPalmUp({ holdOn = 0.4, holdOff = 0.35, dropTolerance = 0.3
 }
 
 // Laying your Hand by hand (spec 11.3 step 7): a palm held down holds the ghost you point it at; push
-// the palm 8 cm lower and it lays (once per hold). Turning the palm away lets go.
-export function createPush({ depth = 0.08, holdOn = 0.4, holdOff = 0.3, dropTolerance = 0.3 } = {}) {
+// the palm 8 cm lower and let it come to rest, and it lays (once per hold). A hand that keeps falling
+// past the floor (to your lap) lays nothing, and turning the palm away lets go.
+export function createPush({ depth = 0.08, holdOn = 0.4, holdOff = 0.3, dropTolerance = 0.3, still = 0.25 } = {}) {
   const l = latch(holdOn, holdOff, dropTolerance);
-  let top = null, done = false;
+  let top = null, done = false, armed = false, rest = 0, last = null;
   return {
     get holding() { return l.active; },
-    update(frame, dt) {
-      const was = l.active, on = l.update(frame ? frame.normal[1] < -0.6 && frame.extension > 0.3 : null, dt);
-      if (!on) { top = null; done = false; return null; }
+    // floorY: hands below it (resting on your lap) never hold or push
+    update(frame, dt, floorY = -Infinity) {
+      const was = l.active, on = l.update(frame ? frame.normal[1] < -0.6 && frame.extension > 0.3 && frame.center[1] > floorY : null, dt);
+      if (!on) { top = null; done = false; armed = false; last = null; return null; }
       if (!frame) return null; // a moment without the hand: still holding
       const y = frame.center[1];
       if (!was || top === null) top = y;
-      top = Math.max(top, y); // the push is measured from the highest point of this hold
-      if (!done && top - y > depth) { done = true; return 'push'; }
+      if (!armed) top = Math.max(top, y); // the push is measured from the highest point of this hold
+      if (!done && !armed && top - y > depth) { armed = true; rest = 0; }
+      if (armed && !done) {
+        rest = last !== null && Math.abs(y - last) < 0.12 * dt ? rest + dt : 0; // slower than 12 cm/s: coming to rest
+        if (rest >= still) { done = true; armed = false; last = y; return 'push'; }
+      }
+      last = y;
       return null;
     },
   };
