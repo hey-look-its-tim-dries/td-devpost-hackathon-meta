@@ -29,14 +29,19 @@ export const SKY_GLSL = /* glsl */ `
 // water that reflects the sky; needs NOISE_GLSL and SKY_GLSL before it
 export const WATER_GLSL = /* glsl */ `
   // px: metres per pixel, so the ripples calm down with distance instead of glittering
+  // depth: metres of water (0 at the bank), for the colour and the foam along the shore
   vec3 water(vec3 p, vec3 V, float depth, float time, float px) {
-    vec2 q = p.xz * 0.03 + vec2(time * 0.04, time * 0.025);
-    float calm = 0.2 * (1.0 - smoothstep(2.0, 12.0, px));
-    vec3 n = normalize(vec3((vnoise(q * 3.0) - 0.5) * calm, 1.0, (vnoise(q * 4.0 + 7.3) - 0.5) * calm));
-    vec3 col = mix(vec3(0.06, 0.16, 0.2), vec3(0.01, 0.04, 0.08), clamp(depth / 12.0, 0.0, 1.0));
-    float fres = pow(1.0 - max(dot(n, V), 0.0), 3.0);
-    col = mix(col, skyColor(reflect(-V, n)), 0.06 + 0.45 * fres);
-    col += uSunColor * pow(max(dot(n, normalize(V + uSunDir)), 0.0), 80.0) * 0.35;
+    float near = 1.0 - smoothstep(2.0, 14.0, px); // ripples and foam calm down with distance instead of glittering
+    vec2 q = p.xz * 0.03, a = q + vec2(time * 0.05, time * 0.03), b = q * 2.3 - vec2(time * 0.04, -time * 0.06);
+    vec2 slope = (vec2(vnoise(a * 3.0), vnoise(a * 3.0 + 7.3)) - 0.5) * 0.22 + (vec2(vnoise(b * 5.0 + 3.1), vnoise(b * 5.0 + 9.7)) - 0.5) * 0.12;
+    vec3 n = normalize(vec3(slope.x * near, 1.0, slope.y * near));
+    vec3 col = mix(vec3(0.30, 0.50, 0.53), vec3(0.06, 0.17, 0.26), smoothstep(0.0, 12.0, depth)); // the River palette: pale shallows, deep blue
+    float fres = pow(1.0 - max(dot(n, V), 0.0), 4.0);
+    col = mix(col, skyColor(reflect(-V, n)), 0.06 + 0.4 * fres); // the pale sky would wash the water out at grazing angles
+    vec3 h = normalize(V + uSunDir);
+    col += uSunColor * (pow(max(dot(n, h), 0.0), 140.0) * 1.4 + pow(max(dot(n, h), 0.0), 18.0) * 0.06); // sun glints on the ripples
+    float shore = 1.0 - smoothstep(0.3, 3.5, depth), lace = vnoise(p.xz * 0.09 + vec2(time * 0.25, -time * 0.18)) * 0.6 + vnoise(p.xz * 0.31 - time * 0.4) * 0.4;
+    col = mix(col, vec3(0.93, 0.9, 0.84), smoothstep(0.55, 0.8, lace + shore * 0.55) * shore * near * 0.8); // foam lace at the banks
     return col;
   }`;
 export const INK_GLSL = 'const vec3 INK = vec3(0.0103, 0.0065, 0.0052);';

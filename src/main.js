@@ -29,6 +29,7 @@ import { createChart } from './world/chart.js';
 import { whereAt } from './world/where.js';
 import { createStamp } from './stamp.js';
 import { createHud } from './hud.js';
+import { addProps } from './world/props.js';
 import { createAtlas } from './atlas/card.js';
 import { createPalmUp, createPush } from './gesture.js';
 import { createPins, address } from './world/pins.js';
@@ -98,6 +99,7 @@ surface.meshes.forEach((m) => scene.add(m));
 // ?horizon=<url of a .spz>: an AI-generated splat world as a distant backdrop (a test)
 if (params.get('horizon')) loadHorizon(scene, renderer, params.get('horizon'), { scale: +(params.get('horizonScale') ?? 500) });
 rig.add(world.sky);
+addProps(scene, world.shared); // the Source spire (made in Blender), with a sun and haze of its own
 const panel = createPanel();
 rig.add(panel.mesh);
 
@@ -277,14 +279,15 @@ const hud = createHud();
 camera.add(hud.group);
 const pins = createPins(storage); // up to five pinned places, on the compass
 let flyTo = null; // { x, z, label } while Fly here steers you
-const community = createCommunityArt(); // lies on the Source lake
+const community = createCommunityArt(); // lies on the Source lake, once the map has answered
+community.mesh.visible = false;
 scene.add(community.mesh);
 let communityOn = false; // the map answered: donations possible
 let placeNames = {}, pickName = null; // handId -> { feature: name } from the map; the name being chosen { handId, feature, seed, name }
 const nameOf = (h, hb) => (hb ? placeNames[h.id]?.[hb.code] ?? hb.name : null);
 const summitOf = (h, hb) => (hb?.kind === 'tip' ? placeNames[h.id]?.[`summit:${hb.finger}`] ?? null : null);
 let events = null, sheds = {}, timelineAt = Infinity; // the journal, watershed systems, the timeline's moment
-async function refreshNames() { if (online) { placeNames = await net.names(); const c = await net.community(); if (c) { community.set(c); communityOn = true; } events = await net.events(); sheds = watersheds(await net.watersheds()); } setTimeout(refreshNames, 60000); }
+async function refreshNames() { if (online) { placeNames = await net.names(); const c = await net.community(); if (c) { community.set(c); communityOn = community.mesh.visible = true; } events = await net.events(); sheds = watersheds(await net.watersheds()); } setTimeout(refreshNames, 60000); }
 // ---------- the palm atlas: left palm up (or M) ----------
 const atlas = createAtlas();
 rig.add(atlas.mesh);

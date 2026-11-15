@@ -134,7 +134,7 @@ const FRAG = /* glsl */ `
       float coast = 1.0 - sstep(0.16, 0.3, a.r); // the inked coastline, from the smooth heights
       if (a.a > 0.5) { // rivers and canals, from the smooth water depth
         isWater = true;
-        depth = max(a.a * uWorld, 2.0);
+        depth = a.a * uWorld; // 0 at the bank: the foam needs it
         albedo = INK * step(4.5, kind) * smoothstep(0.8, 0.9, a.g / max(length(a.gb), 1e-3)); // stitches over canals
       } else {
         float r = a.g / max(length(a.gb), 1e-3), s = info.a * (1.0 - sstep(0.6, 1.6, hfw));
@@ -172,7 +172,7 @@ const FRAG = /* glsl */ `
       albedo = mix(albedo, INK, coast * 0.8);
     } else if (vWorld.y < 0.5) {
       isWater = true;
-      depth = -vWild;
+      depth = min(30.0, -vWild * 25.0); // the wild lakes sit a few decimetres under sea level: read them as open water, shallow only at the shore
     } else {
       // the patchwork: one palm per (wavy) cell, each its own skin, stitched to its neighbours
       vec3 cell = cells(p + 300.0 * (vec2(vnoise(p / 2500.0, 41), vnoise(p / 2500.0, 42)) - 0.5), 5000.0, 40);
@@ -197,11 +197,13 @@ const FRAG = /* glsl */ `
       col = water(vWorld, V, depth, uTime, px);
       col = mix(col, albedo, step(0.001, length(albedo)));
     } else {
-      float dif = max(dot(n, uSunDir) * 0.8 + 0.2, 0.0); // soft wrap: skin scatters light
-      vec3 hemi = mix(uHorizon * 0.55, uZenith * 0.75, 0.5 + 0.5 * n.y);
-      col = albedo * (hemi * 0.55 + SUNLIGHT * dif * 0.95);
-      col += uSunColor * pow(max(dot(n, normalize(V + uSunDir)), 0.0), 36.0) * 0.18 * sheen;
-      col += albedo * vec3(0.25, 0.07, 0.04) * pow(1.0 - max(dot(n, V), 0.0), 3.0) * 0.6; // warm rim
+      float ndl = dot(n, uSunDir), dif = smoothstep(-0.1, 1.0, ndl); // the sun: a firmer light, so the land has form
+      vec3 sky = mix(vec3(0.46, 0.52, 0.62), uZenith, 0.5), bounce = vec3(0.62, 0.45, 0.36); // cool from the sky, warm off the land
+      vec3 amb = mix(bounce, sky, 0.5 + 0.5 * n.y) * mix(0.62, 1.0, smoothstep(0.35, 0.9, n.y)); // steep walls and canyon sides see less sky
+      col = albedo * (amb * 0.5 + SUNLIGHT * dif * 1.05);
+      col += albedo * vec3(0.42, 0.1, 0.05) * smoothstep(-0.25, 0.15, ndl) * (1.0 - smoothstep(0.15, 0.6, ndl)) * 0.55; // skin: light glows red where it grazes
+      col += uSunColor * pow(max(dot(n, normalize(V + uSunDir)), 0.0), 36.0) * 0.22 * sheen;
+      col += albedo * vec3(0.25, 0.07, 0.04) * pow(1.0 - max(dot(n, V), 0.0), 3.0) * 0.5; // warm rim
     }
     float dist = length(cameraPosition - vWorld);
     col = mix(col, skyColor(-V), 1.0 - exp(-pow(dist * uFogDensity, 2.0)));
