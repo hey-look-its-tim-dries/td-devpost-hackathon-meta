@@ -25,6 +25,9 @@ import { loadHand, saveHand, forgetHand } from './world/mine.js';
 import { createNet, settleLay, API } from './net.js';
 import { createLabel } from './labels.js';
 import { createBraid } from './braid.js';
+import { createChart } from './world/chart.js';
+import { whereAt } from './world/where.js';
+import { createStamp } from './stamp.js';
 import { createOthers } from './others.js';
 
 // Palm Whorl Cities, first milestone: the First Ten. Ten founding hands lie in a ring around the
@@ -108,6 +111,8 @@ for (const w of workers) {
     if (!f) return;
     const rise = rising?.id === f.id ? 0 : 1;
     surface.addHand(data.id, data, f.pose, rise);
+    if (mine && f.id === mine.id) chart.fill(f.id, data.handbits.length); // your own Hand you know by heart
+    surface.setCharted(data.id, chart.mask(f.id));
     const { texA, info, ...kept } = data; // the textures live in the surface now; the ground keeps heights only
     hands.push({ ...f, layer: data.id, data: kept, rise });
     if (rise === 1) knots.push(...hatch({ ...f, data: kept })); // a rising Hand hatches when it has risen (below)
@@ -132,6 +137,7 @@ function removeHand(id) {
   const i = hands.findIndex((h) => h.id === id);
   if (i < 0) return;
   surface.setRise(hands[i].layer, 0);
+  chart.forget(id);
   hands.splice(i, 1);
   for (let k = knots.length - 1; k >= 0; k--) if (knots[k].hand === id) knots.splice(k, 1);
 }
@@ -154,6 +160,21 @@ net.fetchWorld().then(({ hands: list, online: ok }) => {
   else panel.say('Playing alone: the map could not be reached', 6);
 });
 const others = createOthers({ max: 60 }); // the other players in your room, as lighter creatures
+// charting (spec 6.4): fly over a handbit lower than 400 m and it is inked into your atlas; chart every
+// handbit of a Hand and it is sealed
+const chart = createChart(storage), CHART_ALT = 400, seal = createStamp();
+const stamp = (title, sub) => seal.show(title, sub);
+let place = null; // what lies under you: { hand, handbit, index } or null
+function charting() {
+  place = whereAt(hands, glide.pos[0], glide.pos[2]);
+  if (!place || mode !== 'fly' || !started || glide.pos[1] - groundAt(glide.pos[0], glide.pos[2]) > CHART_ALT) return;
+  const { hand, handbit, index } = place, total = hand.data.handbits.length, r = chart.visit(hand.id, index, total);
+  if (!r) return;
+  surface.setCharted(hand.layer, chart.mask(hand.id));
+  surface.reveal(hand.layer, index);
+  if (r === 'sealed') stamp(`${hand.name} sealed`, `every handbit charted · ${chart.sealedCount()} sealed`);
+  else panel.say(`Charted: ${handbit.name} · ${hand.name} (${chart.count(hand.id)} of ${total})`, 3.5);
+}
 const braid = createBraid(), braidList = [], CALM = params.has('calm'); // the greeting; ?calm: reduced motion, no braiding
 let braiding = null; // { id, k } while two swarms braid
 const tags = new Map(); // id -> name tag over that player
@@ -222,6 +243,7 @@ const xrHands = [0, 1].map((i) => {
 let webcam = null;
 const card = createGestureCard(); // what your hand is commanding, fixed at the bottom of your view
 camera.add(card.mesh);
+camera.add(seal.mesh);
 xrHands.forEach((h) => (h.smooth = new OneEuro({ minCutoff: 1.5, beta: 0.5 })));
 async function useWebcam() {
   if (webcam) return;
@@ -465,6 +487,8 @@ function frame() {
   creature.update(dt, glide.pos, { speed: 70 + 200 * rush(), pitch: glide.pitch, turn: steer.turn }); // the creature's own scale: 70 calm .. 270 a spear
   others.update(dt);
   updateTags();
+  charting();
+  seal.update(dt);
   // the greeting: near another player your swarms braid for a few seconds
   braidList.length = 0;
   others.each((c, id, pos) => braidList.push({ id, pos, c }));

@@ -85,6 +85,8 @@ const VERT = /* glsl */ `
 const FRAG = /* glsl */ `
   ${COMMON}
   uniform vec3 uTones[18];
+  uniform ivec4 uCharted[MAX_HANDS / 4]; // one bit mask of charted handbits per Hand (spec 6.4)
+  uniform vec3 uReveal; // the handbit being inked in now: layer, index, start time
   uniform vec3 uSunDir, uZenith, uHorizon, uSunColor;
   uniform float uFogDensity, uTime;
   varying vec3 vWorld;
@@ -144,6 +146,28 @@ const FRAG = /* glsl */ `
         albedo *= 1.0 - det.y;
         bh = r * 5.0 * s + det.x;
         sheen = sstep(0.5, 0.9, r) * s;
+        // charting: an uncharted handbit is blank parchment with an inked border, until you fly over it
+        int layer = int(tc.z + 0.5), hb = int(info.g * 255.0 + 0.5) - 1;
+        ivec4 q = uCharted[layer / 4];
+        int m = (layer & 3) == 0 ? q.x : (layer & 3) == 1 ? q.y : (layer & 3) == 2 ? q.z : q.w;
+        float blank = hb >= 0 && hb < 31 && ((m >> hb) & 1) == 0 ? 1.0 : 0.0;
+        if (layer == int(uReveal.x + 0.5) && hb == int(uReveal.y + 0.5)) { // the ink spreads in, blot by blot
+          float t = (uTime - uReveal.z) / 1.4;
+          blank = 1.0 - sstep(-0.1, 0.1, t * 1.25 - 0.1 - vnoise(p / 45.0, 7) * 0.6 - vnoise(p / 9.0, 8) * 0.4);
+        }
+        if (blank > 0.0) {
+          ivec2 cc = ivec2(tc.xy * uLayer);
+          float edge = 0.0;
+          for (int k = 0; k < 4; k++) {
+            ivec2 o = k == 0 ? ivec2(2, 0) : k == 1 ? ivec2(-2, 0) : k == 2 ? ivec2(0, 2) : ivec2(0, -2);
+            float g = texelFetch(uHandB, ivec3(cc + o, layer), 0).g;
+            edge = max(edge, g > 0.0 && abs(g - info.g) > 0.001 ? 1.0 : 0.0);
+          }
+          vec3 parch = vec3(0.96, 0.84, 0.68) * (0.9 + 0.1 * r); // warm parchment: the light and haze cool it
+          albedo = mix(albedo, parch, blank * 0.5); // a wash, so the world keeps its look before you chart it
+          albedo = mix(albedo, INK, blank * edge * 0.75);
+          sheen *= 1.0 - blank;
+        }
       }
       albedo = mix(albedo, INK, coast * 0.8);
     } else if (vWorld.y < 0.5) {
@@ -212,6 +236,7 @@ export function createSurface(shared) {
     uLayer: { value: new THREE.Vector2(1, 1) }, uCell: { value: 0.75 }, uWorld: { value: WORLD },
     uLeaf: { value: LEAF }, uN: { value: N }, uMinY: { value: -120 }, uMaxY: { value: 750 },
     uMorphStart: { value: new Array(LEVELS).fill(0) }, uMorphEnd: { value: new Array(LEVELS).fill(1) },
+    uCharted: { value: new Int32Array(MAX_HANDS).fill(0x7fffffff) }, uReveal: { value: new THREE.Vector3(-1, -1, 0) }, // every Hand charted until the game says otherwise
   };
   // until the first Hand arrives, empty 1-texel arrays keep the shader valid
   const empty = () => {
@@ -257,6 +282,9 @@ export function createSurface(shared) {
       uniforms.uHandCount.value = Math.max(uniforms.uHandCount.value, i + 1);
     },
     setRise(i, rise) { uniforms.uHandBox.value[i].w = rise; },
+    // charting: which handbits of layer i are inked in; reveal(i, index) inks one in over 1.4 s from now
+    setCharted(i, mask) { uniforms.uCharted.value[i] = mask; },
+    reveal(i, index) { uniforms.uReveal.value.set(i, index, uniforms.uTime.value); },
     // choose the patches round the camera and hand them to the two instanced grids
     centre: [0, 0, 0], // where the patches were last chosen round, and how many are drawn (for checks)
     patches: 0,
