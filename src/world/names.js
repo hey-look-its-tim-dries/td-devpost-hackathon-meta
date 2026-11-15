@@ -14,3 +14,13 @@ export function nameFor(seed) {
   s += pick(CODA);
   return s[0].toUpperCase() + s.slice(1);
 }
+
+// a name from a player, made safe to draw and to show others: no control or bidi characters, trimmed,
+// at most 24 characters, not blocked. null when nothing usable is left.
+const BLOCK = ['hitler', 'nazi', 'nigger', 'faggot']; // ponytail: a short blocklist; reports and owner review if names spread further
+export function cleanName(s) {
+  if (typeof s !== 'string') return null;
+  const t = s.replace(/[\u0000-\u001f\u007f-\u009f​-‏‪-‮⁦-⁩]/g, '').trim().slice(0, 24).trim();
+  if (!t || BLOCK.some((w) => t.toLowerCase().includes(w))) return null;
+  return t;
+}

@@ -52,22 +52,31 @@ export function createNet({ api = API, storage = null, fetchFn = globalThis.fetc
         return { error: 'offline' };
       }
     },
+    async stats() {
+      try {
+        const { status, body } = await call('/stats');
+        return status === 200 && Number.isInteger(body?.hands) && Number.isInteger(body?.flying) ? { hands: body.hands, flying: body.flying } : null;
+      } catch {
+        return null;
+      }
+    },
     async washHand(id) {
       try { return (await call(`/hands/${id}`, { method: 'DELETE', body: JSON.stringify({ token }) })).status === 204; } catch { return false; }
     },
     // the live room: poses out (at most 5 a second), snapshots and lay events in; reconnects by itself
-    openRoom({ onHello, onSnapshot, onLaid, onLeft, onState } = {}) {
+    openRoom({ name = null, onHello, onNames, onSnapshot, onLaid, onLeft, onState } = {}) {
       let ws = null, closed = false, wait = 1000, lastSent = 0, shard = 0, followed = false;
       const retry = () => { if (closed) return; setTimeout(connect, followed ? 0 : wait); wait = Math.min(30000, wait * 2); };
       function connect() {
         if (closed) return;
         try { ws = new WebSocket(api.replace(/^http/, 'ws') + `/room?shard=${shard}`); } catch { return retry(); }
         ws.binaryType = 'arraybuffer';
-        ws.onopen = () => { wait = 1000; followed = false; onState?.('open'); };
+        ws.onopen = () => { wait = 1000; followed = false; onState?.('open'); if (name) ws.send(JSON.stringify({ name })); };
         ws.onmessage = (e) => {
           if (typeof e.data !== 'string') return onSnapshot?.(decodeSnapshot(new Uint8Array(e.data)));
           let m;
           try { m = JSON.parse(e.data); } catch { return; }
+          if (m.names) onNames?.(m.names);
           if (m.hello !== undefined) onHello?.(m.hello);
           else if (m.laid) onLaid?.(rowToHand(m.laid));
           else if (m.left) onLeft?.(m.left);
@@ -78,6 +87,7 @@ export function createNet({ api = API, storage = null, fetchFn = globalThis.fetc
       }
       connect();
       return {
+        rename(n) { name = n; if (ws?.readyState === 1) ws.send(JSON.stringify({ name })); },
         send(pose) { const now = Date.now(); if (ws?.readyState === 1 && now - lastSent >= 200) { lastSent = now; ws.send(encodePose(pose)); } },
         close() { closed = true; ws?.close(); },
       };

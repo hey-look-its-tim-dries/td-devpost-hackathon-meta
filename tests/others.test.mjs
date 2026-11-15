@@ -36,3 +36,15 @@ test('update moves a creature towards its pose and gives the ink strands', () =>
   o.each((c) => { assert.equal(c.strands, 5); assert.ok(c.strand(0).count >= 2); seen++; });
   assert.equal(seen, 1);
 });
+
+test('names: kept for players in the room, dropped when they leave', () => {
+  const o = createOthers();
+  const pose = { x: 0, y: 100, z: 0, yaw: 0, pitch: 0, mode: 0 };
+  o.setNames({ 3: 'Firath', 4: 'Cadio' });
+  o.apply([{ id: 3, pose }, { id: 4, pose }], 1);
+  assert.equal(o.nameOf(3), 'Firath');
+  o.apply([{ id: 4, pose }], 1);
+  o.apply([{ id: 4, pose }], 1);
+  assert.equal(o.nameOf(3), null, 'gone after two snapshots without them');
+  assert.equal(o.nameOf(4), 'Cadio');
+});

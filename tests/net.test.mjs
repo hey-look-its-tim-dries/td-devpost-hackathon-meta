@@ -82,3 +82,12 @@ test('a 409 hands back the server\'s whole Hand', async () => {
   assert.equal(r.name, 'Oru');
   assert.equal(r.prints.length, 5);
 });
+
+test('stats: the counts from the map, null when it is away (Review Focus 1)', async () => {
+  const on = createNet({ storage: memory(), fetchFn: async () => new Response(JSON.stringify({ hands: 12, flying: 3 })) });
+  assert.deepEqual(await on.stats(), { hands: 12, flying: 3 });
+  const off = createNet({ storage: memory(), fetchFn: async () => { throw new Error('down'); } });
+  assert.equal(await off.stats(), null);
+  const junk = createNet({ storage: memory(), fetchFn: async () => new Response('{"hands":"x"}') });
+  assert.equal(await junk.stats(), null);
+});

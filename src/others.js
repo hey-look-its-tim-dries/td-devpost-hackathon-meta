@@ -6,6 +6,7 @@ import { OneEuro } from './gesture.js';
 
 export function createOthers({ max = 60 } = {}) {
   const live = new Map(); // id -> { creature, filter, pos, target, pitch, speed, missed }
+  const names = new Map(); // id -> name, as the room said
   const far = (from) => (p) => Math.hypot(p.pose.x - from[0], p.pose.z - from[2]);
   return {
     get count() { return live.size; },
@@ -20,7 +21,7 @@ export function createOthers({ max = 60 } = {}) {
         e.pitch = pose.pitch;
         e.missed = 0;
       }
-      for (const [id, e] of live) if (!seen.has(id) && ++e.missed >= 2) live.delete(id);
+      for (const [id, e] of live) if (!seen.has(id) && ++e.missed >= 2) { live.delete(id); names.delete(id); }
     },
     update(dt) {
       for (const e of live.values()) {
@@ -30,6 +31,8 @@ export function createOthers({ max = 60 } = {}) {
         e.creature.update(dt, e.pos, { speed: e.speed, pitch: e.pitch, turn: 0 });
       }
     },
-    each(fn) { for (const [id, e] of live) fn(e.creature, id); },
+    each(fn) { for (const [id, e] of live) fn(e.creature, id, e.pos); },
+    setNames(map) { for (const [id, n] of Object.entries(map)) names.set(+id, n); },
+    nameOf(id) { return names.get(+id) ?? null; },
   };
 }

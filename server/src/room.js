@@ -4,6 +4,7 @@
 // here is stored; ids are per-room session numbers.
 import { DurableObject } from 'cloudflare:workers';
 import { encodeSnapshot, decodePose, POSE_BYTES } from '../../src/net/wire.js';
+import { cleanName } from '../../src/world/names.js';
 
 const TICK = 250, STALE = 5000, FLOOD = 20; // ms, ms, messages per second
 
@@ -30,14 +31,23 @@ export class Room extends DurableObject {
     const id = this.next++ & 0xffff;
     this.ctx.waitUntil(this.env.WORLD.get(this.env.WORLD.idFromName('world')).fetch(new Request('https://world/rooms', { method: 'POST', body: name })));
     this.ctx.acceptWebSocket(server);
-    server.serializeAttachment({ id });
-    server.send(JSON.stringify({ hello: id }));
+    server.serializeAttachment({ id, name: null, room: name });
+    server.send(JSON.stringify({ hello: id, names: this.names() }));
     return new Response(null, { status: 101, webSocket: client });
   }
 
   webSocketMessage(ws, msg) {
     const a = ws.deserializeAttachment();
-    if (!a || typeof msg === 'string' || msg.byteLength !== POSE_BYTES) return;
+    if (!a) return;
+    if (typeof msg === 'string') { // { name }: once, or when it changes; everyone hears it
+      if (msg.length > 200) return;
+      let name = null;
+      try { name = cleanName(JSON.parse(msg).name); } catch {}
+      if (!name || name === a.name) return;
+      ws.serializeAttachment({ ...a, name });
+      return this.broadcast(JSON.stringify({ names: { [a.id]: name } }));
+    }
+    if (msg.byteLength !== POSE_BYTES) return;
     const now = Date.now(), second = Math.floor(now / 1000), e = this.live.get(a.id) ?? { count: 0, second };
     if (second !== e.second) { e.second = second; e.count = 0; }
     if (++e.count > FLOOD) { this.live.delete(a.id); return ws.close(1008, 'too fast'); }
@@ -54,9 +64,16 @@ export class Room extends DurableObject {
   }
   webSocketError(ws) { this.webSocketClose(ws); }
 
+  names() { const out = {}; for (const ws of this.ctx.getWebSockets()) { const a = ws.deserializeAttachment(); if (a?.name) out[a.id] = a.name; } return out; }
+
   tick() {
     this.timer = null;
     const now = Date.now();
+    if (now - (this.told ?? 0) > 10000) { // the World learns how many fly here, every 10 s at most
+      this.told = now;
+      const room = this.ctx.getWebSockets()[0]?.deserializeAttachment()?.room;
+      if (room) this.ctx.waitUntil(this.env.WORLD.get(this.env.WORLD.idFromName('world')).fetch(new Request('https://world/rooms/count', { method: 'POST', body: JSON.stringify({ name: room, n: this.live.size }) })).catch(() => {}));
+    }
     for (const [id, e] of this.live) if (now - e.at > STALE) this.live.delete(id);
     this.broadcast(encodeSnapshot([...this.live].map(([id, e]) => ({ id, pose: e.pose }))));
   }

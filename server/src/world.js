@@ -6,8 +6,8 @@ import { checkHand } from '../../src/world/mine.js';
 import { overlaps, findFits } from '../../src/world/fit.js';
 import { handShape } from '../../src/hand/shape.js';
 import { unpackPalm, toB64, fromB64 } from '../../src/hand/dna.js';
+import { cleanName } from '../../src/world/names.js';
 
-const BLOCK = ['hitler', 'nazi', 'nigger', 'faggot']; // ponytail: a short blocklist; a real filter if names ever show beyond badges
 
 const sha = async (s) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))].map((b) => b.toString(16).padStart(2, '0')).join('');
 const ab = (u8) => u8.slice().buffer; // D1 binds blobs as ArrayBuffers
@@ -23,6 +23,7 @@ export class World extends DurableObject {
     this.lastByIp = new Map();
     this.cache = null; // { etag, body }
     this.rooms = new Set();
+    this.counts = new Map(); // room name -> { n, at }: how many fly there, as the Room last said
     this.chain = Promise.resolve(); // lays and washes, one at a time: D1 calls let other requests in while they wait
     ctx.blockConcurrencyWhile(async () => { this.rooms = new Set((await ctx.storage.get('rooms')) ?? []); });
   }
@@ -45,6 +46,18 @@ export class World extends DurableObject {
       this.chain = out.catch(() => {});
       return out;
     }
+    if (url.pathname === '/stats') {
+      const now = Date.now();
+      let flying = 0;
+      for (const [k, c] of this.counts) { if (now - c.at > 30000) this.counts.delete(k); else flying += c.n; }
+      const hands = this.cache ? JSON.parse(this.cache.body).hands.length : (await this.env.DB.prepare('select count(*) as n from hand where placed_at is not null').first()).n;
+      return Response.json({ hands, flying });
+    }
+    if (url.pathname === '/rooms/count' && req.method === 'POST') {
+      const { name, n } = await req.json().catch(() => ({}));
+      if (typeof name === 'string' && Number.isInteger(n) && n >= 0 && n <= 200) this.counts.set(name.slice(0, 32), { n, at: Date.now() });
+      return new Response(null, { status: 204 });
+    }
     if (url.pathname === '/rooms' && req.method === 'POST') {
       const name = (await req.text()).slice(0, 32);
       if (!this.rooms.has(name)) { this.rooms.add(name); await this.ctx.storage.put('rooms', [...this.rooms]); }
@@ -60,7 +73,7 @@ export class World extends DurableObject {
     const token = typeof body?.token === 'string' && /^[A-Za-z0-9_-]{32,64}$/.test(body.token) ? body.token : null;
     const hand = checkHand(body);
     if (!token || !hand) return Response.json({ error: 'not a Hand' }, { status: 400 });
-    if (BLOCK.some((w) => hand.name.toLowerCase().includes(w))) return Response.json({ error: 'that name is not available' }, { status: 400 });
+    if (hand.name && !cleanName(hand.name)) return Response.json({ error: 'that name is not available' }, { status: 400 });
     const tokenHash = await sha(token);
     const mine = await this.env.DB.prepare(`${SELECT} where p.token_hash = ?`).bind(tokenHash).first();
     if (mine) return Response.json(row(mine), { status: 409 }); // a retry, a lost answer, or a forgotten Hand: the one already there, whole

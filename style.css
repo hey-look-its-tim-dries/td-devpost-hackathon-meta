@@ -140,3 +140,14 @@ button:focus-visible {
 .banner:not(.loading) #status {
   display: none;
 }
+
+/* live counts from the shared map, under the buttons */
+.banner .live {
+  margin-top: 14px;
+  font-size: 0.95rem;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+}
+.banner .live:empty {
+  display: none;
+}

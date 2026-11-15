@@ -23,6 +23,10 @@ export default {
       const r = await world.fetch(new Request('https://world/world', { headers: { 'If-None-Match': req.headers.get('If-None-Match') ?? '' } }));
       return new Response(r.body, { status: r.status, headers: cors(req, env, { 'Content-Type': 'application/json', 'ETag': r.headers.get('ETag') ?? '', 'Cache-Control': 'public, max-age=10' }) });
     }
+    if (path === '/stats' && req.method === 'GET') {
+      const r = await world.fetch(new Request('https://world/stats'));
+      return new Response(r.body, { status: r.status, headers: cors(req, env, { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=10' }) });
+    }
     if (path === '/hands' && req.method === 'POST') {
       const text = await req.text();
       if (text.length > MAX_BODY) return json(req, env, { error: 'too big' }, 413);

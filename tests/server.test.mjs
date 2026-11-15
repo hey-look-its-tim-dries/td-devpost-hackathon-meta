@@ -117,3 +117,27 @@ test('GET is open to any origin; the local preview ports may write (final review
   const pre = await fetch(API + '/hands', { method: 'OPTIONS', headers: { Origin: 'http://localhost:8123', 'Access-Control-Request-Method': 'POST' } });
   assert.equal(pre.headers.get('access-control-allow-origin'), 'http://localhost:8123');
 });
+
+test('stats count the Hands and who is flying; names travel through the room (Task 1)', { skip }, async () => {
+  const s0 = await (await fetch(API + '/stats')).json();
+  assert.ok(Number.isInteger(s0.hands) && s0.hands >= 10);
+  assert.ok(Number.isInteger(s0.flying));
+  const open = () => new Promise((res) => { const ws = new WebSocket(API.replace(/^http/, 'ws') + '/room?shard=77'); ws.binaryType = 'arraybuffer'; const got = []; ws.onmessage = (e) => typeof e.data === 'string' && got.push(JSON.parse(e.data)); ws.onopen = () => res({ ws, got }); });
+  const a = await open(), b = await open();
+  await wait(300);
+  a.ws.send(JSON.stringify({ name: '\u0007Firath' }));
+  await wait(500);
+  const heard = b.got.find((m) => m.names && m.hello === undefined);
+  assert.ok(heard, 'b hears a name');
+  assert.equal(Object.values(heard.names)[0], 'Firath', 'cleaned on the server');
+  const c = await open();
+  await wait(300);
+  assert.equal(Object.values(c.got.find((m) => m.hello !== undefined).names)[0], 'Firath', 'a newcomer gets every name at hello');
+  for (const x of [a, b, c]) x.ws.send(encodePose({ x: 0, y: 500, z: 0, yaw: 0, pitch: 0, mode: 0 }));
+  await wait(11000);
+  for (const x of [a, b, c]) x.ws.send(encodePose({ x: 0, y: 500, z: 0, yaw: 0, pitch: 0, mode: 0 }));
+  await wait(800);
+  const s1 = await (await fetch(API + '/stats')).json();
+  assert.ok(s1.flying >= 3, `flying ${s1.flying}`);
+  for (const x of [a, b, c]) x.ws.close();
+});
