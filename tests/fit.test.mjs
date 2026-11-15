@@ -63,3 +63,24 @@ test('overlaps stays fast as the world grows: 40 Hands in well under a frame bud
   assert.equal(overlaps(big, big[25].shape, big[25].pose), true, 'on a far Hand');
   assert.ok((performance.now() - t) / (fits.length + 1) < 25, `${((performance.now() - t) / (fits.length + 1)).toFixed(0)} ms per check`);
 });
+
+test('confluences: a Hand laid in a chain, its river mouth head-on to a founder river, joins that founder', async () => {
+  const { confluences, riverMouths } = await import('../src/world/fit.js');
+  const w = founders().map((f) => ({ pose: f.pose, shape: handShape(unpackPalm(f.palm)) }));
+  const shape = handShape(templatePalm({ seed: 5 }));
+  // founder 0's first mouth in the world, and the new Hand's first mouth in hand metres
+  const fm = riverMouths(w[0].shape)[0], nm = riverMouths(shape)[0];
+  const at = toWorld(w[0].pose, ...fm.at), ahead = toWorld(w[0].pose, fm.at[0] + fm.dir[0], fm.at[1] + fm.dir[1]);
+  const d = [ahead[0] - at[0], ahead[1] - at[1]].map((v, _, a) => v / Math.hypot(...a));
+  let pose = null; // turn the new Hand until its mouth points straight back, then put that mouth 100 m off
+  for (let k = 0; k < 3600 && !pose; k++) {
+    const rot = (k / 3600) * Math.PI * 2, c = Math.cos(rot), s = Math.sin(rot), dx = c * nm.dir[0] + s * nm.dir[1], dz = s * nm.dir[0] - c * nm.dir[1];
+    if (dx * d[0] + dz * d[1] < -0.999) {
+      const tx = at[0] + d[0] * 100, tz = at[1] + d[1] * 100, X = nm.at[0] * 10, Y = nm.at[1] * 10;
+      pose = { x: tx - (c * X + s * Y), z: tz - (s * X - c * Y), rot, mirror: false };
+    }
+  }
+  assert.ok(pose);
+  assert.ok(confluences(w, shape, pose).includes(0));
+  assert.deepEqual(confluences(w, shape, { x: 90000, z: 90000, rot: 0, mirror: false }), [], 'far out at sea nothing meets');
+});

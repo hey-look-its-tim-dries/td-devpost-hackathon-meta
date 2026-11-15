@@ -9,7 +9,7 @@ import { encodePose, decodeSnapshot } from './net/wire.js';
 export const API = 'https://pwc.hey-look-its-tim-dries.workers.dev'; // ?api= overrides (wrangler dev is http://localhost:8787)
 const TOKEN_KEY = 'pwc.token.v1';
 
-export const rowToHand = (r) => ({ id: r.id, name: r.name, palm: fromB64(r.palm), prints: r.prints.map(fromB64), pose: { x: r.pose.x, z: r.pose.z, rot: r.pose.rot, mirror: false }, founder: !!r.founder });
+export const rowToHand = (r) => ({ id: r.id, name: r.name, palm: fromB64(r.palm), prints: r.prints.map(fromB64), pose: { x: r.pose.x, z: r.pose.z, rot: r.pose.rot, mirror: false }, founder: !!r.founder, placed_at: r.placed_at ?? null });
 
 const makeToken = () => { const b = new Uint8Array(32); crypto.getRandomValues(b); return toB64(b); };
 
@@ -66,6 +66,22 @@ export function createNet({ api = API, storage = null, fetchFn = globalThis.fetc
         return status === 200 ? body : { error: body?.error ?? `server ${status}` };
       } catch {
         return { error: 'offline' };
+      }
+    },
+    async events() {
+      try {
+        const { status, body } = await call('/events');
+        return status === 200 && Array.isArray(body?.events) ? body.events : null;
+      } catch {
+        return null;
+      }
+    },
+    async watersheds() {
+      try {
+        const { status, body } = await call('/watersheds');
+        return status === 200 && Array.isArray(body?.pairs) ? body.pairs : [];
+      } catch {
+        return [];
       }
     },
     async names() {

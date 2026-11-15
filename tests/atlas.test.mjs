@@ -41,3 +41,9 @@ test('tabs: a tap on Journal opens the Journal', () => {
   assert.deepEqual(TABS, ['world', 'hand', 'community', 'journal']);
   assert.equal(hitAt(regions, [-5, -5]), null);
 });
+test('the timeline draws only the Hands laid by then', () => {
+  const g = recorder(), later = hands.map((h, i) => ({ ...h, placed_at: i < 5 ? 100 : 200 }));
+  drawMap(g, { hands: later, chart: createChart(null), me: { pos: [0, 0, 0], yaw: 0 }, others: [], view: mapView(later, 1000, 800), w: 1000, h: 800, until: 150 });
+  const names = g.calls.filter((c) => c[0] === 'fillText').map((c) => c[1]);
+  assert.ok(names.includes(later[0].name.toUpperCase()) && !names.includes(later[7].name.toUpperCase()));
+});

@@ -155,3 +155,17 @@ export function findFits(world, shape, { cell = 60, rotations = 48, stride = 3, 
   }
   return best;
 }
+
+// which Hands' rivers a Hand laid at `pose` joins: their indices in `world`, each once (watersheds, spec 6.4).
+// The fit finder's rule (spec 6.2): mouths within 40 hand metres (400 m), head-on within 35 degrees.
+const REACH = 400;
+export function confluences(world, shape, pose) {
+  const out = new Set();
+  for (const m of riverMouths(shape)) {
+    const w = worldMouth(pose, m);
+    world.forEach((h, i) => {
+      for (const o of riverMouths(h.shape).map((q) => worldMouth(h.pose, q))) if (Math.hypot(o.at[0] - w.at[0], o.at[1] - w.at[1]) < REACH && o.dir[0] * w.dir[0] + o.dir[1] * w.dir[1] < -0.82) out.add(i);
+    });
+  }
+  return [...out];
+}

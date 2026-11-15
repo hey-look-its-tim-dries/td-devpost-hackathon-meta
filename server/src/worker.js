@@ -32,6 +32,7 @@ export default {
     };
     if (path === '/names' && (req.method === 'GET' || req.method === 'POST')) return passWorld('/names');
     if (path === '/community' && (req.method === 'GET' || req.method === 'POST')) return passWorld('/community');
+    if ((path === '/events' || path === '/watersheds') && req.method === 'GET') return passWorld(path);
     if (path === '/stats' && req.method === 'GET') {
       const r = await world.fetch(new Request('https://world/stats'));
       return new Response(r.body, { status: r.status, headers: cors(req, env, { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=10' }) });

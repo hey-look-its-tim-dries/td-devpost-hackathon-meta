@@ -46,7 +46,7 @@ export function drawMap(g, o) {
   g.fillStyle = 'rgba(47,93,124,0.28)'; g.beginPath(); g.arc(sx, sy, SOURCE_RADIUS * v.scale, 0, Math.PI * 2); g.fill();
   g.strokeStyle = RIVER; g.lineWidth = 1.5; g.stroke();
   for (const hd of hands) {
-    if ((hd.placed_at ?? 0) > until) continue;
+    if ((hd.placed_at ?? Infinity) > until) continue; // a Hand with no date yet (yours, still on its way to the map) is the newest
     const s = shapeOf(hd), at = (X, Y) => M(...toWorld(hd.pose, X, Y));
     const r = L.charted && raster ? raster(hd) : null;
     if (r) { // the handbits themselves, charted in colour and uncharted blank

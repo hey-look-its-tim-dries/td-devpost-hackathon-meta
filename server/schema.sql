@@ -51,3 +51,11 @@ create table if not exists event (
   hand_id text,
   data text
 );
+
+-- spec 8.4: rivers of two Hands that meet (watersheds)
+create table if not exists confluence (
+  hand_a text not null,
+  hand_b text not null,
+  at integer not null,
+  primary key (hand_a, hand_b)
+);

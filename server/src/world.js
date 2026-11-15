@@ -3,11 +3,12 @@
 // checked one after the other (spec 6.3). It also remembers which Rooms exist, to tell them of a lay.
 import { DurableObject } from 'cloudflare:workers';
 import { checkHand } from '../../src/world/mine.js';
-import { overlaps, findFits } from '../../src/world/fit.js';
+import { overlaps, findFits, confluences } from '../../src/world/fit.js';
 import { handShape } from '../../src/hand/shape.js';
 import { unpackPalm, toB64, fromB64 } from '../../src/hand/dna.js';
 import { cleanName, HANDBIT_FEATURE, SUMMIT_FEATURE } from '../../src/world/names.js';
 import { slotFor, isSealed } from '../../src/world/community.js';
+import { toWorld } from '../../src/world/founders.js';
 
 
 const sha = async (s) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))].map((b) => b.toString(16).padStart(2, '0')).join('');
@@ -46,6 +47,14 @@ export class World extends DurableObject {
       const out = this.chain.then(() => (del ? this.wash(del[1], req) : this.lay(req)));
       this.chain = out.catch(() => {});
       return out;
+    }
+    if (url.pathname === '/events' && req.method === 'GET') {
+      const { results } = await this.env.DB.prepare('select id, at, kind, hand_id, data from event order by id desc limit 100').all();
+      return Response.json({ events: results.map((e) => ({ ...e, data: JSON.parse(e.data ?? 'null') })) });
+    }
+    if (url.pathname === '/watersheds' && req.method === 'GET') {
+      const { results } = await this.env.DB.prepare('select hand_a, hand_b from confluence').all();
+      return Response.json({ pairs: results.map((r) => [r.hand_a, r.hand_b]) });
     }
     if (url.pathname === '/community' && req.method === 'GET') return Response.json(await this.community());
     if (url.pathname === '/community' && req.method === 'POST') { const out = this.chain.then(() => this.donate(req)); this.chain = out.catch(() => {}); return out; }
@@ -103,6 +112,14 @@ export class World extends DurableObject {
       this.env.DB.prepare("insert into hand (id, player_id, side, palm_dna, prints, route, gen, x, z, rot, placed_at, founder) values (?, ?, ?, ?, ?, 'eye', 1, ?, ?, ?, ?, 0)").bind(hid, pid, palm.side, ab(hand.palm), ab(prints), hand.pose.x, hand.pose.z, hand.pose.rot, now),
     ]);
     this.cache = null;
+    // the journal: who joined, beside whom, and whose rivers they now reach (watersheds)
+    const meets = confluences(world, shape, hand.pose).map((i) => laid[i]);
+    const ctr = toWorld(hand.pose, 0, 230), nextTo = laid.map((h) => [h.name, Math.hypot(...toWorld(h.pose, 0, 230).map((v, k) => v - ctr[k]))]).filter(([, d]) => d < 9000).sort((a, b) => a[1] - b[1]).slice(0, 2).map(([n]) => n); // the nearest one or two
+    await this.event('laid', hid, { name: hand.name, next: nextTo });
+    for (const h of meets) {
+      await this.env.DB.prepare('insert or ignore into confluence (hand_a, hand_b, at) values (?, ?, ?)').bind(hid, h.id, now).run();
+      await this.event('confluence', hid, { name: hand.name, with: h.name });
+    }
     const out = { id: hid, name: hand.name, palette: palm.palette, side: palm.side, palm: toB64(hand.palm), prints: hand.prints.map(toB64), pose: hand.pose, founder: false, placed_at: now };
     this.ctx.waitUntil(this.tell({ laid: out }));
     return Response.json({ id: hid, pose: hand.pose });
@@ -128,7 +145,7 @@ export class World extends DurableObject {
       const mine = await this.env.DB.prepare('select 1 from community_slot where community_no = ? and player_id = ?').bind(no, me.pid).first();
       return Response.json({ error: mine ? 'you have given to this one' : 'that slot is taken' }, { status: 409 });
     }
-    await this.event('donated', me.hid, { no, slot });
+    await this.event('donated', me.hid, { no, slot, name: (await this.env.DB.prepare('select name from player where id = ?').bind(me.pid).first())?.name });
     const now = await this.community();
     if (isSealed(now.slots)) {
       await this.ctx.storage.put('community', no + 1);
@@ -152,9 +169,11 @@ export class World extends DurableObject {
     if (HANDBIT_FEATURE.test(feature)) {
       if (hand.player_id !== me.id) return Response.json({ error: 'only its owner names a handbit' }, { status: 403 });
       await this.env.DB.prepare('insert or replace into place_name (hand_id, feature, name, by_player, at) values (?, ?, ?, ?, ?)').bind(handId, feature, name, me.id, Date.now()).run();
+      await this.event('named', handId, { name, hand: (await this.env.DB.prepare('select p.name from hand h join player p on p.id = h.player_id where h.id = ?').bind(handId).first())?.name });
     } else {
       const r = await this.env.DB.prepare('insert or ignore into place_name (hand_id, feature, name, by_player, at) values (?, ?, ?, ?, ?)').bind(handId, feature, name, me.id, Date.now()).run();
       if (!r.meta.changes) return Response.json({ error: 'already named' }, { status: 409 });
+      await this.event('named', handId, { name, hand: (await this.env.DB.prepare('select p.name from hand h join player p on p.id = h.player_id where h.id = ?').bind(handId).first())?.name });
     }
     return Response.json({ ok: true });
   }
@@ -164,10 +183,11 @@ export class World extends DurableObject {
     let body;
     try { body = await req.json(); } catch { return Response.json({ error: 'bad json' }, { status: 400 }); }
     if (typeof body?.token !== 'string') return Response.json({ error: 'no token' }, { status: 400 });
-    const pid = (await this.env.DB.prepare('select h.player_id from hand h join player p on p.id = h.player_id where h.id = ? and h.founder = 0 and p.token_hash = ?').bind(id, await sha(body.token)).first())?.player_id;
+    const who = await this.env.DB.prepare('select h.player_id, p.name from hand h join player p on p.id = h.player_id where h.id = ? and h.founder = 0 and p.token_hash = ?').bind(id, await sha(body.token)).first(), pid = who?.player_id;
     if (!pid) return Response.json({ error: 'not yours' }, { status: 404 });
-    await this.env.DB.batch([this.env.DB.prepare('delete from place_name where hand_id = ? or by_player = ?').bind(id, pid), this.env.DB.prepare('delete from community_slot where player_id = ?').bind(pid), this.env.DB.prepare('delete from hand where player_id = ?').bind(pid), this.env.DB.prepare('delete from player where id = ?').bind(pid)]);
+    await this.env.DB.batch([this.env.DB.prepare('delete from place_name where hand_id = ? or by_player = ?').bind(id, pid), this.env.DB.prepare('delete from community_slot where player_id = ?').bind(pid), this.env.DB.prepare('delete from confluence where hand_a = ? or hand_b = ?').bind(id, id), this.env.DB.prepare('delete from event where hand_id = ? and kind != ?').bind(id, 'sealed'), this.env.DB.prepare('delete from hand where player_id = ?').bind(pid), this.env.DB.prepare('delete from player where id = ?').bind(pid)]);
     this.cache = null;
+    await this.event('washed', null, { name: who.name ?? 'A Hand' }); // the journal keeps only that someone left
     this.ctx.waitUntil(this.tell({ left: id }));
     return new Response(null, { status: 204 });
   }

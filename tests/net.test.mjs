@@ -46,7 +46,7 @@ test('laying: a 200 and a 409 are a Hand, a conflict is fits, the rest is an err
 
 test('rowToHand carries exactly what main.js bakes with', () => {
   const h = rowToHand(row(founders()[1], 1));
-  assert.deepEqual(Object.keys(h).sort(), ['founder', 'id', 'name', 'palm', 'pose', 'prints']);
+  assert.deepEqual(Object.keys(h).sort(), ['founder', 'id', 'name', 'palm', 'placed_at', 'pose', 'prints']); // placed_at: the atlas timeline
 });
 
 test('a world whose body stalls after the headers still falls back in time (final review 8, Review Focus 3)', async () => {
@@ -108,4 +108,18 @@ test('community: the current Community Hand, null offline; donating says why it 
   const off = createNet({ storage: memory(), fetchFn: async () => { throw new Error('down'); } });
   assert.equal(await off.community(), null);
   assert.deepEqual(await off.donate('I1'), { error: 'offline' });
+});
+
+test('events and watersheds: lists from the map, null and [] when it is away', async () => {
+  const on = createNet({ storage: memory(), fetchFn: async (u) => new Response(JSON.stringify(u.includes('/events') ? { events: [{ id: 1, at: 5, kind: 'sealed', data: { no: 1 } }] } : { pairs: [['a', 'b']] })) });
+  assert.equal((await on.events()).length, 1);
+  assert.deepEqual(await on.watersheds(), [['a', 'b']]);
+  const off = createNet({ storage: memory(), fetchFn: async () => { throw new Error('down'); } });
+  assert.equal(await off.events(), null);
+  assert.deepEqual(await off.watersheds(), []);
+});
+
+test('a Hand from the map keeps when it was laid (the timeline needs it)', () => {
+  const f = founders()[0];
+  assert.equal(rowToHand(row(f, 7)).placed_at, 7);
 });

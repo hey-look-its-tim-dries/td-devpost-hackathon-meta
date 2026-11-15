@@ -105,7 +105,7 @@ export function createAtlas() {
     for (const b of [...q.buttons].reverse()) { button(b.id, x + 28, by, w - 56, 66, b.label, { primary: b.primary }); by -= 80; }
   }
   function timeline(t) { // the world's history: drag to replay the continent growing
-    const x = 60, y = MAP.y + MAP.h - 70, w = 600;
+    const x = 300, y = MAP.y + MAP.h - 70, w = 600; // bottom centre, clear of the legend and the scale bar
     g.strokeStyle = INK; g.lineWidth = 3; g.beginPath(); g.moveTo(x, y + 30); g.lineTo(x + w, y + 30); g.stroke();
     const k = (t.at - t.from) / Math.max(1, t.to - t.from);
     g.fillStyle = SEAL; g.beginPath(); g.arc(x + k * w, y + 30, 14, 0, Math.PI * 2); g.fill();
@@ -178,7 +178,7 @@ export function createAtlas() {
     down(uv) {
       const p = px(uv), a = hitAt(regions, p);
       last = p;
-      if (a?.type === 'map' || a?.type === 'timeline') { drag = { start: p, moved: 0, type: a.type }; return a.type === 'timeline' ? { type: 'timeline', k: (p[0] - 60) / 600 } : null; }
+      if (a?.type === 'map' || a?.type === 'timeline') { drag = { start: p, moved: 0, type: a.type }; return a.type === 'timeline' ? { type: 'timeline', k: (p[0] - 300) / 600 } : null; }
       return a;
     },
     move(uv) {
@@ -186,7 +186,7 @@ export function createAtlas() {
       const p = px(uv), dx = p[0] - last[0], dy = p[1] - last[1];
       last = p;
       drag.moved += Math.hypot(dx, dy);
-      if (drag.type === 'timeline') return { type: 'timeline', k: Math.max(0, Math.min(1, (p[0] - 60) / 600)) };
+      if (drag.type === 'timeline') return { type: 'timeline', k: Math.max(0, Math.min(1, (p[0] - 300) / 600)) };
       if (view && drag.moved > 8) { view.cx -= dx / view.scale; view.cz -= dy / view.scale; }
       return null;
     },

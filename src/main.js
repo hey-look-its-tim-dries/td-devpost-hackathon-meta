@@ -35,6 +35,7 @@ import { createPins, address } from './world/pins.js';
 import { placeName } from './world/names.js';
 import { createCommunityArt } from './community-art.js';
 import { slotFor } from './world/community.js';
+import { journalText, watersheds, when } from './journal.js';
 import { steerTo } from './autopilot.js';
 import { createOthers } from './others.js';
 
@@ -280,7 +281,8 @@ let communityOn = false; // the map answered: donations possible
 let placeNames = {}, pickName = null; // handId -> { feature: name } from the map; the name being chosen { handId, feature, seed, name }
 const nameOf = (h, hb) => (hb ? placeNames[h.id]?.[hb.code] ?? hb.name : null);
 const summitOf = (h, hb) => (hb?.kind === 'tip' ? placeNames[h.id]?.[`summit:${hb.finger}`] ?? null : null);
-async function refreshNames() { if (online) { placeNames = await net.names(); const c = await net.community(); if (c) { community.set(c); communityOn = true; } } setTimeout(refreshNames, 60000); }
+let events = null, sheds = {}, timelineAt = Infinity; // the journal, watershed systems, the timeline's moment
+async function refreshNames() { if (online) { placeNames = await net.names(); const c = await net.community(); if (c) { community.set(c); communityOn = true; } events = await net.events(); sheds = watersheds(await net.watersheds()); } setTimeout(refreshNames, 60000); }
 // ---------- the palm atlas: left palm up (or M) ----------
 const atlas = createAtlas();
 rig.add(atlas.mesh);
@@ -301,7 +303,10 @@ function atlasState() {
   const list = [];
   others.each((c, id, pos) => list.push({ pos, name: others.nameOf(id) }));
   const mineHand = mine && hands.find((h) => h.id === mine.id);
-  return { hands, chart, me: { pos: glide.pos, yaw: glide.yaw }, others: list, pins: pins.list(), selected: selected?.id ?? null, inspect: selected && inspectOf(selected), mine: mine && { name: mine.name, handbits: mineHand?.data.handbits ?? [] }, names: mine ? placeNames[mine.id] ?? {} : {}, pickName, community: communityOn ? { paint: (g, regions, tools) => community.paintTab(g, regions, tools) } : null };
+  return { hands, chart, me: { pos: glide.pos, yaw: glide.yaw }, others: list, pins: pins.list(), selected: selected?.id ?? null, inspect: selected && inspectOf(selected), mine: mine && { name: mine.name, handbits: mineHand?.data.handbits ?? [] }, names: mine ? placeNames[mine.id] ?? {} : {}, pickName,
+    journal: events && events.map((e) => ({ when: when(e.at), text: journalText(e) })).filter((e) => e.text),
+    timeline: timelineOf(), until: timelineAt,
+    waters: atlas.layers.watersheds ? Object.fromEntries(Object.entries(sheds).map(([id, n]) => [id, SHED_COLOURS[n % SHED_COLOURS.length]])) : null, community: communityOn ? { paint: (g, regions, tools) => community.paintTab(g, regions, tools) } : null };
 }
 function inspectOf(h) { // the inspector for a Hand (Task 7 adds its buttons' actions)
   const hb = inspectAt?.handbit;
@@ -315,11 +320,19 @@ function inspectOf(h) { // the inspector for a Hand (Task 7 adds its buttons' ac
 // where a Hand's handbit (or its palm) lies in the world
 function placeOf(h, hb) { const [x, z] = toWorld(h.pose, hb?.cx ?? 0, hb?.cy ?? 230); return { x, z }; }
 const wrapText = (t, n) => { const out = [''], words = t.split(' '); for (const w of words) { if ((out.at(-1) + ' ' + w).trim().length > n) out.push(w); else out[out.length - 1] = (out.at(-1) + ' ' + w).trim(); } return out; };
+const SHED_COLOURS = ['#2f5d7c', '#1f7a6d', '#6b4c9a', '#9a5b2f', '#3d6e2f', '#7a2f4f']; // one ink per river system
+function timelineOf() { // the world's history on a slider: from the first Hand to now
+  const at = hands.map((h) => h.placed_at).filter(Number.isFinite);
+  if (at.length < 2) return null;
+  const from = Math.min(...at), to = Date.now(), t = Math.min(timelineAt, to);
+  return { from, to, at: t, label: t >= to ? 'now · drag to replay the world' : new Date(t).toISOString().slice(0, 10) };
+}
 function atlasDo(a) {
   if (!a) return;
   if (a.type === 'close') return closeAtlas();
   if (a.type === 'tab') atlas.setTab(a.tab);
   else if (a.type === 'layer') atlas.toggle(a.layer);
+  else if (a.type === 'timeline') { const tl = timelineOf(); if (tl) timelineAt = a.k >= 0.999 ? Infinity : tl.from + Math.max(0, a.k) * (tl.to - tl.from); }
   else if (a.type === 'pick') { inspectAt = whereAt(hands, a.x, a.z); selected = inspectAt?.hand ?? null; }
   else if (a.type === 'handbit' && mine?.id && online) { const hb = hands.find((h) => h.id === mine.id)?.data.handbits[a.index]; if (hb) { const seed = (Math.random() * 2 ** 31) | 0; pickName = { handId: mine.id, feature: hb.code, code: hb.code, seed, name: placeName(seed, hb.code) }; } }
   else if (a.type === 'name' && a.arg === 'summit' && selected && inspectAt?.handbit) { const seed = (Math.random() * 2 ** 31) | 0, feature = `summit:${inspectAt.handbit.finger}`; pickName = { handId: selected.id, feature, code: `${selected.name} summit`, seed, name: placeName(seed, feature) }; }

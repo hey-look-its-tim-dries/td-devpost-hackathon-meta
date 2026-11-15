@@ -191,3 +191,24 @@ test('the Community Hand: 22 donors seal it, the 23rd starts the next; one donat
   assert.equal((await give('zz'.repeat(20), 'I1')).status, 403, 'only players with a Hand donate');
   for (const d of donors) await wash(d.id, d.token);
 });
+
+test('the journal: a lay and a wash are events, a lay that joins rivers records its confluences (Task 10)', { skip }, async () => {
+  const w0 = await world();
+  const fit = findFits(shapes(w0), handShape(templatePalm({ seed: 5 }))).find((f) => f.rivers > 0) ?? findFits(shapes(w0), handShape(templatePalm({ seed: 5 })))[0];
+  const tok = 'j'.repeat(40);
+  const r = await post(body(fit.pose, { token: tok, seed: 5, name: 'Journaler' }));
+  const { id } = await r.json();
+  const ev = (await (await fetch(API + '/events')).json()).events;
+  const laid = ev.find((e) => e.kind === 'laid' && e.hand_id === id);
+  assert.ok(laid, 'the lay is in the journal');
+  assert.equal(laid.data.name, 'Journaler');
+  if (fit.rivers > 0) {
+    assert.ok(ev.some((e) => e.kind === 'confluence' && e.hand_id === id));
+    const { pairs } = await (await fetch(API + '/watersheds')).json();
+    assert.ok(pairs.some((p) => p.includes(id)));
+  }
+  await wash(id, tok);
+  const ev2 = (await (await fetch(API + '/events')).json()).events;
+  assert.ok(ev2.some((e) => e.kind === 'washed' && e.data.name === 'Journaler'));
+  assert.ok(!(await (await fetch(API + '/watersheds')).json()).pairs.some((p) => p.includes(id)), 'its confluences leave with it');
+});
