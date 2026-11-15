@@ -17,3 +17,11 @@ test('cleanName refuses empties, non-strings and blocked words', () => {
 test('generated names are already clean', () => {
   for (let s = 1; s < 50; s++) assert.equal(cleanName(nameFor(s)), nameFor(s));
 });
+
+test('place names: the same seed gives the same name; summits get a landform word', async () => {
+  const { placeName } = await import('../src/world/names.js');
+  assert.equal(placeName(7, 'I1'), placeName(7, 'I1'));
+  assert.notEqual(placeName(7, 'I1'), placeName(8, 'I1'));
+  assert.match(placeName(7, 'summit:1'), / (Fell|Crown|Peak|Knoll|Cairn|Spire)$/);
+  for (let s = 1; s < 30; s++) assert.equal(cleanName(placeName(s, 'P2')), placeName(s, 'P2'));
+});

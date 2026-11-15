@@ -88,6 +88,7 @@ export function createAtlas() {
     } else if (tab === 'hand') myHand(s);
     else if (tab === 'community') s.community ? s.community.paint(g, regions, { button, text }) : text('The Community Hand needs the shared map.', 60, 200, { font: `italic 400 34px ${SERIF}` });
     else if (tab === 'journal') journal(s);
+    if (s.pickName) nameCard(s.pickName); // naming floats over any tab
     tex.needsUpdate = true;
   }
 
@@ -115,7 +116,8 @@ export function createAtlas() {
     const m = s.mine;
     if (!m) { text('Lay your Hand to see it here.', 60, 200, { font: `italic 400 36px ${SERIF}` }); return; }
     text(m.name, 60, 170, { font: `600 64px ${SERIF}` });
-    text(`${s.chart.sealedCount()} Hands sealed · ${s.hands.reduce((a, h) => a + s.chart.count(h.id), 0)} handbits charted`, 60, 220, { font: `400 28px ${SANS}`, color: 'rgba(22,16,14,0.7)' });
+    const n = s.chart.sealedCount(), c = s.hands.reduce((a, h) => a + s.chart.count(h.id), 0);
+    text(`${n} Hand${n === 1 ? '' : 's'} sealed · ${c} handbit${c === 1 ? '' : 's'} charted`, 60, 220, { font: `400 28px ${SANS}`, color: 'rgba(22,16,14,0.7)' });
     const bits = m.handbits ?? [];
     bits.forEach((b, i) => { // two columns of handbits, with the names you gave them
       const x = 60 + (i % 2) * 380, y = 280 + Math.floor(i / 2) * 50;
@@ -125,7 +127,6 @@ export function createAtlas() {
     });
     button('postcard', 840, 280, 320, 72, 'Postcard');
     button('export', 840, 372, 320, 72, 'Export my data');
-    if (s.pickName) nameCard(s.pickName);
   }
   function nameCard(p) { // naming without a keyboard: a generated name, another, keep (spec 6.4)
     const x = 800, y = 480, w = 380, h = 360;

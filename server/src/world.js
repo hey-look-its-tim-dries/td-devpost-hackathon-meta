@@ -6,7 +6,7 @@ import { checkHand } from '../../src/world/mine.js';
 import { overlaps, findFits } from '../../src/world/fit.js';
 import { handShape } from '../../src/hand/shape.js';
 import { unpackPalm, toB64, fromB64 } from '../../src/hand/dna.js';
-import { cleanName } from '../../src/world/names.js';
+import { cleanName, HANDBIT_FEATURE, SUMMIT_FEATURE } from '../../src/world/names.js';
 
 
 const sha = async (s) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))].map((b) => b.toString(16).padStart(2, '0')).join('');
@@ -46,6 +46,13 @@ export class World extends DurableObject {
       this.chain = out.catch(() => {});
       return out;
     }
+    if (url.pathname === '/names' && req.method === 'GET') {
+      const { results } = await this.env.DB.prepare('select hand_id, feature, name from place_name').all();
+      const names = {};
+      for (const r of results) (names[r.hand_id] ??= {})[r.feature] = r.name;
+      return Response.json({ names });
+    }
+    if (url.pathname === '/names' && req.method === 'POST') { const out = this.chain.then(() => this.nameIt(req)); this.chain = out.catch(() => {}); return out; }
     if (url.pathname === '/stats') {
       const now = Date.now();
       let flying = 0;
@@ -98,6 +105,26 @@ export class World extends DurableObject {
     return Response.json({ id: hid, pose: hand.pose });
   }
 
+  // a name for a place: handbits by the Hand's owner, summits by anyone with a Hand, first come (spec 6.4)
+  async nameIt(req) {
+    let b;
+    try { b = await req.json(); } catch { return Response.json({ error: 'bad json' }, { status: 400 }); }
+    const name = cleanName(b?.name), feature = String(b?.feature ?? ''), handId = String(b?.hand_id ?? '').slice(0, 64);
+    if (!name || !(HANDBIT_FEATURE.test(feature) || SUMMIT_FEATURE.test(feature)) || typeof b?.token !== 'string') return Response.json({ error: 'that name is not available' }, { status: 400 });
+    const me = await this.env.DB.prepare('select id from player where token_hash = ?').bind(await sha(b.token)).first();
+    if (!me) return Response.json({ error: 'lay your Hand first' }, { status: 403 });
+    const hand = await this.env.DB.prepare('select player_id from hand where id = ? and placed_at is not null').bind(handId).first();
+    if (!hand) return Response.json({ error: 'no such Hand' }, { status: 404 });
+    if (HANDBIT_FEATURE.test(feature)) {
+      if (hand.player_id !== me.id) return Response.json({ error: 'only its owner names a handbit' }, { status: 403 });
+      await this.env.DB.prepare('insert or replace into place_name (hand_id, feature, name, by_player, at) values (?, ?, ?, ?, ?)').bind(handId, feature, name, me.id, Date.now()).run();
+    } else {
+      const r = await this.env.DB.prepare('insert or ignore into place_name (hand_id, feature, name, by_player, at) values (?, ?, ?, ?, ?)').bind(handId, feature, name, me.id, Date.now()).run();
+      if (!r.meta.changes) return Response.json({ error: 'already named' }, { status: 409 });
+    }
+    return Response.json({ ok: true });
+  }
+
   // "Wash your hands" for what exists in M3: the player and their Hand are deleted
   async wash(id, req) {
     let body;
@@ -105,7 +132,7 @@ export class World extends DurableObject {
     if (typeof body?.token !== 'string') return Response.json({ error: 'no token' }, { status: 400 });
     const pid = (await this.env.DB.prepare('select h.player_id from hand h join player p on p.id = h.player_id where h.id = ? and h.founder = 0 and p.token_hash = ?').bind(id, await sha(body.token)).first())?.player_id;
     if (!pid) return Response.json({ error: 'not yours' }, { status: 404 });
-    await this.env.DB.batch([this.env.DB.prepare('delete from hand where player_id = ?').bind(pid), this.env.DB.prepare('delete from player where id = ?').bind(pid)]);
+    await this.env.DB.batch([this.env.DB.prepare('delete from place_name where hand_id = ? or by_player = ?').bind(id, pid), this.env.DB.prepare('delete from hand where player_id = ?').bind(pid), this.env.DB.prepare('delete from player where id = ?').bind(pid)]);
     this.cache = null;
     this.ctx.waitUntil(this.tell({ left: id }));
     return new Response(null, { status: 204 });

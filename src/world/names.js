@@ -24,3 +24,12 @@ export function cleanName(s) {
   if (!t || BLOCK.some((w) => t.toLowerCase().includes(w))) return null;
   return t;
 }
+
+// a name for a place, from a seed and what it is: summits get a landform word ("Oru Fell")
+const LANDFORMS = ['Fell', 'Crown', 'Peak', 'Knoll', 'Cairn', 'Spire'];
+export function placeName(seed, feature) {
+  const base = nameFor((seed * 2654435761 + feature.length * 97 + feature.charCodeAt(feature.length - 1)) >>> 0);
+  return feature.startsWith('summit:') ? `${base} ${LANDFORMS[seed % LANDFORMS.length]}` : base;
+}
+// the features a name can be given to: handbits (owners only) and fingertip summits (anyone, first come)
+export const HANDBIT_FEATURE = /^([TIMRL][123]|P[1-9]|P1[0-9])$/, SUMMIT_FEATURE = /^summit:[0-4]$/;

@@ -141,3 +141,24 @@ test('stats count the Hands and who is flying; names travel through the room (Ta
   assert.ok(s1.flying >= 3, `flying ${s1.flying}`);
   for (const x of [a, b, c]) x.ws.close();
 });
+
+test('naming: owners name their handbits, anyone with a Hand names a summit first (Task 8)', { skip }, async () => {
+  const shapesNow = shapes(await world());
+  const mk = async (token, seed) => { const fit = findFits(shapesNow, handShape(templatePalm({ seed })))[0]; const r = await post(body(fit.pose, { token, seed, name: 'Namer' })); return r.status === 200 ? (await r.json()).id : (await r.json()).id; };
+  const tokA = 'n'.repeat(40), tokB = 'o'.repeat(40);
+  for (const h of (await world()).filter((h) => !h.founder)) for (const t of [tokA, tokB]) await wash(h.id, t);
+  const a = await mk(tokA, 91);
+  const name = (token, hand_id, feature, n) => fetch(API + '/names', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, hand_id, feature, name: n }) });
+  assert.equal((await name(tokA, a, 'I1', 'Oru Vale')).status, 200);
+  assert.equal((await name(tokB, a, 'I2', 'Mine Now')).status, 403, 'a stranger may not name your handbits');
+  assert.equal((await name(tokA, 'hand-founder-0', 'summit:1', 'Brisk Fell')).status, 200);
+  assert.equal((await name(tokA, 'hand-founder-0', 'summit:1', 'Other Fell')).status, 409, 'the first name stays');
+  assert.equal((await name(tokB, 'hand-founder-0', 'summit:2', 'No Hand')).status, 403, 'naming a summit needs a Hand of your own');
+  assert.equal((await name(tokA, a, 'I1', 'nazi')).status, 400);
+  assert.equal((await name(tokA, a, 'Z9', 'Bad')).status, 400);
+  const all = (await (await fetch(API + '/names')).json()).names;
+  assert.equal(all[a].I1, 'Oru Vale');
+  assert.equal(all['hand-founder-0']['summit:1'], 'Brisk Fell');
+  await wash(a, tokA);
+  assert.equal((await (await fetch(API + '/names')).json()).names[a], undefined, 'a wash takes its names along');
+});

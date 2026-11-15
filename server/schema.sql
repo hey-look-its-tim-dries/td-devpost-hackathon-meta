@@ -21,3 +21,13 @@ create table if not exists hand (
   founder integer not null default 0
 );
 create index if not exists hand_placed on hand(placed_at);
+
+-- spec 8.4: names given to places (handbits by their owner, summits by the first to name them)
+create table if not exists place_name (
+  hand_id text not null,
+  feature text not null,
+  name text not null,
+  by_player text not null,
+  at integer not null,
+  primary key (hand_id, feature)
+);

@@ -52,6 +52,22 @@ export function createNet({ api = API, storage = null, fetchFn = globalThis.fetc
         return { error: 'offline' };
       }
     },
+    async names() {
+      try {
+        const { status, body } = await call('/names');
+        return status === 200 && body?.names && typeof body.names === 'object' ? body.names : {};
+      } catch {
+        return {};
+      }
+    },
+    async nameIt({ handId, feature, name }) {
+      try {
+        const { status, body } = await call('/names', { method: 'POST', body: JSON.stringify({ token, hand_id: handId, feature, name }) });
+        return status === 200 ? { ok: true } : { error: body?.error ?? `server ${status}` };
+      } catch {
+        return { error: 'offline' };
+      }
+    },
     async stats() {
       try {
         const { status, body } = await call('/stats');

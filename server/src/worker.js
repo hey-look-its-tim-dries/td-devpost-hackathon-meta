@@ -23,6 +23,14 @@ export default {
       const r = await world.fetch(new Request('https://world/world', { headers: { 'If-None-Match': req.headers.get('If-None-Match') ?? '' } }));
       return new Response(r.body, { status: r.status, headers: cors(req, env, { 'Content-Type': 'application/json', 'ETag': r.headers.get('ETag') ?? '', 'Cache-Control': 'public, max-age=10' }) });
     }
+    // the rest of the World's doors: names (and, below, the Community Hand, the journal, pairing)
+    const passWorld = async (to) => {
+      const text = req.method === 'GET' ? undefined : await req.text();
+      if (text && text.length > MAX_BODY) return json(req, env, { error: 'too big' }, 413);
+      const r = await world.fetch(new Request(`https://world${to}`, { method: req.method, body: text }));
+      return r.status === 204 ? new Response(null, { status: 204, headers: cors(req, env) }) : new Response(r.body, { status: r.status, headers: cors(req, env, { 'Content-Type': 'application/json' }) });
+    };
+    if (path === '/names' && (req.method === 'GET' || req.method === 'POST')) return passWorld('/names');
     if (path === '/stats' && req.method === 'GET') {
       const r = await world.fetch(new Request('https://world/stats'));
       return new Response(r.body, { status: r.status, headers: cors(req, env, { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=10' }) });

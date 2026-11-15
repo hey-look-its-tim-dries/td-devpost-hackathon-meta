@@ -32,6 +32,7 @@ import { createHud } from './hud.js';
 import { createAtlas } from './atlas/card.js';
 import { createPalmUp, createPush } from './gesture.js';
 import { createPins, address } from './world/pins.js';
+import { placeName } from './world/names.js';
 import { steerTo } from './autopilot.js';
 import { createOthers } from './others.js';
 
@@ -164,6 +165,7 @@ net.fetchWorld().then(({ hands: list, online: ok }) => {
   online = ok;
   for (const h of list) if (h.id !== mine?.id) bake(h);
   if (mine) { if (ok && (!mine.id || mine.pending)) retryLay(); else bake(mine); }
+  if (ok) refreshNames();
   if (ok) roomLink = net.openRoom({ name: mine?.name ?? null, onHello: (id) => (me = id), onNames: (m) => others.setNames(m), onSnapshot: (s) => others.apply(s, me, glide.pos), onLaid: applyLaid, onLeft: removeHand, onState: (st) => (roomState = st) });
   else panel.say('Playing alone: the map could not be reached', 6);
 });
@@ -257,6 +259,10 @@ const hud = createHud();
 camera.add(hud.group);
 const pins = createPins(storage); // up to five pinned places, on the compass
 let flyTo = null; // { x, z, label } while Fly here steers you
+let placeNames = {}, pickName = null; // handId -> { feature: name } from the map; the name being chosen { handId, feature, seed, name }
+const nameOf = (h, hb) => (hb ? placeNames[h.id]?.[hb.code] ?? hb.name : null);
+const summitOf = (h, hb) => (hb?.kind === 'tip' ? placeNames[h.id]?.[`summit:${hb.finger}`] ?? null : null);
+async function refreshNames() { if (online) placeNames = await net.names(); setTimeout(refreshNames, 60000); }
 // ---------- the palm atlas: left palm up (or M) ----------
 const atlas = createAtlas();
 rig.add(atlas.mesh);
@@ -277,15 +283,15 @@ function atlasState() {
   const list = [];
   others.each((c, id, pos) => list.push({ pos, name: others.nameOf(id) }));
   const mineHand = mine && hands.find((h) => h.id === mine.id);
-  return { hands, chart, me: { pos: glide.pos, yaw: glide.yaw }, others: list, pins: pins.list(), selected: selected?.id ?? null, inspect: selected && inspectOf(selected), mine: mine && { name: mine.name, handbits: mineHand?.data.handbits ?? [] } };
+  return { hands, chart, me: { pos: glide.pos, yaw: glide.yaw }, others: list, pins: pins.list(), selected: selected?.id ?? null, inspect: selected && inspectOf(selected), mine: mine && { name: mine.name, handbits: mineHand?.data.handbits ?? [] }, names: mine ? placeNames[mine.id] ?? {} : {}, pickName };
 }
 function inspectOf(h) { // the inspector for a Hand (Task 7 adds its buttons' actions)
   const hb = inspectAt?.handbit;
   return {
     kicker: h.founder ? 'FOUNDER' : h.id === mine?.id ? 'YOUR HAND' : 'A PLAYER\'S HAND',
     title: h.name,
-    lines: [hb ? `${hb.code} · ${hb.name}` : 'its rivers', `${chart.count(h.id)} of ${h.data.handbits.length} handbits charted${chart.sealed(h.id) ? ' · sealed' : ''}`, ...wrapText(address({ hand: h.name, handbit: hb?.name, code: hb?.code, ...placeOf(h, hb) }), 34)],
-    buttons: [{ id: 'pin', label: pins.list().some((q) => q.handId === h.id && q.code === (hb?.code ?? null)) ? 'Pinned' : 'Pin it' }, { id: 'fly', label: 'Fly here', primary: true }],
+    lines: [hb ? `${hb.code} · ${nameOf(h, hb)}${summitOf(h, hb) ? ` · summit ${summitOf(h, hb)}` : ''}` : 'its rivers', `${chart.count(h.id)} of ${h.data.handbits.length} handbits charted${chart.sealed(h.id) ? ' · sealed' : ''}`, ...wrapText(address({ hand: h.name, handbit: hb?.name, code: hb?.code, ...placeOf(h, hb) }), 34)],
+    buttons: [...(hb?.kind === 'tip' && !summitOf(h, hb) && h.id !== mine?.id && online && mine?.id ? [{ id: 'name:summit', label: 'Name this summit' }] : []), { id: 'pin', label: pins.list().some((q) => q.handId === h.id && q.code === (hb?.code ?? null)) ? 'Pinned' : 'Pin it' }, { id: 'fly', label: 'Fly here', primary: true }],
   };
 }
 // where a Hand's handbit (or its palm) lies in the world
@@ -297,6 +303,17 @@ function atlasDo(a) {
   if (a.type === 'tab') atlas.setTab(a.tab);
   else if (a.type === 'layer') atlas.toggle(a.layer);
   else if (a.type === 'pick') { inspectAt = whereAt(hands, a.x, a.z); selected = inspectAt?.hand ?? null; }
+  else if (a.type === 'handbit' && mine?.id && online) { const hb = hands.find((h) => h.id === mine.id)?.data.handbits[a.index]; if (hb) { const seed = (Math.random() * 2 ** 31) | 0; pickName = { handId: mine.id, feature: hb.code, code: hb.code, seed, name: placeName(seed, hb.code) }; } }
+  else if (a.type === 'name' && a.arg === 'summit' && selected && inspectAt?.handbit) { const seed = (Math.random() * 2 ** 31) | 0, feature = `summit:${inspectAt.handbit.finger}`; pickName = { handId: selected.id, feature, code: `${selected.name} summit`, seed, name: placeName(seed, feature) }; }
+  else if (a.type === 'name' && a.arg === 'another' && pickName) { pickName.seed++; pickName.name = placeName(pickName.seed, pickName.feature); }
+  else if (a.type === 'name' && a.arg === 'keep' && pickName) {
+    const p = pickName;
+    pickName = null;
+    net.nameIt({ handId: p.handId, feature: p.feature, name: p.name }).then((r) => {
+      if (r.ok) { (placeNames[p.handId] ??= {})[p.feature] = p.name; panel.say(`Named: ${p.name}`, 4); } else panel.say(r.error === 'already named' ? 'Someone named it first' : `Not named: ${r.error}`, 4);
+      atlasPaint = 0;
+    });
+  }
   else if (a.type === 'pin' && selected) { const hb = inspectAt?.handbit; pins.add({ handId: selected.id, code: hb?.code ?? null, ...placeOf(selected, hb), label: hb ? `${selected.name} ${hb.code}` : selected.name }); }
   else if (a.type === 'fly' && selected) { const hb = inspectAt?.handbit; flyTo = { ...placeOf(selected, hb), label: hb ? `${selected.name} ${hb.code}` : selected.name }; closeAtlas(); panel.say(`Flying to ${flyTo.label}: steer to take over`, 4); return; }
   atlasPaint = 0;
@@ -581,7 +598,7 @@ function frame() {
   let near = null, nd = Infinity;
   others.each((c, id, pos) => { const d = Math.hypot(pos[0] - glide.pos[0], pos[2] - glide.pos[2]); if (d < nd) { nd = d; near = { label: others.nameOf(id) ?? 'traveller', x: pos[0], z: pos[2], color: '#16100e' }; } });
   if (near) marks.push(near);
-  const pl = place && !place.handbit ? { code: 'WATER', name: 'on the rivers', hand: place.hand.name, owner: !place.hand.founder, charted: true, count: chart.count(place.hand.id), total: place.hand.data.handbits.length } : place && { code: place.handbit.code, name: place.handbit.name, hand: place.hand.name, owner: !place.hand.founder, charted: chart.has(place.hand.id, place.index), count: chart.count(place.hand.id), total: place.hand.data.handbits.length };
+  const pl = place && !place.handbit ? { code: 'WATER', name: 'on the rivers', hand: place.hand.name, owner: !place.hand.founder, charted: true, count: chart.count(place.hand.id), total: place.hand.data.handbits.length } : place && { code: place.handbit.code, name: summitOf(place.hand, place.handbit) ?? nameOf(place.hand, place.handbit), hand: place.hand.name, owner: !place.hand.founder, charted: chart.has(place.hand.id, place.index), count: chart.count(place.hand.id), total: place.hand.data.handbits.length };
   hud.update(dt, { show: started && mode === 'fly', yaw: glide.yaw, pos: glide.pos, altitude: glide.pos[1] - groundAt(glide.pos[0], glide.pos[2]), place: pl, markers: marks, active: Math.abs(want.turn) + Math.abs(want.climb) > 0.1 || !!braiding });
   // the greeting: near another player your swarms braid for a few seconds
   braidList.length = 0;

@@ -91,3 +91,13 @@ test('stats: the counts from the map, null when it is away (Review Focus 1)', as
   const junk = createNet({ storage: memory(), fetchFn: async () => new Response('{"hands":"x"}') });
   assert.equal(await junk.stats(), null);
 });
+
+test('names: a map of Hands to their named places; empty when the map is away; naming says why it failed', async () => {
+  const on = createNet({ storage: memory(), fetchFn: async () => new Response(JSON.stringify({ names: { h1: { I1: 'Oru Vale' } } })) });
+  assert.deepEqual(await on.names(), { h1: { I1: 'Oru Vale' } });
+  const off = createNet({ storage: memory(), fetchFn: async () => { throw new Error('down'); } });
+  assert.deepEqual(await off.names(), {});
+  assert.deepEqual(await off.nameIt({ handId: 'h1', feature: 'I1', name: 'X' }), { error: 'offline' });
+  const taken = createNet({ storage: memory(), fetchFn: async () => new Response(JSON.stringify({ error: 'already named' }), { status: 409 }) });
+  assert.deepEqual(await taken.nameIt({ handId: 'h1', feature: 'summit:0', name: 'X' }), { error: 'already named' });
+});
