@@ -36,6 +36,8 @@ import { placeName } from './world/names.js';
 import { createCommunityArt } from './community-art.js';
 import { slotFor } from './world/community.js';
 import { journalText, watersheds, when } from './journal.js';
+import { drawPostcard, POSTCARD, exportData } from './postcard.js';
+import { TONES } from './world/scene.js';
 import { steerTo } from './autopilot.js';
 import { createOthers } from './others.js';
 
@@ -354,6 +356,8 @@ function atlasDo(a) {
       atlasPaint = 0;
     });
   }
+  else if (a.type === 'postcard') postcard();
+  else if (a.type === 'export') exportMine();
   else if (a.type === 'pin' && selected) { const hb = inspectAt?.handbit; pins.add({ handId: selected.id, code: hb?.code ?? null, ...placeOf(selected, hb), label: hb ? `${selected.name} ${hb.code}` : selected.name }); }
   else if (a.type === 'fly' && selected) { const hb = inspectAt?.handbit; flyTo = { ...placeOf(selected, hb), label: hb ? `${selected.name} ${hb.code}` : selected.name }; closeAtlas(); panel.say(`Flying to ${flyTo.label}: steer to take over`, 4); return; }
   atlasPaint = 0;
@@ -586,9 +590,22 @@ document.getElementById('forget').addEventListener('click', async (e) => {
   e.preventDefault();
   if (mine?.id && !mine.pending && !(await net.washHand(mine.id))) return (e.target.textContent = 'The map could not be reached: try again'); // keep it until the map lets go
   forgetHand(storage);
+  try { storage?.removeItem('pwc.chart.v1'); storage?.removeItem('pwc.pins.v1'); } catch {} // a wash takes charting and pins too (spec 8.5)
   location.reload();
 });
-if (mine) document.getElementById('forget').classList.remove('hidden');
+if (mine) for (const id of ['forget', 'export']) document.getElementById(id).classList.remove('hidden');
+// files you take home: your data (spec 8.5) and your postcard (spec 6.4)
+const download = (blob, name) => { const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: name }); document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); };
+const exportMine = () => { let charted = {}; try { charted = JSON.parse(storage?.getItem('pwc.chart.v1') ?? '{}'); } catch {} download(new Blob([exportData(mine, charted, pins.list())], { type: 'application/json' }), 'palm-whorl-cities-my-data.json'); };
+function postcard() {
+  const h = mine && hands.find((q) => q.id === mine.id);
+  if (!h) return panel.say('Lay your Hand first', 3);
+  const c = Object.assign(document.createElement('canvas'), { width: POSTCARD.w, height: POSTCARD.h }), pal = h.palette ?? 2;
+  drawPostcard(c.getContext('2d'), { name: h.name, palm: h.palm, handbits: h.data.handbits, names: placeNames[h.id] ?? {}, date: new Date(h.placed_at ?? Date.now()), tones: TONES.slice(pal * 3, pal * 3 + 3) });
+  c.toBlob((b) => b && download(b, `${h.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-postcard.png`), 'image/png');
+  panel.say('Your postcard is saved', 3);
+}
+document.getElementById('export').addEventListener('click', (e) => { e.preventDefault(); exportMine(); });
 
 // ---------- the loop ----------
 
