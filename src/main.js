@@ -264,9 +264,14 @@ scene.add(ink.mesh);
 // ---------- hands and head (read live for steering, never kept) ----------
 
 const handFactory = new XRHandModelFactory();
+// your hands are ink silhouettes (the hand models are lit standard materials; the Source's lights would turn them grey)
+const inkHands = [], INK_HAND = new THREE.MeshBasicMaterial({ color: 0x16100e });
+setInterval(() => { for (const m of inkHands) m.traverse((o) => { if (o.isMesh && o.material !== INK_HAND) o.material = INK_HAND; }); }, 1000);
 const xrHands = [0, 1].map((i) => {
   const hand = renderer.xr.getHand(i);
-  hand.add(handFactory.createHandModel(hand, 'mesh'));
+  const model = handFactory.createHandModel(hand, 'mesh');
+  hand.add(model);
+  inkHands.push(model);
   rig.add(hand);
   const h = { hand, handedness: i ? 'right' : 'left', frame: null, hold: createSteer(), engaged: false, store: Object.fromEntries(JOINTS.map((n) => [n, [0, 0, 0]])) };
   hand.addEventListener('connected', (e) => { h.handedness = e.data.handedness || h.handedness; });
@@ -604,7 +609,9 @@ function poke(mesh = atelier.mesh, down = (uv) => act(atelier.down(uv, flow)), m
   }
 }
 // a pinch: in the atelier it touches the card where you look; on the way to the merge it chooses the ghost you look at
+let pinchAt = -Infinity; // the last pinch: gaze + pinch and the palm hold must not fight over which ghost is chosen
 [0, 1].forEach((i) => renderer.xr.getController(i).addEventListener('select', () => {
+  pinchAt = performance.now();
   gazeRay();
   if (mode === 'atelier') { const uv = cardUV(); if (uv) { act(atelier.down(uv, flow)); act(atelier.up(flow)); } }
   else if (mode === 'atlas') { const uv = atlasUV(); if (uv) { atlasDo(atlas.down(uv)); atlasDo(atlas.up()); } }
@@ -760,13 +767,13 @@ function frame() {
     const h = xrHands.find((q) => q.handedness === 'right' && q.frame) ?? xrHands.find((q) => q.frame);
     if (renderer.xr.isPresenting && h) {
       const r = push.update(h.frame, dt, handFloor());
-      if (push.holding) {
+      if (push.holding && performance.now() - pinchAt > 3000) { // the palm chooses only when you are not pinching
         raycaster.ray.origin.fromArray(h.frame.center).applyMatrix4(rig.matrixWorld);
         raycaster.ray.direction.fromArray(h.frame.forward).applyQuaternion(rig.quaternion).normalize();
         const i = ghosts.aim(raycaster.ray.origin, raycaster.ray.direction);
         if (i >= 0 && i !== ghosts.selected) ghosts.select(i);
       }
-      if (r === 'push') choose(ghosts.selected);
+      if (r === 'push' && performance.now() - pinchAt > 3000) choose(ghosts.selected);
     }
   }
   if (rising) { // a laid Hand rises over 8 s once it has baked; the glider's floor rises with it

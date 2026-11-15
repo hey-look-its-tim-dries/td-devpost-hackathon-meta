@@ -25,9 +25,9 @@ The world starts as the **First Ten**: ten founding Hands lying in a ring around
 no other designed land. The world only grows when a player joins.
 
 - **Read your hand.** In your own room, in passthrough, a card floats in front of you next to your
-  real hand. You look at each fingertip and touch the pattern that matches (arch, tented arch, loop,
-  whorl, pocket loop, double loop). You trace your heart, head and life lines on a drawn palm, pick
-  a skin palette and get a name.
+  real hand. Read it by eye (look at each fingertip and touch the pattern that matches, trace your
+  heart, head and life lines on a drawn palm), or let your phone read it: it photographs your palm
+  and fingertips, reads the lines and patterns, deletes the photos and sends only the map DNA.
 - **Lay your Hand.** The game finds three places on the frontier where your Hand fits against the
   Hands already there, and shows them as ink outlines on the land. Choose one, and your Hand rises
   out of the wilderness over eight seconds, rivers first.
@@ -35,8 +35,16 @@ no other designed land. The world only grows when a player joins.
   up climbs, fingers down dives, and diving builds speed. Skim a ridge and you are flung forward.
 - **Scribbles.** Every fingerprint hatches a scribble, a single tapered ink line that knots above its
   Hand. Your own five follow your Hand once it has risen.
-- **Other players.** Whoever is in your room right now flies beside you as an ink creature, and a
-  Hand laid by anyone, anywhere, rises in your world while you watch.
+- **Chart the world.** Every handbit you have not seen is a parchment blank; fly low over it and the
+  ink spreads in. Chart all of a Hand and it is sealed with a red stamp.
+- **The atlas.** Turn your left palm up and the map of the whole world opens above it: every Hand,
+  its rivers and names, who is flying. Pin a place, fly there, name your handbits, be the first to
+  name a summit, give a handbit to the Community Hand, replay the world's history, print a postcard.
+- **Other players.** Up to 200 players share a room: their names float over their creatures, and when
+  you meet one your swarms braid for a moment. A Hand laid by anyone, anywhere, rises in your world
+  while you watch.
+- **The Community Hand.** At the Source, under the gilt spire, everyone builds one hand together, a
+  handbit each. When all 22 are given it is sealed, for everyone, and the next one begins.
 
 There is nothing to fail, no timer and no score. Your Hand stays where you laid it.
 
@@ -58,6 +66,19 @@ There is nothing to fail, no timer and no score. Your Hand stays where you laid 
 | ![Six skin palettes, a generated name and the Lay my Hand button](docs/screenshots/05-palette.jpg) | ![A large ink outline of a hand lying on the land, with labels naming its neighbours](docs/screenshots/06-ghosts.jpg) |
 | A palette and a name | Three places where your Hand fits |
 
+### The atlas and the shared world
+
+| | |
+| --- | --- |
+| ![The palm atlas: a parchment map of the ring of Hands with an inspector for Saelo, Pin it and Fly here](docs/screenshots/09-atlas.jpg) | ![Flying low over a Hand: a handbit inking in, with the place card naming it](docs/screenshots/10-charting.jpg) |
+| The atlas: inspect, pin, fly there | Charting: fly low and the ink spreads in |
+| ![The Community tab: a gilt hand with one slot given](docs/screenshots/11-community.jpg) | ![Another player's ink creature braiding with yours](docs/screenshots/14-meeting.jpg) |
+| The Community Hand, a handbit each | Meet someone and your swarms braid |
+| ![A printed postcard of a Hand with its rivers, handbit names, compass and a dated stamp](docs/screenshots/12-postcard.jpg) | ![The phone page showing heart, head and life lines read from a palm photo](docs/screenshots/13-phone.jpg) |
+| Your postcard | Your phone reads your palm lines |
+| ![The Source: a gilt spire in the blue Source lake](docs/screenshots/15-source.jpg) | ![The Whorl skimming a river canyon](docs/screenshots/07-rivers.jpg) |
+| The Source, made in Blender | Every palm line is a river |
+
 ### In the headset
 
 Seen through Meta's Quest 3 emulator (IWER). The card at the bottom of your view shows what your
@@ -75,6 +96,9 @@ Everything works with hands alone. Every action also has an easier alternative.
 | Trace a palm line | Drag your fingertip over the drawn palm | "Use the dotted guide" or "Use a typical palm" |
 | Choose where your Hand goes | Look at an outline and pinch; pinch again to lay it | Keys 1 2 3 and Enter |
 | Steer | Raise a relaxed open hand and point: your fingers are the arrow | Turn your head, or A D W S |
+| Lay your Hand | Palm down over an outline holds it; press 8 cm lower to lay it | Look and pinch twice |
+| Open the atlas | Turn your left palm up; it follows your palm, turn it down to close | M |
+| Use the atlas | Touch it with your right fingertip, drag to pan | Look and pinch; mouse and wheel |
 
 Quest hand tracking is steadiest at the wrist and knuckles, so steering reads the direction from
 wrist to middle knuckle, never the fingertips. A hand only steers when it is raised, open and held
@@ -86,16 +110,18 @@ hand tracking (MediaPipe, on the device).
 
 Palms and fingerprints are biometric data, so the game is built so it never needs yours:
 
-- You read your hand **by eye**. No camera looks at it. The game learns the pattern class you chose
-  for each finger and the lines you drew.
+- You read your hand **by eye** (no camera at all), or your **phone** reads it: the photos are read in
+  the phone's browser and never leave it. Only the lines and patterns it found go on, shuffled by one
+  step each. The camera route is 16 and over; anyone can read by eye.
 - What is kept is map DNA: 44 bytes per fingertip and about 80 bytes for a palm. The print hills are
   regrown from the class and a fresh random seed, so real minutiae, the details that identify a
   person, never exist anywhere in the game.
 - Skin colour is a palette you choose. It is never measured.
 - Hand tracking is used live for interaction only. Nothing measured from your hand is stored, sent or
   used to shape a land, as Meta's hand-data policy requires.
-- The shared map stores the DNA, where the Hand lies, its name, and the hash of a random device
-  token. "Forget my Hand" removes it from the map and from the device.
+- The shared map stores the DNA, where the Hand lies, its name, the names you give places, your gift
+  to the Community Hand, and the hash of a random device token. "Export my data" downloads all of it;
+  "Forget my Hand" removes it from the map and from the device, with your charting and pins.
 
 ## Components and tech
 
@@ -110,7 +136,12 @@ Palms and fingerprints are biometric data, so the game is built so it never need
 | Gestures | Palm frame, the raised-open-hand check, steering by pointing, the gesture card | [src/gesture.js](src/gesture.js), [src/gesturecard.js](src/gesturecard.js) |
 | Flight | Glider physics: dives build speed, skimming gives a boost | [src/glide.js](src/glide.js) |
 | Ink | The Whorl, the scribbles and other players, all ribbons in one draw call | [src/creature.js](src/creature.js), [src/scribble.js](src/scribble.js), [src/ink.js](src/ink.js) |
-| Shared map | A Cloudflare Worker: one World (D1, one lay at a time, overlaps refused) and live Rooms of up to 200 players | [server/](server/), [src/net.js](src/net.js) |
+| Shared map | A Cloudflare Worker: one World (D1, one lay at a time, overlaps refused; names, the Community Hand, the journal, watersheds, the pairing relay) and live Rooms of up to 200 players (poses, names) | [server/](server/), [src/net.js](src/net.js) |
+| Charting and the HUD | Which handbit lies under you, charting and seals, a compass ribbon and place card | [src/world/where.js](src/world/where.js), [src/world/chart.js](src/world/chart.js), [src/hud.js](src/hud.js) |
+| The atlas | A cartographer's map of the world on a card that follows your palm; pins, Fly here, naming, the journal, postcards | [src/atlas/](src/atlas/), [src/autopilot.js](src/autopilot.js), [src/postcard.js](src/postcard.js) |
+| Players together | Name tags, the greeting braid, the Community Hand | [src/labels.js](src/labels.js), [src/braid.js](src/braid.js), [src/community-art.js](src/community-art.js) |
+| The phone | Palm lines from a valley map and a best path near each template line; print classes from the ridge orientation field; pairing | [phone.html](phone.html), [src/phone/](src/phone/) |
+| The Source | A gilt spire built by a Blender script, exported as glTF | [tools/blender/source.py](tools/blender/source.py), [src/world/props.js](src/world/props.js) |
 
 No build step and no asset files: plain HTML and ES modules, served as they are.
 
@@ -134,7 +165,18 @@ python3 serve.py
 
 Open http://localhost:8130/ and choose **Preview in the browser**. Click the card to read your hand,
 press 1, 2 or 3 and Enter to lay it, then steer with A D (turn) and W S (climb and dive); drag to
-look around. **Use my webcam as hands** steers with your real hand instead.
+look around. **M** opens the atlas. **Use my webcam as hands** steers with your real hand instead.
+
+### The phone companion
+
+On the card in the headset choose **Use my phone**, then scan the QR code (or open
+`phone.html` and type the six-letter code). The phone page needs the shared map.
+
+### Rebuild the Source in Blender
+
+```bash
+blender -b -P tools/blender/source.py -- assets/source.glb
+```
 
 ### Try the headset flow without a headset
 
@@ -163,6 +205,8 @@ the next time the map can be reached. To deploy: `npx wrangler login`,
 ```bash
 node --test tests/*.test.mjs   # the server tests run when a server answers on :8787 (SERVER=1 starts one)
 node tests/m3.mjs              # two browsers on one map: needs serve.py on :8130 and the server on :8787
+node tests/phone.mjs           # the phone companion end to end, on generated images: same servers
+node tools/film.mjs            # records the demo film in the emulator (media/), with a second player
 ```
 
 ### Handy URL parameters
@@ -174,7 +218,10 @@ node tests/m3.mjs              # two browsers on one map: needs serve.py on :813
 | `?auto` | A slow circle with nobody steering (`?auto=dive` dives), for screenshots |
 | `?at=0,600,7000&pitch=-0.3` | Start somewhere else, looking up or down |
 | `?api=http://localhost:8787` | Use this server for the shared map |
-| `?emulate` | Quest 3 emulation with IWER (`&device=glasses` for the Meta VR Glasses, `&nodevui` hides its panel) |
+| `?emulate` | Quest 3 emulation with IWER (`&device=glasses` for the Meta VR Glasses, `&nodevui` hides its panel, `&room=` another scanned room) |
+| `?go=<handId>.<code>` | Open flying to a place (the atlas's addresses) |
+| `?calm` | Reduced motion: no braiding |
+| `?perf` | Frame rate, draw calls and terrain patches in a corner |
 
 ## Competition fit
 
@@ -182,12 +229,12 @@ node tests/m3.mjs              # two browsers on one map: needs serve.py on :813
 - **Hands first:** the whole game runs without ever pairing a controller.
 - **Purposeful passthrough:** you read your hand in your own room, with your real hand next to its
   map. Comparing the two is the point of that step. The world itself is immersive.
-- **Headset only:** no phone, no camera and no account are needed.
+- **Headset only:** no phone, no camera and no account are needed; the phone is an optional extra.
+- **Multiplayer:** live rooms of up to 200, names, the greeting, a shared world map and a Community Hand.
 - **Boldest original concept:** a world map made of nothing but its players' hands.
 
 ## What's next
 
-- An optional phone page that reads your real palm lines and print classes, deletes the photo, and
-  sends only the map DNA
-- An atlas you open on your own palm: chart handbits, follow a river to its neighbours
 - Walking a print hill at human scale, along the furrows between its ridges
+- The headset's own cameras as a third way to read a palm, where the Quest Browser allows it
+- Sound again, made for the shared world: every confluence and seal a chord

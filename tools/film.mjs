@@ -20,7 +20,9 @@ const friend = await (await browser.createBrowserContext()).newPage();
 await friend.setViewport({ width: 640, height: 360 });
 await friend.goto('http://localhost:8130/', { waitUntil: 'load' });
 await friend.evaluate(async () => { const F = await import('/src/world/founders.js'), M = await import('/src/world/mine.js'); const f = F.founders()[6]; M.saveHand(localStorage, { palm: f.palm, prints: f.prints, pose: { x: -9000, z: 21000, rot: 2.6, mirror: false }, name: 'Oruvel', pending: true }); });
-await friend.goto(`http://localhost:8130/?play&auto&api=${API}&at=400,420,3600`, { waitUntil: 'load' });
+await friend.goto(`http://localhost:8130/?play&api=${API}&at=300,330,4300`, { waitUntil: 'load' });
+await friend.waitForFunction(() => window.__pwc && __pwc.state.started && __pwc.state.hands >= 10, { timeout: 60000 });
+await friend.keyboard.press('m'); // their atlas is open, so they hover where you will find them
 const page = await (await browser.createBrowserContext()).newPage();
 await page.setViewport({ width: W, height: H, deviceScaleFactor: 1 });
 page.on('pageerror', (e) => console.log('PAGEERROR', e.message));
@@ -226,11 +228,12 @@ await caption(null);
 await film(() => { __film.palmUp(false); __film.lookAhead(-0.12); });
 await until((s) => s.mode === 'fly', 'atlas closed', 6000);
 await caption('Other players fly beside you.');
-await film(() => __film.fly([() => __film.friend(), [0, 600, 0], [0, 800, -2500]]));
-for (let i = 0; i < 40 && !(await film(() => window.__pwc.state.braid)); i++) await wait(500);
+await film(() => __film.fly([() => __film.friend()])); // chase them until the swarms meet
+for (let i = 0; i < 60 && !(await film(() => window.__pwc.state.braid)); i++) await wait(500);
 log(`braid ${JSON.stringify(await film(() => window.__pwc.state.braid))}`);
 await caption('Meet one, and your swarms braid: that is the greeting.');
 await wait(6000);
+await film(() => __film.fly([[0, 600, 1200], [0, 700, -2500]]));
 await caption('At the Source, everyone builds the Community Hand together.');
 await film(() => { __film.T.lookRate = 1.2; __film.T.look = () => window.__pwc.space.toRig(0, 120, 0); });
 await wait(9000);
