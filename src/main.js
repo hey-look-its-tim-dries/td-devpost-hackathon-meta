@@ -487,12 +487,36 @@ const raycaster = new THREE.Raycaster(), ndc = new THREE.Vector2(), tipW = new T
 function openAtelier() {
   if (mode !== 'fly' || mine) return;
   flow = createFlow(Math.floor(Math.random() * 2 ** 32));
+  atelier.setRoute(online ? { kind: 'choose' } : null); // the phone route needs the map; offline it is read by eye
   atelier.open(headLocal, headQuat);
   atelier.paint(flow);
   mode = 'atelier';
 }
+// route A: a pairing code (and its QR) on the card, then the phone's DNA when it arrives (spec 7.1, 10)
+let pairing = null; // AbortController while waiting for the phone
+async function usePhone() {
+  atelier.setRoute({ kind: 'phone', code: null, qr: null });
+  atelier.paint(flow);
+  const r = await net.pair();
+  if (!r) { atelier.setRoute(null); atelier.paint(flow); return panel.say('The phone route needs the shared map: read by eye', 5); }
+  const url = new URL(`phone.html#${r.code}`, location.href).href + (params.get('api') ? `?api=${encodeURIComponent(params.get('api'))}` : '');
+  let qr = null;
+  try { const { default: qrcode } = await import('https://esm.sh/qrcode-generator@1.4.4'); const q = qrcode(0, 'M'); q.addData(url); q.make(); qr = Array.from({ length: q.getModuleCount() }, (_, i) => Array.from({ length: q.getModuleCount() }, (_, j) => q.isDark(i, j))); } catch {}
+  if (atelier.route?.kind !== 'phone') return;
+  atelier.setRoute({ kind: 'phone', code: r.code, qr });
+  atelier.paint(flow);
+  pairing = new AbortController();
+  const dna = await net.waitPair(r.code, { signal: pairing.signal });
+  pairing = null;
+  if (!dna || mode !== 'atelier' || atelier.route?.kind !== 'phone') return;
+  flow.fromPhone(dna);
+  atelier.setRoute(null);
+  atelier.paint(flow);
+  panel.say('Your phone read your hand: choose a palette', 5);
+}
 function act(a) {
   if (!a || mode !== 'atelier') return;
+  if (a.type === 'route') { pairing?.abort(); if (a.route === 'phone') usePhone(); else { atelier.setRoute(null); atelier.paint(flow); } return; }
   if (a.type === 'pick') flow.pick(a.cls);
   else if (a.type === 'notSure') flow.notSure();
   else if (a.type === 'traced') flow.traced(a.pts);
@@ -810,7 +834,7 @@ showStats();
 // read-only peek for tests and curious players
 window.__pwc = {
   get state() {
-    return { hands: hands.length, pos: glide.pos.map(Math.round), yaw: +glide.yaw.toFixed(2), fps: Math.round(fps), scribbles: knots.length + creature.strands, started, webcam: webcam ? webcam.update().map((q) => q.handedness) : null, steering: xrHands.some((q) => q.engaged), palm: xrHands.map((q) => q.frame && q.frame.normal.map((v) => +v.toFixed(2))), hand: xrHands.map((q) => q.frame && { point: q.frame.forward.map((v) => +v.toFixed(2)), open: +q.frame.extension.toFixed(2), height: +q.frame.center[1].toFixed(2) }), speed: Math.round(glide.speed), calls: renderer.info.render.calls, xr: renderer.xr.isPresenting, lod: surface.centre.map(Math.round), patches: surface.patches, mode, mine: mine?.name ?? null, braid: braiding, atlas: { tab: atlas.tab, selected: selected?.name ?? null }, online, others: others.count, pending: !!mine?.pending, room: roomState };
+    return { hands: hands.length, pos: glide.pos.map(Math.round), yaw: +glide.yaw.toFixed(2), fps: Math.round(fps), scribbles: knots.length + creature.strands, started, webcam: webcam ? webcam.update().map((q) => q.handedness) : null, steering: xrHands.some((q) => q.engaged), palm: xrHands.map((q) => q.frame && q.frame.normal.map((v) => +v.toFixed(2))), hand: xrHands.map((q) => q.frame && { point: q.frame.forward.map((v) => +v.toFixed(2)), open: +q.frame.extension.toFixed(2), height: +q.frame.center[1].toFixed(2) }), speed: Math.round(glide.speed), calls: renderer.info.render.calls, xr: renderer.xr.isPresenting, lod: surface.centre.map(Math.round), patches: surface.patches, mode, mine: mine?.name ?? null, braid: braiding, atlas: { tab: atlas.tab, selected: selected?.name ?? null }, pairCode: atelier.route?.code ?? null, flowStep: flow?.step ?? null, online, others: others.count, pending: !!mine?.pending, room: roomState };
   },
   atelier: { act: (a) => act(a), get flow() { return flow; }, choose: (i) => choose(i) },
   // where things are in your own space (the rig's), for the film script (tools/film.mjs)

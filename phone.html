@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Palm Whorl Cities · phone</title>
+    <link rel="icon" href="data:," />
+    <style>
+      :root { --ink: #16100e; --paper: #f3e4d2; --seal: #b8442e; --muted: rgba(22, 16, 14, 0.7); }
+      * { box-sizing: border-box; }
+      body { margin: 0; min-height: 100vh; background: var(--paper); color: var(--ink); font: 17px/1.5 Inter, 'Segoe UI', system-ui, sans-serif; }
+      main { max-width: 560px; margin: 0 auto; padding: 24px 16px 48px; }
+      .eyebrow { color: var(--seal); font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; font-size: 13px; margin: 0; }
+      h1 { font: 600 34px/1.1 Georgia, 'Times New Roman', serif; margin: 6px 0 12px; }
+      p { margin: 10px 0; color: var(--muted); }
+      button, label.button { display: block; width: 100%; margin: 14px 0 0; padding: 15px 18px; border-radius: 999px; border: 2px solid var(--ink); background: var(--paper); color: var(--ink); font: 700 16px Inter, system-ui, sans-serif; letter-spacing: 0.04em; text-align: center; cursor: pointer; }
+      .primary { background: var(--seal); border-color: var(--seal); color: #fbf3e6; }
+      input[type='file'] { display: none; }
+      canvas { width: 100%; border-radius: 14px; border: 2px solid var(--ink); background: #fff; touch-action: none; }
+      .row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+      .row button { flex: 1 1 30%; margin: 0; padding: 10px 6px; font-size: 14px; }
+      .row button.on { background: var(--ink); color: var(--paper); }
+      .glyphs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
+      .glyphs button { margin: 0; padding: 8px; border-radius: 14px; font: 600 13px Georgia, serif; }
+      .glyphs button.on { border-color: var(--seal); border-width: 4px; }
+      .glyphs canvas { border: none; background: none; }
+      .code { font: 700 28px Inter, system-ui, sans-serif; letter-spacing: 0.3em; width: 100%; padding: 12px; text-align: center; border: 2px solid var(--ink); border-radius: 14px; background: #fff; text-transform: uppercase; }
+      .hidden { display: none; }
+      .small { font-size: 14px; }
+    </style>
+  </head>
+  <body>
+    <main id="app"></main>
+    <script type="module" src="./src/phone/main.js"></script>
+  </body>
+</html>

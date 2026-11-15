@@ -34,7 +34,7 @@ export function createAtelierPanel() {
   const glyphs = Object.fromEntries(PICKS.map((cls, i) => [cls, glyph(cls, 150, 186, i + 3)]));
   const view = palmView(DRAW.x, DRAW.y, DRAW.w, DRAW.h);
   const g = canvas.getContext('2d');
-  let regions = [], stroke = null, warn = false;
+  let regions = [], stroke = null, warn = false, route = null; // route: the first card, { kind: 'choose' } or { kind: 'phone', code, qr, status }
 
   const button = (id, x, y, w, h, text, primary = false) => {
     g.fillStyle = primary ? SEAL : PAPER;
@@ -111,7 +111,30 @@ export function createAtelierPanel() {
     g.strokeStyle = INK;
     g.lineWidth = 4;
     g.stroke();
-    if (flow.step === 'prints') {
+    if (route?.kind === 'choose') { // spec 11.3 step 3: the ways in, each saying what is kept; choosing one is the consent
+      header('Your Hand', 'How shall we read your hand?', 'Either way, only a coarse map DNA is kept. Never a photo.');
+      const card = (id, x, title, lines, primary) => {
+        g.fillStyle = primary ? '#fbf3e6' : PAPER; g.strokeStyle = primary ? SEAL : INK; g.lineWidth = primary ? 5 : 3;
+        g.beginPath(); g.roundRect(x, 200, 540, 560, 30); g.fill(); g.stroke();
+        g.fillStyle = INK; g.textAlign = 'left'; g.textBaseline = 'alphabetic'; g.font = `600 52px ${SERIF}`; g.fillText(title, x + 40, 290);
+        g.font = `400 30px ${SANS}`; g.fillStyle = 'rgba(22,16,14,0.75)';
+        lines.forEach((t, i) => g.fillText(t, x + 40, 360 + i * 46, 470));
+        regions.push({ id, x, y: 200, w: 540, h: 560 });
+      };
+      card('route:eye', 40, 'Read by eye', ['Look at your own fingertips', 'and touch the matching pattern.', 'Trace your palm lines.', '', 'Kept: the patterns you chose', 'and the lines you drew.', 'For everyone, any age.'], true);
+      card('route:phone', 620, 'Use my phone', ['Your phone photographs your', 'palm and fingertips, reads', 'them, and deletes the photos.', '', 'Kept: the shuffled lines and', 'patterns it read. 16 and over.', 'Needs the shared map.'], false);
+    } else if (route?.kind === 'phone') {
+      header('Your Hand · phone', route.code ? `Open the code on your phone: ${route.code}` : 'Asking the map for a code…', route.status ?? 'Scan the code, or open the game\'s phone page and type the code.');
+      if (route.qr) { // the QR code, ink on paper
+        const n = route.qr.length, s = Math.floor(520 / n), x0 = 60, y0 = 210;
+        g.fillStyle = '#fff'; g.fillRect(x0 - 20, y0 - 20, n * s + 40, n * s + 40);
+        g.fillStyle = INK;
+        for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (route.qr[r][c]) g.fillRect(x0 + c * s, y0 + r * s, s, s);
+      }
+      if (route.code) { g.fillStyle = INK; g.font = `700 110px ${SANS}`; g.textAlign = 'left'; g.textBaseline = 'alphabetic'; g.letterSpacing = '12px'; g.fillText(route.code, 660, 420); g.letterSpacing = '0px'; }
+      g.font = `400 30px ${SANS}`; g.fillStyle = 'rgba(22,16,14,0.7)'; g.fillText('Waiting for your phone…', 660, 500);
+      button('route:eye', 660, 700, 480, 90, 'Read by eye instead');
+    } else if (flow.step === 'prints') {
       header('1 of 3 · your prints', `Which pattern is on your ${FINGER_NAMES[flow.finger]}?`, 'Look at the fingertip, then touch the pattern that matches.');
       FINGER_NAMES.forEach((n, k) => { // the five fingers as chips: done, now, to come
         const x = 40 + k * 120, done = k < flow.finger, now = k === flow.finger;
@@ -180,6 +203,7 @@ export function createAtelierPanel() {
     const [type, arg] = id.split(':');
     if (type === 'pick') return { type, cls: arg };
     if (type === 'palette') return { type, i: +arg };
+    if (type === 'route') return { type, route: arg };
     return { type };
   };
 
@@ -196,7 +220,9 @@ export function createAtelierPanel() {
       mesh.lookAt(mesh.parent.localToWorld(headLocal.clone()));
       mesh.visible = true;
     },
-    close() { mesh.visible = false; stroke = null; },
+    close() { mesh.visible = false; stroke = null; route = null; },
+    setRoute(r) { route = r; },
+    get route() { return route; },
     paint,
     down(uv, flow) {
       const p = px(uv), id = regionAt(p);

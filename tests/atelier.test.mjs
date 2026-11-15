@@ -67,3 +67,23 @@ test('"not sure" picks each finger\'s most common pattern, everyone has a heart 
   assert.equal(f.step, 'palette');
   assert.deepEqual(f.lines.map((l) => l.kind), ['heart', 'head', 'life', 'fate']);
 });
+
+test('from the phone: its lines and prints, straight to palette and name; the DNA is the phone\'s', async () => {
+  const { packPalm, packPrint, synthPrint, unpackPalm, unpackPrint } = await import('../src/hand/dna.js');
+  const { templatePalm } = await import('../src/hand/shape.js');
+  const palm = packPalm(templatePalm({ seed: 21, fate: false, palette: 0 }));
+  const prints = ['whorl', 'ulnar', 'radial', 'arch', 'double'].map((c, i) => packPrint({ ...synthPrint(i, c, 5 + i), scanned: true }));
+  const f = createFlow(9);
+  f.fromPhone({ palm, prints, name: 'Phoned' });
+  assert.equal(f.step, 'palette');
+  assert.deepEqual(f.prints, ['whorl', 'ulnar', 'radial', 'arch', 'double']);
+  assert.equal(f.lines.length, 3);
+  assert.equal(f.name, 'Phoned');
+  f.choosePalette(4);
+  f.done();
+  const dna = f.dna();
+  assert.deepEqual(unpackPalm(dna.palm).lines.map((l) => l.kind), ['heart', 'head', 'life']);
+  assert.equal(unpackPalm(dna.palm).palette, 4, 'the palette chosen in the headset');
+  assert.deepEqual(dna.prints.map((p) => [...p]), prints.map((p) => [...p]), 'the phone\'s prints as they came');
+  assert.equal(unpackPrint(dna.prints[0]).scanned, true);
+});
