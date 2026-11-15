@@ -39,7 +39,8 @@ import { slotFor } from './world/community.js';
 import { journalText, watersheds, when } from './journal.js';
 import { drawPostcard, POSTCARD, exportData } from './postcard.js';
 import { TONES } from './world/scene.js';
-import { steerTo } from './autopilot.js';
+import { steerTo, whoSteers } from './autopilot.js';
+import { forgetGone } from './world/tidy.js';
 import { createOthers } from './others.js';
 
 // Palm Whorl Cities, first milestone: the First Ten. Ten founding hands lie in a ring around the
@@ -167,9 +168,8 @@ function removeHand(id) {
   const i = hands.findIndex((h) => h.id === id);
   if (i < 0) return;
   surface.setRise(hands[i].layer, 0);
-  chart.forget(id);
-  pins.prune(new Set(hands.map((h) => h.id)));
   hands.splice(i, 1);
+  forgetGone([...hands.map((h) => h.id), mine?.id].filter(Boolean), chart, pins); // its charting and pins leave with it
   for (let k = knots.length - 1; k >= 0; k--) if (knots[k].hand === id) knots.splice(k, 1);
 }
 // a Hand laid while offline (or before the map existed) is sent when the map can be reached: laid, moved to a fresh
@@ -187,7 +187,8 @@ net.fetchWorld().then(({ hands: list, online: ok }) => {
   online = ok;
   for (const h of list) if (h.id !== mine?.id) bake(h);
   if (mine) { if (ok && (!mine.id || mine.pending)) retryLay(); else bake(mine); }
-  if (ok) refreshNames();
+  if (ok) { refreshNames(); forgetGone([...list.map((h) => h.id), mine?.id].filter(Boolean), chart, pins); } // Hands washed while you were away
+
   if (ok) roomLink = net.openRoom({ name: mine?.name ?? null, onHello: (id) => (me = id), onNames: (m) => others.setNames(m), onSnapshot: (s) => others.apply(s, me, glide.pos), onLaid: applyLaid, onLeft: removeHand, onState: (st) => (roomState = st), onCommunity: (m) => { if (m.donated) community.add(m.donated); if (m.sealed) { stamp(`Community Hand ${m.sealed}`, 'all 22 handbits given · the next one begins'); net.community().then((c) => community.set(c)); } } });
   else panel.say('Playing alone: the map could not be reached', 6);
 });
@@ -210,22 +211,40 @@ function charting() {
 }
 const braid = createBraid(), braidList = [], CALM = params.has('calm'); // the greeting; ?calm: reduced motion, no braiding
 let braiding = null; // { id, k } while two swarms braid
+let braidN = 0;
+const braidPool = [];
+function braidOne(c, id, pos) { const e = (braidPool[braidN] ??= {}); e.id = id; e.pos = pos; e.c = c; braidList[braidN++] = e; }
 const tags = new Map(); // id -> name tag over that player
 const greeted = new Set(); // players you have been told about
 const eyeW = new THREE.Vector3();
-function updateTags() {
-  camera.getWorldPosition(eyeW);
-  const seen = new Set();
-  others.each((c, id, pos) => {
-    seen.add(id);
+const seenTags = new Set();
+function tagOne(c, id, pos) {
+    seenTags.add(id);
     let t = tags.get(id);
     if (!t) { t = createLabel(); scene.add(t.sprite); tags.set(id, t); }
     const name = others.nameOf(id);
     t.set(name ?? 'a traveller');
     t.update(pos, eyeW);
     if (started && mode === 'fly' && !greeted.has(id)) { greeted.add(id); panel.say(`${name ?? 'A traveller'} joined your sky`, 4); }
-  });
-  for (const [id, t] of tags) if (!seen.has(id)) { scene.remove(t.sprite); t.dispose(); tags.delete(id); greeted.delete(id); }
+}
+let hudTick = 1, hudState = null;
+function hudContents() {
+  // the HUD: where you are, and which way things lie
+  const marks = [{ label: 'Source', x: 0, z: 0, color: '#2f5d7c' }];
+  if (mine?.pose) { const [mx, mz] = toWorld(mine.pose, 0, 230); marks.push({ label: mine.name, x: mx, z: mz }); }
+  for (const pin of pins.list()) marks.push({ ...pin, color: '#c9a35a' });
+  if (flyTo) marks.push({ label: flyTo.label, x: flyTo.x, z: flyTo.z, color: '#b8442e' });
+  let near = null, nd = Infinity;
+  others.each((c, id, pos) => { const d = Math.hypot(pos[0] - glide.pos[0], pos[2] - glide.pos[2]); if (d < nd) { nd = d; near = { label: others.nameOf(id) ?? 'traveller', x: pos[0], z: pos[2], color: '#16100e' }; } });
+  if (near) marks.push(near);
+  const pl = place && !place.handbit ? { code: 'WATER', name: 'on the rivers', hand: place.hand.name, owner: !place.hand.founder, charted: true, count: chart.count(place.hand.id), total: place.hand.data.handbits.length } : place && { code: place.handbit.code, name: summitOf(place.hand, place.handbit) ?? nameOf(place.hand, place.handbit), hand: place.hand.name, owner: !place.hand.founder, charted: chart.has(place.hand.id, place.index), count: chart.count(place.hand.id), total: place.hand.data.handbits.length };
+  return { show: false, yaw: glide.yaw, pos: glide.pos, altitude: glide.pos[1] - groundAt(glide.pos[0], glide.pos[2]), place: pl, markers: marks, active: false };
+}
+function updateTags() { // no allocation per frame: one set, one callback
+  camera.getWorldPosition(eyeW);
+  seenTags.clear();
+  others.each(tagOne);
+  for (const [id, t] of tags) if (!seenTags.has(id)) { scene.remove(t.sprite); t.dispose(); tags.delete(id); greeted.delete(id); }
 }
 
 // height of the world at (x, z), for flight clearance (the GPU surface follows the same rule)
@@ -344,6 +363,7 @@ function atlasDo(a) {
   if (a.type === 'close') return closeAtlas();
   if (a.type === 'tab') atlas.setTab(a.tab);
   else if (a.type === 'layer') atlas.toggle(a.layer);
+  else if (a.type === 'zoom') atlas.zoom(a.dir === 'in' ? 1.6 : 1 / 1.6);
   else if (a.type === 'timeline') { const tl = timelineOf(); if (tl) timelineAt = a.k >= 0.999 ? Infinity : tl.from + Math.max(0, a.k) * (tl.to - tl.from); }
   else if (a.type === 'pick') { inspectAt = whereAt(hands, a.x, a.z); selected = inspectAt?.hand ?? null; }
   else if (a.type === 'handbit' && mine?.id && online) { const hb = hands.find((h) => h.id === mine.id)?.data.handbits[a.index]; if (hb) { const seed = (Math.random() * 2 ** 31) | 0; pickName = { handId: mine.id, feature: hb.code, code: hb.code, seed, name: placeName(seed, hb.code) }; } }
@@ -463,19 +483,13 @@ let started = false;
 function steering() {
   // the title screen is the world, drifting; ?auto=dive dives, for screenshots
   if (AUTO || !started) return { turn: 0.12, climb: params.get('auto') === 'dive' ? -0.8 : 0 };
-  if (renderer.xr.isPresenting || webcam) {
-    const h = xrHands.find((q) => q.engaged); // your fingers are the arrow
-    if (h) return pointSteer(h.frame.forward);
-    if (renderer.xr.isPresenting) {
-      headNeutral ||= headQuat.toArray();
-      return { turn: 0.6 * headSteer(headNeutral, headQuat.toArray()), climb: 0 };
-    }
-  }
-  if (flyTo) { // Fly here, until you arrive or steer yourself
-    if (keys.size || xrHands.some((q) => q.engaged)) flyTo = null;
-    else if (Math.hypot(flyTo.x - glide.pos[0], flyTo.z - glide.pos[2]) < 400) { panel.say(`Over ${flyTo.label}`, 4); flyTo = null; }
-    else return steerTo(glide, [flyTo.x, 0, flyTo.z], groundAt);
-  }
+  const h = (renderer.xr.isPresenting || webcam) && xrHands.find((q) => q.engaged); // your fingers are the arrow
+  if (flyTo && Math.hypot(flyTo.x - glide.pos[0], flyTo.z - glide.pos[2]) < 400) { panel.say(`Over ${flyTo.label}`, 4); flyTo = null; }
+  const who = whoSteers({ flyTo: !!flyTo, engaged: !!h, keys: keys.size > 0, xr: renderer.xr.isPresenting });
+  if (who !== 'auto') flyTo = null; // steering yourself takes over from Fly here, in the headset and on a screen
+  if (who === 'hand') return pointSteer(h.frame.forward);
+  if (who === 'auto') return steerTo(glide, [flyTo.x, 0, flyTo.z], groundAt);
+  if (who === 'head') { headNeutral ||= headQuat.toArray(); return { turn: 0.6 * headSteer(headNeutral, headQuat.toArray()), climb: 0 }; }
   const k = (a, b) => (keys.has(a) || keys.has(b) ? 1 : 0);
   return { turn: k('d', 'arrowright') - k('a', 'arrowleft'), climb: k('w', 'arrowup') - k('s', 'arrowdown') };
 }
@@ -681,21 +695,14 @@ function frame() {
   creature.update(dt, glide.pos, { speed: 70 + 200 * rush(), pitch: glide.pitch, turn: steer.turn }); // the creature's own scale: 70 calm .. 270 a spear
   others.update(dt);
   updateTags();
-  charting();
   seal.update(dt);
-  // the HUD: where you are, and which way things lie
-  const marks = [{ label: 'Source', x: 0, z: 0, color: '#2f5d7c' }];
-  if (mine?.pose) { const [mx, mz] = toWorld(mine.pose, 0, 230); marks.push({ label: mine.name, x: mx, z: mz }); }
-  for (const pin of pins.list()) marks.push({ ...pin, color: '#c9a35a' });
-  if (flyTo) marks.push({ label: flyTo.label, x: flyTo.x, z: flyTo.z, color: '#b8442e' });
-  let near = null, nd = Infinity;
-  others.each((c, id, pos) => { const d = Math.hypot(pos[0] - glide.pos[0], pos[2] - glide.pos[2]); if (d < nd) { nd = d; near = { label: others.nameOf(id) ?? 'traveller', x: pos[0], z: pos[2], color: '#16100e' }; } });
-  if (near) marks.push(near);
-  const pl = place && !place.handbit ? { code: 'WATER', name: 'on the rivers', hand: place.hand.name, owner: !place.hand.founder, charted: true, count: chart.count(place.hand.id), total: place.hand.data.handbits.length } : place && { code: place.handbit.code, name: summitOf(place.hand, place.handbit) ?? nameOf(place.hand, place.handbit), hand: place.hand.name, owner: !place.hand.founder, charted: chart.has(place.hand.id, place.index), count: chart.count(place.hand.id), total: place.hand.data.handbits.length };
-  hud.update(dt, { show: started && mode === 'fly', yaw: glide.yaw, pos: glide.pos, altitude: glide.pos[1] - groundAt(glide.pos[0], glide.pos[2]), place: pl, markers: marks, active: Math.abs(want.turn) + Math.abs(want.climb) > 0.1 || !!braiding });
+  // charting and the HUD's contents ten times a second (the HUD still fades every frame)
+  if ((hudTick += dt) >= 0.1) { hudTick = 0; charting(); hudState = hudContents(); }
+  if (hudState) { hudState.show = started && mode === 'fly'; hudState.yaw = glide.yaw; hudState.active = Math.abs(want.turn) + Math.abs(want.climb) > 0.1 || !!braiding; hud.update(dt, hudState); }
   // the greeting: near another player your swarms braid for a few seconds
-  braidList.length = 0;
-  others.each((c, id, pos) => braidList.push({ id, pos, c }));
+  braidN = 0;
+  others.each(braidOne);
+  braidList.length = braidN;
   const b = started && mode === 'fly' ? braid.update(dt, glide.pos, braidList) : null;
   if (b && b.id !== braiding?.id) panel.say(`You met ${others.nameOf(b.id) ?? 'a traveller'}`, 4);
   braiding = b;

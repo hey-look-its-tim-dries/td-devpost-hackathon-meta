@@ -26,6 +26,7 @@ export function createChart(storage) {
     mask: (handId) => seen[handId]?.m ?? 0,
     fill(handId, total) { seen[handId] = { m: total >= 31 ? 0x7fffffff : (1 << total) - 1, n: total }; save(); },
     forget(handId) { delete seen[handId]; save(); },
+    ids: () => Object.keys(seen),
     sealedCount: () => Object.values(seen).filter((e) => bits(e.m) >= e.n).length,
   };
 }

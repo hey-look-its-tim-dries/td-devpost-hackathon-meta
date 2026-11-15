@@ -97,7 +97,9 @@ export class World extends DurableObject {
     const token = typeof body?.token === 'string' && /^[A-Za-z0-9_-]{32,64}$/.test(body.token) ? body.token : null;
     const hand = checkHand(body);
     if (!token || !hand) return Response.json({ error: 'not a Hand' }, { status: 400 });
-    if (hand.name && !cleanName(hand.name)) return Response.json({ error: 'that name is not available' }, { status: 400 });
+    const cleaned = cleanName(hand.name);
+    if (!cleaned) return Response.json({ error: 'that name is not available' }, { status: 400 });
+    hand.name = cleaned; // what is stored, served and drawn is the cleaned name (review finding 2)
     const tokenHash = await sha(token);
     const mine = await this.env.DB.prepare(`${SELECT} where p.token_hash = ?`).bind(tokenHash).first();
     if (mine) return Response.json(row(mine), { status: 409 }); // a retry, a lost answer, or a forgotten Hand: the one already there, whole
@@ -135,6 +137,11 @@ export class World extends DurableObject {
     const now = Date.now();
     for (const [k, v] of this.pairs) if (now - v.at > PAIR_TTL) this.pairs.delete(k);
     if (!code && req.method === 'POST') {
+      // at most 10 codes a minute from one address (review finding 6)
+      const ip = req.headers.get('CF-Connecting-IP') ?? 'local', mine = (this.pairsBy ??= new Map()).get(ip)?.filter((t) => now - t < 60000) ?? [];
+      if (mine.length >= 10) return Response.json({ error: 'too many codes: wait a minute' }, { status: 429 });
+      this.pairsBy.set(ip, [...mine, now]);
+      if (this.pairsBy.size > 10000) this.pairsBy.clear();
       if (this.pairs.size > 5000) return Response.json({ error: 'busy' }, { status: 503 });
       let c;
       do { c = Array.from(crypto.getRandomValues(new Uint8Array(6)), (b) => PAIR_ABC[b % PAIR_ABC.length]).join(''); } while (this.pairs.has(c));
@@ -199,8 +206,9 @@ export class World extends DurableObject {
     if (!hand) return Response.json({ error: 'no such Hand' }, { status: 404 });
     if (HANDBIT_FEATURE.test(feature)) {
       if (hand.player_id !== me.id) return Response.json({ error: 'only its owner names a handbit' }, { status: 403 });
+      const first = !(await this.env.DB.prepare('select 1 from place_name where hand_id = ? and feature = ?').bind(handId, feature).first());
       await this.env.DB.prepare('insert or replace into place_name (hand_id, feature, name, by_player, at) values (?, ?, ?, ?, ?)').bind(handId, feature, name, me.id, Date.now()).run();
-      await this.event('named', handId, { name, hand: (await this.env.DB.prepare('select p.name from hand h join player p on p.id = h.player_id where h.id = ?').bind(handId).first())?.name });
+      if (first) await this.event('named', handId, { name, hand: (await this.env.DB.prepare('select p.name from hand h join player p on p.id = h.player_id where h.id = ?').bind(handId).first())?.name });
     } else {
       const r = await this.env.DB.prepare('insert or ignore into place_name (hand_id, feature, name, by_player, at) values (?, ?, ?, ?, ?)').bind(handId, feature, name, me.id, Date.now()).run();
       if (!r.meta.changes) return Response.json({ error: 'already named' }, { status: 409 });
@@ -218,7 +226,9 @@ export class World extends DurableObject {
     if (!pid) return Response.json({ error: 'not yours' }, { status: 404 });
     await this.env.DB.batch([this.env.DB.prepare('delete from place_name where hand_id = ? or by_player = ?').bind(id, pid), this.env.DB.prepare('delete from community_slot where player_id = ?').bind(pid), this.env.DB.prepare('delete from confluence where hand_a = ? or hand_b = ?').bind(id, id), this.env.DB.prepare('delete from event where hand_id = ? and kind != ?').bind(id, 'sealed'), this.env.DB.prepare('delete from hand where player_id = ?').bind(pid), this.env.DB.prepare('delete from player where id = ?').bind(pid)]);
     this.cache = null;
-    await this.event('washed', null, { name: who.name ?? 'A Hand' }); // the journal keeps only that someone left
+    // the journal keeps only that someone left: their name goes from every line that carried it (spec 8.5, review finding 5)
+    if (who.name) await this.env.DB.prepare('update event set data = replace(data, ?, ?) where instr(data, ?) > 0').bind(JSON.stringify(who.name), JSON.stringify('a Hand that left'), JSON.stringify(who.name)).run();
+    await this.event('washed', null, { name: 'Someone' });
     this.ctx.waitUntil(this.tell({ left: id }));
     return new Response(null, { status: 204 });
   }

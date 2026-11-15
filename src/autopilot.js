@@ -10,3 +10,12 @@ export function steerTo(glide, [tx, , tz], groundAt, height = 300) {
   const floor = groundAt(glide.pos[0], glide.pos[2]);
   return { turn: clamp1(-diff * 2), climb: clamp1((floor + height - glide.pos[1]) / 150) };
 }
+
+// who steers this frame (review finding 3): an engaged hand always wins; then Fly here; then the keys on a
+// screen, the head in the headset
+export function whoSteers({ flyTo, engaged, keys, xr }) {
+  if (engaged) return 'hand';
+  if (keys) return 'keys';
+  if (flyTo) return 'auto';
+  return xr ? 'head' : 'keys';
+}

@@ -3,6 +3,7 @@
 // room's snapshots through a One Euro filter so 4 Hz looks like flight. Nearest `max` only. Pure.
 import { createCreature } from './creature.js';
 import { OneEuro } from './gesture.js';
+import { cleanName } from './world/names.js';
 
 export function createOthers({ max = 60 } = {}) {
   const live = new Map(); // id -> { creature, filter, pos, target, pitch, speed, missed }
@@ -32,7 +33,7 @@ export function createOthers({ max = 60 } = {}) {
       }
     },
     each(fn) { for (const [id, e] of live) fn(e.creature, id, e.pos); },
-    setNames(map) { for (const [id, n] of Object.entries(map)) names.set(+id, n); },
+    setNames(map) { for (const [id, n] of Object.entries(map)) { const c = cleanName(n); if (c) names.set(+id, c); } },
     nameOf(id) { return names.get(+id) ?? null; },
   };
 }

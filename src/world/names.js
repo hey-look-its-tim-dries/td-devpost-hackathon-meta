@@ -33,3 +33,7 @@ export function placeName(seed, feature) {
 }
 // the features a name can be given to: handbits (owners only) and fingertip summits (anyone, first come)
 export const HANDBIT_FEATURE = /^([TIMRL][123]|P[1-9]|P1[0-9])$/, SUMMIT_FEATURE = /^summit:[0-4]$/;
+
+// spec 8.5: in Illinois, Texas and Washington (strict biometric laws) the camera route is off at launch
+const STRICT = new Set(['IL', 'TX', 'WA']);
+export const cameraAllowed = (country, region) => !(country === 'US' && STRICT.has(region));

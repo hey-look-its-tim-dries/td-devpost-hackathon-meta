@@ -13,6 +13,7 @@ export function layout(tab) {
   if (tab === 'world') {
     LAYERS.forEach((l, i) => r.push({ id: `layer:${l}`, x: 36 + i * 150, y: MAP.y + 12, w: 138, h: 44 }));
     r.push({ id: 'map', ...MAP });
+    r.push({ id: 'zoom:in', x: MAP.x + MAP.w - 90, y: MAP.y + 90, w: 72, h: 72 }, { id: 'zoom:out', x: MAP.x + MAP.w - 90, y: MAP.y + 172, w: 72, h: 72 }); // zoom by touch (review finding 4)
   }
   return r;
 }
@@ -26,6 +27,7 @@ export function hitAt(regions, [x, y]) {
     if (type === 'tab') return { type, tab: arg };
     if (type === 'layer') return { type, layer: arg };
     if (type === 'map') return { type, x: x - q.x, y: y - q.y };
+    if (type === 'zoom') return { type, dir: arg };
     if (type === 'hand') return { type, id: arg };
     if (type === 'handbit') return { type, index: +arg };
     if (type === 'pin' || type === 'fly' || type === 'donate' || type === 'name' || type === 'unpin') return { type, arg, more };

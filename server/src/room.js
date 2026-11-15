@@ -11,7 +11,8 @@ const TICK = 250, STALE = 5000, FLOOD = 20; // ms, ms, messages per second
 export class Room extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
-    this.live = new Map(); // id -> { pose, at, count, second }
+    this.live = new Map(); // id -> { pose, at }
+    this.counts = new Map(); // id -> { n, second }: messages this second, for the flood guard
     this.timer = null;
     this.next = 1;
     for (const ws of ctx.getWebSockets()) { const a = ws.deserializeAttachment(); if (a) this.next = Math.max(this.next, a.id + 1); }
@@ -39,6 +40,10 @@ export class Room extends DurableObject {
   webSocketMessage(ws, msg) {
     const a = ws.deserializeAttachment();
     if (!a) return;
+    const now = Date.now(), second = Math.floor(now / 1000), c = this.counts.get(a.id) ?? { n: 0, second };
+    if (second !== c.second) { c.second = second; c.n = 0; }
+    this.counts.set(a.id, c);
+    if (++c.n > FLOOD) { this.live.delete(a.id); this.counts.delete(a.id); return ws.close(1008, 'too fast'); } // poses and names alike (review finding 6)
     if (typeof msg === 'string') { // { name }: once, or when it changes; everyone hears it
       if (msg.length > 200) return;
       let name = null;
@@ -48,9 +53,7 @@ export class Room extends DurableObject {
       return this.broadcast(JSON.stringify({ names: { [a.id]: name } }));
     }
     if (msg.byteLength !== POSE_BYTES) return;
-    const now = Date.now(), second = Math.floor(now / 1000), e = this.live.get(a.id) ?? { count: 0, second };
-    if (second !== e.second) { e.second = second; e.count = 0; }
-    if (++e.count > FLOOD) { this.live.delete(a.id); return ws.close(1008, 'too fast'); }
+    const e = this.live.get(a.id) ?? {};
     e.pose = decodePose(new Uint8Array(msg));
     e.at = now;
     this.live.set(a.id, e);
@@ -59,7 +62,7 @@ export class Room extends DurableObject {
 
   webSocketClose(ws) {
     const a = ws.deserializeAttachment();
-    if (a) this.live.delete(a.id);
+    if (a) { this.live.delete(a.id); this.counts.delete(a.id); }
     try { ws.close(); } catch {}
   }
   webSocketError(ws) { this.webSocketClose(ws); }

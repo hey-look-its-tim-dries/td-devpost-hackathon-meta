@@ -3,6 +3,7 @@
 // (Room Durable Objects). Nothing about a hand but its DNA, pose and name ever arrives here.
 export { World } from './world.js';
 export { Room } from './room.js';
+import { cameraAllowed } from '../../src/world/names.js';
 
 const REGIONS = ['eu', 'na', 'sa', 'as', 'af', 'oc'];
 const MAX_BODY = 8192;
@@ -27,12 +28,13 @@ export default {
     const passWorld = async (to) => {
       const text = req.method === 'GET' ? undefined : await req.text();
       if (text && text.length > MAX_BODY) return json(req, env, { error: 'too big' }, 413);
-      const r = await world.fetch(new Request(`https://world${to}`, { method: req.method, body: text }));
+      const r = await world.fetch(new Request(`https://world${to}`, { method: req.method, body: text, headers: { 'CF-Connecting-IP': req.headers.get('CF-Connecting-IP') ?? 'local' } }));
       return r.status === 204 ? new Response(null, { status: 204, headers: cors(req, env) }) : new Response(r.body, { status: r.status, headers: cors(req, env, { 'Content-Type': 'application/json' }) });
     };
     if (path === '/names' && (req.method === 'GET' || req.method === 'POST')) return passWorld('/names');
     if (path === '/community' && (req.method === 'GET' || req.method === 'POST')) return passWorld('/community');
     if ((path === '/events' || path === '/watersheds') && req.method === 'GET') return passWorld(path);
+    if (/^\/pair\/[A-Z2-9]{6}$/.test(path) && req.method === 'POST' && !cameraAllowed(req.cf?.country, req.cf?.regionCode)) return json(req, env, { error: 'The phone route is not available in your state yet: read your hand by eye in the headset.' }, 451); // spec 8.5
     if (/^\/pair(\/[A-Z2-9]{6})?$/.test(path) && (req.method === 'GET' || req.method === 'POST')) return passWorld(path);
     if (path === '/stats' && req.method === 'GET') {
       const r = await world.fetch(new Request('https://world/stats'));

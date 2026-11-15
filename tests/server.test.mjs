@@ -210,7 +210,8 @@ test('the journal: a lay and a wash are events, a lay that joins rivers records 
   }
   await wash(id, tok);
   const ev2 = (await (await fetch(API + '/events')).json()).events;
-  assert.ok(ev2.some((e) => e.kind === 'washed' && e.data.name === 'Journaler'));
+  assert.ok(ev2.some((e) => e.kind === 'washed'), 'a wash is in the journal');
+  assert.ok(!JSON.stringify(ev2).includes('Journaler'), 'but not who washed (spec 8.5)');
   assert.ok(!(await (await fetch(API + '/watersheds')).json()).pairs.some((p) => p.includes(id)), 'its confluences leave with it');
 });
 
@@ -229,4 +230,30 @@ test('pairing relay: create, send once, collect once; junk and unknown codes ref
   assert.equal(j.name, 'Phoned');
   assert.equal((await fetch(`${API}/pair/${code}`)).status, 404, 'collected once');
   assert.equal((await send('QQQQQQ', { palm: dna.palm, prints: dna.prints })).status, 404);
+});
+
+test('review 2, 5, 6: names stored cleaned; a wash leaves no name in the journal; renames and pairing are throttled; room name floods close (fix pass)', { skip }, async () => {
+  const tok = 'r'.repeat(40);
+  for (const h of (await world()).filter((h) => h.name.startsWith('AB'))) await wash(h.id, tok);
+  const fit = findFits(shapes(await world()), handShape(templatePalm({ seed: 404 })))[0];
+  const r = await post({ ...body(fit.pose, { token: tok, seed: 404 }), name: 'A‮B' + 'q'.repeat(30) });
+  assert.equal(r.status, 200);
+  const { id } = await r.json();
+  const stored = (await world()).find((h) => h.id === id).name;
+  assert.equal(stored, ('AB' + 'q'.repeat(30)).slice(0, 24), 'stored cleaned');
+  const name = (n) => fetch(API + '/names', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: tok, hand_id: id, feature: 'I1', name: n }) });
+  for (const n of ['One', 'Two', 'Three']) assert.equal((await name(n)).status, 200);
+  const named = (await (await fetch(API + '/events')).json()).events.filter((e) => e.kind === 'named' && e.hand_id === id);
+  assert.equal(named.length, 1, 'only the first naming of a feature goes in the journal');
+  await wash(id, tok);
+  const ev = JSON.stringify((await (await fetch(API + '/events')).json()).events);
+  assert.ok(!ev.includes(stored), 'the washed name is nowhere in the journal');
+  let codes = 0, limited = false;
+  for (let i = 0; i < 25 && !limited; i++) { const p = await fetch(API + '/pair', { method: 'POST' }); if (p.status === 429) limited = true; else codes++; }
+  assert.ok(limited && codes <= 20, `pairing throttled after ${codes}`);
+  const ws = new WebSocket(API.replace(/^http/, 'ws') + '/room?shard=88');
+  const closed = new Promise((res) => (ws.onclose = (e) => res(e.code)));
+  await new Promise((res) => (ws.onopen = res));
+  for (let i = 0; i < 40; i++) ws.send(JSON.stringify({ name: i % 2 ? 'Aa' : 'Bb' }));
+  assert.equal(await Promise.race([closed, wait(3000).then(() => 'open')]), 1008, 'a name flood closes the socket');
 });

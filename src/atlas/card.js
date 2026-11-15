@@ -83,6 +83,7 @@ export function createAtlas() {
         g.beginPath(); g.roundRect(x, MAP.y + 12, 138, 44, 22); g.fill(); g.stroke();
         text(l, x + 69, MAP.y + 42, { font: `600 22px ${SANS}`, color: on ? PAPER : INK, align: 'center' });
       });
+      for (const [dir, label, y] of [['in', '+', MAP.y + 90], ['out', '−', MAP.y + 172]]) { g.fillStyle = PAPER; g.strokeStyle = INK; g.lineWidth = 3; g.beginPath(); g.roundRect(MAP.x + MAP.w - 90, y, 72, 72, 36); g.fill(); g.stroke(); text(label, MAP.x + MAP.w - 54, y + 50, { font: `700 44px ${SANS}`, align: 'center' }); }
       if (s.inspect) inspector(s.inspect);
       if (s.timeline) timeline(s.timeline);
     } else if (tab === 'hand') myHand(s);
