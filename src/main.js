@@ -30,7 +30,9 @@ import { whereAt } from './world/where.js';
 import { createStamp } from './stamp.js';
 import { createHud } from './hud.js';
 import { createAtlas } from './atlas/card.js';
-import { createPalmUp } from './gesture.js';
+import { createPalmUp, createPush } from './gesture.js';
+import { createPins, address } from './world/pins.js';
+import { steerTo } from './autopilot.js';
 import { createOthers } from './others.js';
 
 // Palm Whorl Cities, first milestone: the First Ten. Ten founding hands lie in a ring around the
@@ -119,6 +121,8 @@ for (const w of workers) {
     const { texA, info, ...kept } = data; // the textures live in the surface now; the ground keeps heights only
     hands.push({ ...f, layer: data.id, data: kept, rise, palette: unpackPalm(f.palm).palette });
     if (rise === 1) knots.push(...hatch({ ...f, data: kept })); // a rising Hand hatches when it has risen (below)
+    const go = params.get('go')?.split('.'); // ?go=<handId>.<code>: an address link opens the game flying there
+    if (go && go[0] === f.id) { const hb = kept.handbits.find((b) => b.code === go[1]); const [x, z] = toWorld(f.pose, hb?.cx ?? 0, hb?.cy ?? 230); flyTo = { x, z, label: hb ? `${f.name} ${hb.code}` : f.name }; }
   };
   w.onerror = (e) => console.error('hand worker failed', e.message, e.filename, e.lineno);
 }
@@ -141,6 +145,7 @@ function removeHand(id) {
   if (i < 0) return;
   surface.setRise(hands[i].layer, 0);
   chart.forget(id);
+  pins.prune(new Set(hands.map((h) => h.id)));
   hands.splice(i, 1);
   for (let k = knots.length - 1; k >= 0; k--) if (knots[k].hand === id) knots.splice(k, 1);
 }
@@ -250,11 +255,12 @@ camera.add(card.mesh);
 camera.add(seal.mesh);
 const hud = createHud();
 camera.add(hud.group);
-const pins = []; // { label, x, z } (Task 7 fills these from the atlas)
+const pins = createPins(storage); // up to five pinned places, on the compass
+let flyTo = null; // { x, z, label } while Fly here steers you
 // ---------- the palm atlas: left palm up (or M) ----------
 const atlas = createAtlas();
 rig.add(atlas.mesh);
-const palmUp = createPalmUp();
+const palmUp = createPalmUp(), push = createPush();
 let atlasPress = false, atlasByPalm = false, atlasPaint = 0, selected = null, inspectAt = null;
 const atlasUV = () => (atlas.isOpen ? raycaster.intersectObject(atlas.mesh, false)[0]?.uv ?? null : null);
 function openAtlas(byPalm) {
@@ -271,23 +277,28 @@ function atlasState() {
   const list = [];
   others.each((c, id, pos) => list.push({ pos, name: others.nameOf(id) }));
   const mineHand = mine && hands.find((h) => h.id === mine.id);
-  return { hands, chart, me: { pos: glide.pos, yaw: glide.yaw }, others: list, pins, selected: selected?.id ?? null, inspect: selected && inspectOf(selected), mine: mine && { name: mine.name, handbits: mineHand?.data.handbits ?? [] } };
+  return { hands, chart, me: { pos: glide.pos, yaw: glide.yaw }, others: list, pins: pins.list(), selected: selected?.id ?? null, inspect: selected && inspectOf(selected), mine: mine && { name: mine.name, handbits: mineHand?.data.handbits ?? [] } };
 }
 function inspectOf(h) { // the inspector for a Hand (Task 7 adds its buttons' actions)
   const hb = inspectAt?.handbit;
   return {
     kicker: h.founder ? 'FOUNDER' : h.id === mine?.id ? 'YOUR HAND' : 'A PLAYER\'S HAND',
     title: h.name,
-    lines: [hb ? `${hb.code} · ${hb.name}` : 'its rivers', `${chart.count(h.id)} of ${h.data.handbits.length} handbits charted${chart.sealed(h.id) ? ' · sealed' : ''}`],
-    buttons: [{ id: 'pin', label: 'Pin it' }, { id: 'fly', label: 'Fly here', primary: true }],
+    lines: [hb ? `${hb.code} · ${hb.name}` : 'its rivers', `${chart.count(h.id)} of ${h.data.handbits.length} handbits charted${chart.sealed(h.id) ? ' · sealed' : ''}`, ...wrapText(address({ hand: h.name, handbit: hb?.name, code: hb?.code, ...placeOf(h, hb) }), 34)],
+    buttons: [{ id: 'pin', label: pins.list().some((q) => q.handId === h.id && q.code === (hb?.code ?? null)) ? 'Pinned' : 'Pin it' }, { id: 'fly', label: 'Fly here', primary: true }],
   };
 }
+// where a Hand's handbit (or its palm) lies in the world
+function placeOf(h, hb) { const [x, z] = toWorld(h.pose, hb?.cx ?? 0, hb?.cy ?? 230); return { x, z }; }
+const wrapText = (t, n) => { const out = [''], words = t.split(' '); for (const w of words) { if ((out.at(-1) + ' ' + w).trim().length > n) out.push(w); else out[out.length - 1] = (out.at(-1) + ' ' + w).trim(); } return out; };
 function atlasDo(a) {
   if (!a) return;
   if (a.type === 'close') return closeAtlas();
   if (a.type === 'tab') atlas.setTab(a.tab);
   else if (a.type === 'layer') atlas.toggle(a.layer);
   else if (a.type === 'pick') { inspectAt = whereAt(hands, a.x, a.z); selected = inspectAt?.hand ?? null; }
+  else if (a.type === 'pin' && selected) { const hb = inspectAt?.handbit; pins.add({ handId: selected.id, code: hb?.code ?? null, ...placeOf(selected, hb), label: hb ? `${selected.name} ${hb.code}` : selected.name }); }
+  else if (a.type === 'fly' && selected) { const hb = inspectAt?.handbit; flyTo = { ...placeOf(selected, hb), label: hb ? `${selected.name} ${hb.code}` : selected.name }; closeAtlas(); panel.say(`Flying to ${flyTo.label}: steer to take over`, 4); return; }
   atlasPaint = 0;
 }
 function atlasFrame(dt) {
@@ -388,6 +399,11 @@ function steering() {
       headNeutral ||= headQuat.toArray();
       return { turn: 0.6 * headSteer(headNeutral, headQuat.toArray()), climb: 0 };
     }
+  }
+  if (flyTo) { // Fly here, until you arrive or steer yourself
+    if (keys.size || xrHands.some((q) => q.engaged)) flyTo = null;
+    else if (Math.hypot(flyTo.x - glide.pos[0], flyTo.z - glide.pos[2]) < 400) { panel.say(`Over ${flyTo.label}`, 4); flyTo = null; }
+    else return steerTo(glide, [flyTo.x, 0, flyTo.z], groundAt);
   }
   const k = (a, b) => (keys.has(a) || keys.has(b) ? 1 : 0);
   return { turn: k('d', 'arrowright') - k('a', 'arrowleft'), climb: k('w', 'arrowup') - k('s', 'arrowdown') };
@@ -560,7 +576,8 @@ function frame() {
   // the HUD: where you are, and which way things lie
   const marks = [{ label: 'Source', x: 0, z: 0, color: '#2f5d7c' }];
   if (mine?.pose) { const [mx, mz] = toWorld(mine.pose, 0, 230); marks.push({ label: mine.name, x: mx, z: mz }); }
-  for (const pin of pins) marks.push({ ...pin, color: '#c9a35a' });
+  for (const pin of pins.list()) marks.push({ ...pin, color: '#c9a35a' });
+  if (flyTo) marks.push({ label: flyTo.label, x: flyTo.x, z: flyTo.z, color: '#b8442e' });
   let near = null, nd = Infinity;
   others.each((c, id, pos) => { const d = Math.hypot(pos[0] - glide.pos[0], pos[2] - glide.pos[2]); if (d < nd) { nd = d; near = { label: others.nameOf(id) ?? 'traveller', x: pos[0], z: pos[2], color: '#16100e' }; } });
   if (near) marks.push(near);
@@ -634,7 +651,21 @@ function frame() {
   surface.meshes.forEach((m) => (m.visible = !room));
   ink.mesh.visible = streakInk.mesh.visible = !room;
   dim.visible = !inRoom;
-  if (mode === 'merge') ghosts.update(camera.getWorldPosition(tmpChase));
+  if (mode === 'merge') {
+    ghosts.update(camera.getWorldPosition(tmpChase));
+    // by hand: a palm held down holds the ghost it points at; push it 8 cm lower to lay your Hand there
+    const h = xrHands.find((q) => q.handedness === 'right' && q.frame) ?? xrHands.find((q) => q.frame);
+    if (renderer.xr.isPresenting && h) {
+      const r = push.update(h.frame, dt);
+      if (push.holding) {
+        raycaster.ray.origin.fromArray(h.frame.center).applyMatrix4(rig.matrixWorld);
+        raycaster.ray.direction.fromArray(h.frame.forward).applyQuaternion(rig.quaternion).normalize();
+        const i = ghosts.aim(raycaster.ray.origin, raycaster.ray.direction);
+        if (i >= 0 && i !== ghosts.selected) ghosts.select(i);
+      }
+      if (r === 'push') choose(ghosts.selected);
+    }
+  }
   if (rising) { // a laid Hand rises over 8 s once it has baked; the glider's floor rises with it
     const h = hands.find((q) => q.id === rising.id);
     if (h) {

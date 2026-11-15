@@ -212,3 +212,23 @@ export function createPalmUp({ holdOn = 0.4, holdOff = 0.35, dropTolerance = 0.3
     update(frame, floorY, dt) { return frame ? l.update(frame.normal[1] > 0.6 && frame.extension > 0.3 && frame.center[1] > floorY, dt) : l.update(null, dt); },
   };
 }
+
+// Laying your Hand by hand (spec 11.3 step 7): a palm held down holds the ghost you point it at; push
+// the palm 8 cm lower and it lays (once per hold). Turning the palm away lets go.
+export function createPush({ depth = 0.08, holdOn = 0.4, holdOff = 0.3, dropTolerance = 0.3 } = {}) {
+  const l = latch(holdOn, holdOff, dropTolerance);
+  let top = null, done = false;
+  return {
+    get holding() { return l.active; },
+    update(frame, dt) {
+      const was = l.active, on = l.update(frame ? frame.normal[1] < -0.6 && frame.extension > 0.3 : null, dt);
+      if (!on) { top = null; done = false; return null; }
+      if (!frame) return null; // a moment without the hand: still holding
+      const y = frame.center[1];
+      if (!was || top === null) top = y;
+      top = Math.max(top, y); // the push is measured from the highest point of this hold
+      if (!done && top - y > depth) { done = true; return 'push'; }
+      return null;
+    },
+  };
+}

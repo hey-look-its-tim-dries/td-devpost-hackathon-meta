@@ -182,3 +182,19 @@ test('palm up, raised and open, held 0.4 s, opens the atlas; turning it down clo
   for (let i = 0; i < 60; i++) lap.update({ ...up, center: [0, -0.9, -0.3] }, -0.6, 1 / 60);
   assert.equal(lap.active, false, 'a palm up on your lap opens nothing');
 });
+
+test('push: a palm held down, then pushed 8 cm lower, lays (once); a palm that turns up lets go', async () => {
+  const { createPush } = await import('../src/gesture.js');
+  const at = (y, up = false) => ({ normal: [0, up ? 0.9 : -0.9, -0.2], extension: 0.8, center: [0, y, -0.4], forward: [0, 0, -1] });
+  const p = createPush();
+  for (let i = 0; i < 40; i++) assert.equal(p.update(at(-0.2), 1 / 60), null);
+  assert.equal(p.holding, true, 'held after a moment palm down');
+  let laid = 0;
+  for (let i = 0; i < 30; i++) if (p.update(at(-0.2 - 0.004 * i), 1 / 60) === 'push') laid++;
+  assert.equal(laid, 1);
+  const q = createPush();
+  for (let i = 0; i < 40; i++) q.update(at(-0.2), 1 / 60);
+  for (let i = 0; i < 30; i++) q.update(at(-0.2, true), 1 / 60);
+  assert.equal(q.holding, false);
+  for (let i = 0; i < 30; i++) assert.equal(q.update(at(-0.35, true), 1 / 60), null, 'a palm up never pushes');
+});
