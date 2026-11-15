@@ -26,3 +26,12 @@ test('a fingertip is its finger handbit', () => {
 test('20 km away there is nothing', () => {
   assert.equal(whereAt([hand], 20000, 20000), null);
 });
+test('on a river inside a Hand: that Hand, no handbit', () => {
+  const lab2 = lab, i = [...lab2.label].findIndex((L, k) => L === -1 && lab2.lineOf[k] >= 0); // RIVER cells carry a line
+  const c = i % lab2.w, r = Math.floor(i / lab2.w);
+  const X = lab2.x0 + (c + 0.5) * lab2.cell, Y = lab2.y0 + (r + 0.5) * lab2.cell;
+  const w = whereAt([hand], ...toWorld(f.pose, X, Y));
+  assert.equal(w?.hand, hand);
+  assert.equal(w.handbit, null);
+  assert.equal(w.index, -1);
+});

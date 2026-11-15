@@ -28,6 +28,7 @@ import { createBraid } from './braid.js';
 import { createChart } from './world/chart.js';
 import { whereAt } from './world/where.js';
 import { createStamp } from './stamp.js';
+import { createHud } from './hud.js';
 import { createOthers } from './others.js';
 
 // Palm Whorl Cities, first milestone: the First Ten. Ten founding hands lie in a ring around the
@@ -168,6 +169,7 @@ let place = null; // what lies under you: { hand, handbit, index } or null
 function charting() {
   place = whereAt(hands, glide.pos[0], glide.pos[2]);
   if (!place || mode !== 'fly' || !started || glide.pos[1] - groundAt(glide.pos[0], glide.pos[2]) > CHART_ALT) return;
+  if (!place.handbit) return; // the water charts nothing
   const { hand, handbit, index } = place, total = hand.data.handbits.length, r = chart.visit(hand.id, index, total);
   if (!r) return;
   surface.setCharted(hand.layer, chart.mask(hand.id));
@@ -244,6 +246,9 @@ let webcam = null;
 const card = createGestureCard(); // what your hand is commanding, fixed at the bottom of your view
 camera.add(card.mesh);
 camera.add(seal.mesh);
+const hud = createHud();
+camera.add(hud.group);
+const pins = []; // { label, x, z } (Task 7 fills these from the atlas)
 xrHands.forEach((h) => (h.smooth = new OneEuro({ minCutoff: 1.5, beta: 0.5 })));
 async function useWebcam() {
   if (webcam) return;
@@ -489,6 +494,15 @@ function frame() {
   updateTags();
   charting();
   seal.update(dt);
+  // the HUD: where you are, and which way things lie
+  const marks = [{ label: 'Source', x: 0, z: 0, color: '#2f5d7c' }];
+  if (mine?.pose) { const [mx, mz] = toWorld(mine.pose, 0, 230); marks.push({ label: mine.name, x: mx, z: mz }); }
+  for (const pin of pins) marks.push({ ...pin, color: '#c9a35a' });
+  let near = null, nd = Infinity;
+  others.each((c, id, pos) => { const d = Math.hypot(pos[0] - glide.pos[0], pos[2] - glide.pos[2]); if (d < nd) { nd = d; near = { label: others.nameOf(id) ?? 'traveller', x: pos[0], z: pos[2], color: '#16100e' }; } });
+  if (near) marks.push(near);
+  const pl = place && !place.handbit ? { code: 'WATER', name: 'on the rivers', hand: place.hand.name, owner: !place.hand.founder, charted: true, count: chart.count(place.hand.id), total: place.hand.data.handbits.length } : place && { code: place.handbit.code, name: place.handbit.name, hand: place.hand.name, owner: !place.hand.founder, charted: chart.has(place.hand.id, place.index), count: chart.count(place.hand.id), total: place.hand.data.handbits.length };
+  hud.update(dt, { show: started && mode === 'fly', yaw: glide.yaw, pos: glide.pos, altitude: glide.pos[1] - groundAt(glide.pos[0], glide.pos[2]), place: pl, markers: marks, active: Math.abs(want.turn) + Math.abs(want.climb) > 0.1 || !!braiding });
   // the greeting: near another player your swarms braid for a few seconds
   braidList.length = 0;
   others.each((c, id, pos) => braidList.push({ id, pos, c }));
