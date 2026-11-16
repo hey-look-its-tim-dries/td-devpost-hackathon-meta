@@ -103,7 +103,8 @@ export function createHud() {
       g.fillStyle = LEAF; g.beginPath(); g.roundRect(24, 150, Math.max(14, (c.width - 48) * p.progress), 14, 7); g.fill();
       g.fillStyle = INK; g.font = '600 20px Inter, system-ui, sans-serif'; g.fillText(`${(p.title ?? p.label).toUpperCase()} · ${p.n}/${p.cap} · ${p.hint}`, 26, 142, c.width - 52);
       for (let i = 0; i < 4; i++) { g.fillStyle = i < p.level ? GILT : 'rgba(22,16,14,0.2)'; g.beginPath(); g.arc(c.width - 40 - i * 22, 182, 7, 0, Math.PI * 2); g.fill(); }
-      g.fillStyle = 'rgba(22,16,14,0.6)'; g.font = '500 17px Inter, system-ui, sans-serif'; g.fillText('SPACE plant · Q/E seed · X clear · skim a river for water', 26, 187, c.width - 150);
+      g.fillStyle = gd.hyper ? SEAL : 'rgba(22,16,14,0.6)'; g.font = `${gd.hyper ? 700 : 500} 17px Inter, system-ui, sans-serif`;
+      g.fillText(gd.hyper ? `HYPER SOW · ${gd.hyper} s · fly low and draw with flowers` : gd.charge >= 1 ? 'F: HYPER SOW READY · SPACE plant · Q/E seed · X clear' : `SPACE plant · Q/E seed · X clear · hyper sow ${Math.round(gd.charge * 100)}%`, 26, 187, c.width - 150);
     } else { g.fillStyle = 'rgba(22,16,14,0.6)'; g.font = '500 20px Inter, system-ui, sans-serif'; g.fillText(gd.wet ? 'ON THE RIVER: WATER FILLED' : 'FLY OVER A HAND TO PLANT', 26, 142); }
     garden.tex.needsUpdate = true;
   }
@@ -154,7 +155,7 @@ export function createHud() {
       paintRibbon(yaw, bearings(pos, yaw, markers));
       const key = JSON.stringify([p, spans(altitude)]);
       if (key !== lastKey) { lastKey = key; paintPlace(p, altitude); }
-      if (gd) { const k = JSON.stringify([gd.selected?.id, gd.selected?.n, gd.seeds, gd.water, gd.wet, gd.level, gd.found, gd.plot]); if (k !== gardenKey) { gardenKey = k; paintGarden(gd); } }
+      if (gd) { const k = JSON.stringify([gd.selected?.id, gd.selected?.n, gd.seeds, gd.water, gd.wet, gd.level, gd.found, gd.plot, gd.hyper, Math.round(gd.charge * 20)]); if (k !== gardenKey) { gardenKey = k; paintGarden(gd); } }
       if (rd) paintRadar(rd, yaw, pos);
       if (wd) { const k = JSON.stringify(wd); if (k !== statsKey) { statsKey = k; paintStats(wd); } }
     },

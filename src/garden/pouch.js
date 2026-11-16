@@ -3,7 +3,7 @@
 // they have found (the herbarium), what they planted (it decorates their whorl) and experience. Kept
 // on this device under pwc.garden.v1. Pure.
 const KEY = 'pwc.garden.v1';
-const XP = { plant: 5, tend: 3, gather: 1, discover: 15, bloom: 40, golden: 60, clear: 2 };
+const XP = { sprig: 1, plant: 5, tend: 3, gather: 1, discover: 15, bloom: 40, golden: 60, clear: 2 };
 
 export function createPouch(storage, species, starters) {
   let s = null;

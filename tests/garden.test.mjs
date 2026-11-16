@@ -147,3 +147,18 @@ test('a plot counts a grove as the game says it is (storm-dried), not only by it
   for (const p of g.all()) p.dry = 1;
   assert.ok(g.plot('h', 3, T0).score < fresh);
 });
+
+import { UNITS } from '../src/garden/garden.js';
+test('sprigs (single plants from a hyper sow) take a fifth of a grove\'s room and count a fifth', () => {
+  const g = createGarden(S);
+  for (let i = 0; i < 79; i++) g.add(grove(i + 1));
+  assert.equal(g.full('h', 3), false);
+  assert.equal(g.units('h', 3), 79 * 5);
+  for (let i = 0; i < 5; i++) assert.ok(g.add(grove(1000 + i, { big: 2 })), 'five sprigs fit where one grove would');
+  assert.equal(g.units('h', 3), UNITS);
+  assert.equal(g.full('h', 3, 1), true);
+  assert.equal(g.add(grove(2000, { big: 2 })), false);
+  const a = createGarden(S), b = createGarden(S);
+  for (let i = 0; i < 5; i++) { a.add(grove(i + 1, { big: 2 })); b.add(grove(i + 1)); }
+  assert.ok(Math.abs(a.plot('h', 3, T0).score - 4 - (b.plot('h', 3, T0).score - 4) / 5) < 1e-9, 'five sprigs score as one grove');
+});

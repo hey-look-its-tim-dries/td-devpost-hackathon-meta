@@ -5,7 +5,7 @@ import { DurableObject } from 'cloudflare:workers';
 import { checkHand } from '../../src/world/mine.js';
 
 const PAIR_ABC = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789', PAIR_TTL = 10 * 60 * 1000, SUMMITS_EACH = 5;
-const TOKEN = /^[A-Za-z0-9_-]{32,64}$/, HABS = ['dune', 'bank', 'ridge'], PLOT_CAP = 80, TEND_MS = 1000, DEAD_MS = 96 * 3600e3; // ponytail: TEND_MS is short so a garden grows in one sitting; raise it when gardens should take days
+const TOKEN = /^[A-Za-z0-9_-]{32,64}$/, HABS = ['dune', 'bank', 'ridge'], PLOT_UNITS = 400, TEND_MS = 1000, DEAD_MS = 96 * 3600e3; // ponytail: TEND_MS is short so a garden grows in one sitting; raise it when gardens should take days
 import { overlaps, findFits, confluences } from '../../src/world/fit.js';
 import { handShape } from '../../src/hand/shape.js';
 import { unpackPalm, toB64, fromB64 } from '../../src/hand/dna.js';
@@ -74,7 +74,11 @@ export class World extends DurableObject {
     if (url.pathname === '/names' && req.method === 'POST') { const out = this.chain.then(() => this.nameIt(req)); this.chain = out.catch(() => {}); return out; }
     // the garden (Bloom): groves on the Hands, watered by anyone, and the golden seed
     if (url.pathname === '/plants' && req.method === 'GET') {
-      const { results } = await this.env.DB.prepare('select id, hand_id, bit, x, y, sp, stage, tended, big, hab from plant order by id limit 60000').all(); // ponytail: the whole garden in one answer; by Hand when it outgrows that
+      // the garden is read Hand by Hand (?hand=): a Hand holds at most 34 plots of 400 units, so an answer is bounded
+      // however large the world grows. ?top: only the gardeners' board. Neither: everything, up to 60000 (small worlds, tests)
+      const one = url.searchParams.get('hand'), cols = 'select id, hand_id, bit, x, y, sp, stage, tended, big, hab from plant';
+      const { results } = url.searchParams.has('top') ? { results: [] } : one ? await this.env.DB.prepare(`${cols} where hand_id = ? order by id`).bind(one.slice(0, 64)).all() : await this.env.DB.prepare(`${cols} order by id limit 60000`).all();
+      if (one) return Response.json({ plants: results.map((r) => [r.id, r.hand_id, r.bit, r.x, r.y, r.sp, r.stage, r.tended, r.big, r.hab]) });
       const top = await this.env.DB.prepare("select coalesce(p.name, 'A traveller') as name, count(*) as n from plant q left join player p on p.token_hash = q.by_hash group by q.by_hash order by n desc limit 5").all();
       return Response.json({ plants: results.map((r) => [r.id, r.hand_id, r.bit, r.x, r.y, r.sp, r.stage, r.tended, r.big, r.hab]), top: top.results });
     }
@@ -208,23 +212,39 @@ export class World extends DurableObject {
   }
   // ---- the garden ----
   async body(req) { try { const b = await req.json(); return TOKEN.test(b?.token ?? '') ? b : null; } catch { return null; } }
-  // a grove on a handbit: any device may plant; a plot holds 80; a few a second at most
+  // a grove on a handbit: any device may plant. A plot holds 400 units: a grove (or a double) is 5, a sprig
+  // (big = 2: one plant, from a hyper sow) is 1. One at a time, a few a second; or up to 40 in a batch.
   async plant(req) {
     const b = await this.body(req), num = (v, lim) => typeof v === 'number' && Number.isFinite(v) && Math.abs(v) <= lim;
-    if (!b || !Number.isInteger(b.bit) || b.bit < 0 || b.bit > 33 || !num(b.x, 3000) || !num(b.y, 3000) || !Number.isInteger(b.sp) || b.sp < 0 || b.sp > 4095 || !HABS.includes(b.hab)) return Response.json({ error: 'not a grove' }, { status: 400 });
-    const hand = await this.env.DB.prepare('select p.name from hand h join player p on p.id = h.player_id where h.id = ? and h.placed_at is not null').bind(String(b.hand_id).slice(0, 64)).first();
-    if (!hand) return Response.json({ error: 'no such Hand' }, { status: 404 });
-    const by = await sha(b.token), now = Date.now(), gap = Number(this.env.RATE_MS ?? 60000) === 0 ? 0 : 250;
+    const ok = (q) => q && typeof q.hand_id === 'string' && Number.isInteger(q.bit) && q.bit >= 0 && q.bit <= 33 && num(q.x, 3000) && num(q.y, 3000) && Number.isInteger(q.sp) && q.sp >= 0 && q.sp <= 4095 && HABS.includes(q.hab);
+    const many = Array.isArray(b?.batch), list = many ? b.batch : [b];
+    if (!b || !list.length || list.length > 40 || !list.every(ok)) return Response.json({ error: 'not a grove' }, { status: 400 });
+    const names = new Map();
+    for (const id of new Set(list.map((q) => q.hand_id.slice(0, 64)))) {
+      const hand = await this.env.DB.prepare('select p.name from hand h join player p on p.id = h.player_id where h.id = ? and h.placed_at is not null').bind(id).first();
+      if (!hand) return Response.json({ error: 'no such Hand' }, { status: 404 });
+      names.set(id, hand.name);
+    }
+    const by = await sha(b.token), now = Date.now(), gap = Number(this.env.RATE_MS ?? 60000) === 0 ? 0 : many ? 500 : 250;
     if (now - ((this.plantAt ??= new Map()).get(by) ?? -Infinity) < gap) return Response.json({ error: 'slower' }, { status: 429 });
     this.plantAt.set(by, now);
     if (this.plantAt.size > 20000) this.plantAt.clear();
-    const n = (await this.env.DB.prepare('select count(*) as n from plant where hand_id = ? and bit = ?').bind(b.hand_id, b.bit).first()).n;
-    if (n >= PLOT_CAP) return Response.json({ error: 'full' }, { status: 409 });
-    const r = await this.env.DB.prepare('insert into plant (hand_id, bit, x, y, sp, stage, tended, big, hab, by_hash, at) values (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)').bind(b.hand_id, b.bit, b.x, b.y, b.sp, now, b.big ? 1 : 0, b.hab, by, now).run();
-    const id = r.meta.last_row_id;
-    if (n + 1 === 30) { try { await this.event('bloomed', b.hand_id, { hand: hand.name, bit: b.bit }); } catch (e) { console.error('journal', e); } }
-    this.ctx.waitUntil(this.tell({ planted: [id, b.hand_id, b.bit, b.x, b.y, b.sp, 0, now, b.big ? 1 : 0, b.hab], ...(n + 1 === 30 ? { bloomed: { hand: hand.name, hand_id: b.hand_id, bit: b.bit } } : {}) }));
-    return Response.json({ id, tended: now });
+    const room = new Map(), fits = []; // "hand:bit" -> { units, n } as this request fills it
+    for (const q of list) {
+      const k = `${q.hand_id}:${q.bit}`, big = q.big === 2 ? 2 : q.big ? 1 : 0, cost = big === 2 ? 1 : 5;
+      if (!room.has(k)) { const r = await this.env.DB.prepare('select coalesce(sum(case when big = 2 then 1 else 5 end), 0) as units, count(*) as n from plant where hand_id = ? and bit = ?').bind(q.hand_id, q.bit).first(); room.set(k, { units: r.units, n: r.n, was: r.n }); }
+      const pl = room.get(k), fit = pl.units + cost <= PLOT_UNITS;
+      if (fit) { pl.units += cost; pl.n++; }
+      fits.push(fit ? { ...q, big } : null);
+    }
+    const put = fits.filter(Boolean);
+    if (!put.length) return Response.json(many ? { ids: fits.map(() => null) } : { error: 'full' }, { status: many ? 200 : 409 });
+    const done = await this.env.DB.batch(put.map((q) => this.env.DB.prepare('insert into plant (hand_id, bit, x, y, sp, stage, tended, big, hab, by_hash, at) values (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)').bind(q.hand_id, q.bit, q.x, q.y, q.sp, now, q.big, q.hab, by, now)));
+    put.forEach((q, i) => { q.id = done[i].meta.last_row_id; });
+    const rows = put.map((q) => [q.id, q.hand_id, q.bit, q.x, q.y, q.sp, 0, now, q.big, q.hab]), bloomed = [];
+    for (const [k, pl] of room) if (pl.was < 30 && pl.n >= 30) { const i = k.lastIndexOf(':'), hand_id = k.slice(0, i), bit = +k.slice(i + 1); bloomed.push({ hand: names.get(hand_id), hand_id, bit }); try { await this.event('bloomed', hand_id, { hand: names.get(hand_id), bit }); } catch (e) { console.error('journal', e); } }
+    this.ctx.waitUntil(this.tell({ ...(many ? { plantedMany: rows } : { planted: rows[0] }), ...(bloomed.length ? { bloomed: bloomed[0] } : {}) }));
+    return Response.json(many ? { ids: fits.map((q) => q?.id ?? null), tended: now } : { id: put[0].id, tended: now });
   }
   // water: anyone, a stage up (to 3) and fresh again; a grove takes water once in a while
   async tend(id, req) {

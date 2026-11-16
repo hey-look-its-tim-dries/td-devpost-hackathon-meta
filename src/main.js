@@ -320,11 +320,13 @@ addEventListener('keydown', (e) => {
   if (e.key === 'e' || e.key === 'E') gardenAct('next');
   else if (e.key === 'q' || e.key === 'Q') gardenAct('prev');
   else if (e.key === 'x' || e.key === 'X') gardenAct('uproot');
+  else if (e.key === 'f' || e.key === 'F') gardenAct('hyper');
 });
 [0, 1].forEach((i) => { // in the headset: hold a right-hand pinch to sow, a left-hand pinch picks the next seed
   const c = renderer.xr.getController(i);
-  c.addEventListener('selectstart', (e) => { if (mode !== 'fly') return; if (e.data?.handedness === 'left') gardenAct('next'); else sowing = true; });
-  c.addEventListener('selectend', () => { sowing = false; });
+  let leftAt = 0; // a short left pinch picks the next seed; held for most of a second it starts a hyper sow
+  c.addEventListener('selectstart', (e) => { if (mode !== 'fly') return; if (e.data?.handedness === 'left') leftAt = performance.now(); else sowing = true; });
+  c.addEventListener('selectend', (e) => { if (e.data?.handedness === 'left' && leftAt) { gardenAct(performance.now() - leftAt > 700 ? 'hyper' : 'next'); leftAt = 0; } else sowing = false; });
 });
 
 // ---------- hands and head (read live for steering, never kept) ----------

@@ -31,7 +31,7 @@ export default {
       const r = await world.fetch(new Request(`https://world${to}`, { method: req.method, body: text, headers: { 'CF-Connecting-IP': req.headers.get('CF-Connecting-IP') ?? 'local' } }));
       return r.status === 204 ? new Response(null, { status: 204, headers: cors(req, env) }) : new Response(r.body, { status: r.status, headers: cors(req, env, { 'Content-Type': 'application/json' }) });
     };
-    if (/^\/plants(\/\d{1,12}(\/tend)?)?$/.test(path) || (path === '/golden' && req.method === 'POST')) return passWorld(path);
+    if (/^\/plants(\/\d{1,12}(\/tend)?)?$/.test(path) || (path === '/golden' && req.method === 'POST')) return passWorld(path + (req.method === 'GET' ? url.search : ''));
     if (path === '/names' && (req.method === 'GET' || req.method === 'POST')) return passWorld('/names');
     if (path === '/community' && (req.method === 'GET' || req.method === 'POST')) return passWorld('/community');
     if ((path === '/events' || path === '/watersheds') && req.method === 'GET') return passWorld(path + new URL(req.url).search);

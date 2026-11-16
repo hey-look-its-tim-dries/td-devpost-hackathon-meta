@@ -3,7 +3,8 @@
 // x and y in the Hand's own metres). A grove grows a stage each time someone waters it (0 sprout .. 3 in flower),
 // goes dry when nobody tends it and dies after that. A handbit is a plot: it blooms by how much grows
 // there, how well, and how many kinds, and wildlife follows the bloom. Pure.
-export const CAP = 80; // groves a handbit holds
+export const CAP = 80, UNITS = 400; // a handbit holds 400 units: 80 groves (5 each), or sprigs (single plants from a hyper sow) at 1 each
+const cost = (p) => (p.big === 2 ? 1 : 5);
 export const DRY_MS = 36 * 3600e3, DEAD_MS = 96 * 3600e3; // untended this long: dry (counts half, looks parched), then dead (counts nothing, anyone may clear it)
 export const LEVELS = [10, 40, 110, 240]; // a plot's score for a first bloom, a meadow, a garden, a full bloom
 export const habitatOf = (code, nearWater) => (nearWater ? 'bank' : /^[TIMRL]1$/.test(code) ? 'ridge' : 'dune');
@@ -12,24 +13,26 @@ const hash = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) h =
 const key = (hand, bit) => `${hand}:${bit}`;
 
 export function createGarden(species) {
-  const byId = new Map(), plots = new Map(); // id -> grove; "hand:bit" -> Set of ids
+  const byId = new Map(), plots = new Map(), used = new Map(); // id -> grove; "hand:bit" -> Set of ids; "hand:bit" -> units taken
   const wild = { insect: [], bird: [], fish: [], animal: [] };
   for (const s of species) wild[s.kind]?.push(s);
   return {
     get count() { return byId.size; },
     all: () => byId.values(),
     get: (id) => byId.get(id) ?? null,
-    full: (hand, bit) => (plots.get(key(hand, bit))?.size ?? 0) >= CAP,
+    units: (hand, bit) => used.get(key(hand, bit)) ?? 0,
+    full: (hand, bit, need = 5) => (used.get(key(hand, bit)) ?? 0) + need > UNITS,
     // false when it is already here or its plot is full
     add(p) {
-      if (byId.has(p.id) || this.full(p.hand, p.bit)) return false;
+      if (byId.has(p.id) || this.full(p.hand, p.bit, cost(p))) return false;
       byId.set(p.id, p);
       const k = key(p.hand, p.bit);
+      used.set(k, (used.get(k) ?? 0) + cost(p));
       if (!plots.has(k)) plots.set(k, new Set());
       plots.get(k).add(p.id);
       return true;
     },
-    remove(id) { const p = byId.get(id); if (!p) return false; byId.delete(id); plots.get(key(p.hand, p.bit))?.delete(id); return true; },
+    remove(id) { const p = byId.get(id); if (!p) return false; byId.delete(id); plots.get(key(p.hand, p.bit))?.delete(id); used.set(key(p.hand, p.bit), (used.get(key(p.hand, p.bit)) ?? 0) - cost(p)); return true; },
     removeHand(hand) { let n = 0; for (const p of [...byId.values()]) if (p.hand === hand && this.remove(p.id)) n++; return n; },
     tend(id, stage, tended) { const p = byId.get(id); if (p) { p.stage = stage; p.tended = tended; } return !!p; },
     // a plot: how many groves, its score and bloom level 0..4, the kinds growing there
@@ -42,7 +45,7 @@ export function createGarden(species) {
         if (v === 'dead') continue;
         kinds.add(p.sp);
         if (p.hab === 'bank') bank++;
-        score += (p.stage + 1) * (species[p.sp]?.habitat === p.hab ? 1.5 : 1) * (v === 'dry' ? 0.5 : 1) * (p.big ? 2 : 1);
+        score += (p.stage + 1) * (species[p.sp]?.habitat === p.hab ? 1.5 : 1) * (v === 'dry' ? 0.5 : 1) * (p.big === 2 ? 0.2 : p.big ? 2 : 1);
       }
       score += 4 * kinds.size;
       return { n, score, level: LEVELS.filter((l) => score >= l).length, kinds, bank };

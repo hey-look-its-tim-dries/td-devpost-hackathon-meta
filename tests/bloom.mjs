@@ -14,21 +14,30 @@ const open = async (label) => {
   return page;
 };
 const until = async (page, fn, what, arg) => { for (let i = 0; i < 480; i++) { const v = await page.evaluate(fn, arg); if (v) return v; await wait(250); } throw new Error(`timed out: ${what}`); };
-const ready = (p) => until(p, () => window.__pwc?.state.started && window.__pwc.hands.filter((h) => h.data?.cells).length >= 10 && window.__pwc.state.room === 'open', 'ready');
+const ready = (p) => until(p, () => window.__pwc?.state.started && window.__pwc.hands.filter((h) => h.data?.cells).length >= 10 && window.__pwc.state.room === 'open' && window.__pwc.bloom.handsRead() > 0, 'ready');
 const mineIds = (p) => p.evaluate(() => [...window.__pwc.bloom.garden.all()].filter((g) => g.id > 0).map((g) => g.id));
 try {
   const a = await open('A'), b = await open('B');
   await ready(a); await ready(b);
-  const before = (await mineIds(b)).length;
+  await wait(2500); // what the map already holds near here has been read
+  const had0 = await mineIds(a);
   // A sows
   await a.keyboard.down('Space'); await wait(4000); await a.keyboard.up('Space');
-  const planted = await until(a, (n) => { const g = [...window.__pwc.bloom.garden.all()]; return g.length >= n + 3 && g.every((q) => q.id > 0) && g.length; }, 'A planted and the map answered', before);
-  console.log('A sowed', planted - before, 'groves; speed while sowing', await a.evaluate(() => window.__pwc.state.speed));
-  await until(b, (n) => window.__pwc.bloom.garden.count >= n, 'B sees the groves', planted);
+  const sown = await until(a, (old) => { const g = [...window.__pwc.bloom.garden.all()].filter((q) => !old.includes(q.id)); return g.length >= 3 && g.every((q) => q.id > 0) && g.map((q) => q.id); }, 'A planted and the map answered', had0);
+  console.log('A sowed', sown.length, 'groves; speed while sowing', await a.evaluate(() => window.__pwc.state.speed));
+  await until(b, (ids) => ids.every((id) => window.__pwc.bloom.garden.get(id)), 'B sees the groves', sown);
   const hudB = await b.evaluate(() => window.__pwc.bloom.hud(null).plants);
-  assert.ok(hudB >= planted, `B counts ${hudB}`);
+  assert.ok(hudB >= sown.length, `B counts ${hudB}`);
+  // a hyper sow: for ten seconds single plants fall along A's path; they reach the map in batches, and B
+  const sprigs = () => [...window.__pwc.bloom.garden.all()].filter((g) => g.big === 2 && g.id > 0).length;
+  await a.evaluate(() => { const g = window.__pwc.glide; g.pos[0] = 0; g.pos[1] = 260; g.pos[2] = 7600; g.yaw = 0; });
+  await a.keyboard.press('KeyF');
+  await wait(4500);
+  const drawn = await until(a, () => { const g = [...window.__pwc.bloom.garden.all()].filter((q) => q.big === 2); return g.length >= 8 && window.__pwc.bloom.hud(null).hyper === 0 && g.every((q) => q.id > 0) && g.length; }, "A drew with sprigs and the map took them");
+  await until(b, (n) => [...window.__pwc.bloom.garden.all()].filter((g) => g.big === 2 && g.id > 0).length >= n, 'B sees the drawing', drawn);
+  console.log('hyper sow:', drawn, 'sprigs drawn by A, seen by B:', await b.evaluate(sprigs));
   // A waters the newest grove: water in the pouch, then low over it
-  const target = await a.evaluate(() => { const p = window.__pwc, g = [...p.bloom.garden.all()].at(-1); p.bloom.pouch.fill(); return { id: g.id, x: g.wx, y: g.wy, z: g.wz }; });
+  const target = await a.evaluate((id) => { const p = window.__pwc, g = p.bloom.garden.get(id); p.bloom.pouch.fill(); return { id: g.id, x: g.wx, y: g.wy, z: g.wz }; }, sown.at(-1));
   await wait(1600); // a grove takes water a moment after planting
   for (let i = 0; i < 24; i++) { await a.evaluate((q) => { const g = window.__pwc.glide; g.pos[0] = q.x; g.pos[1] = q.y + 90; g.pos[2] = q.z; }, target); await wait(250); if (await a.evaluate((id) => window.__pwc.bloom.garden.get(id)?.stage >= 1, target.id)) break; }
   console.log('A after watering', JSON.stringify(await a.evaluate((id) => { const p = window.__pwc, g = p.bloom.garden.get(id), h = p.bloom.hud(null); return { water: h.water, stage: g?.stage, age: Date.now() - g?.tended, alt: Math.round(p.glide.pos[1] - g.wy), mode: p.state.mode }; }, target.id)));
@@ -50,6 +59,6 @@ try {
   await until(b, (ids) => ids.every((id) => !window.__pwc.bloom.garden.get(id)), 'B sees it cleared', gone);
   console.log('cleared on both');
   // tidy: A takes its test groves off the map
-  await a.evaluate(async (keep) => { const p = window.__pwc; for (const g of [...p.bloom.garden.all()]) if (g.id > 0) await p.net.uproot(g.id); }, before);
+  await a.evaluate(async (old) => { const p = window.__pwc; for (const g of [...p.bloom.garden.all()]) if (g.id > 0 && !old.includes(g.id)) await p.net.uproot(g.id); }, had0);
   console.log('BLOOM OK: sow, see, water, clear between two players');
 } catch (e) { console.log('FAILED', e.message); process.exitCode = 1; } finally { await browser.close(); }

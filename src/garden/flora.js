@@ -265,15 +265,17 @@ export function createFlora(species, flora, shared) {
         const it = info.get(p.sp);
         if (!it || Math.hypot(p.wx - eye[0], p.wz - eye[2]) > NEAR) continue;
         shown++;
-        const r = rng((p.id * 2654435761) >>> 0), k = 0.45 + 0.55 * (p.stage / 3), big = p.big ? 2 : 1;
-        const n = it.isTree ? Math.min(3, 1 + Math.floor(p.stage / 2)) * big : (4 + p.stage * 3) * big, spread = it.isTree ? 75 : 42;
+        const r = rng((p.id * 2654435761) >>> 0), k = Math.max(p.big === 2 ? 0.7 : 0, 0.45 + 0.55 * (p.stage / 3)), big = p.big === 1 ? 2 : 1;
+        const sprig = p.big === 2; // one plant, from a hyper sow: a line you draw is made of these
+        const n = sprig ? 1 : it.isTree ? Math.min(3, 1 + Math.floor(p.stage / 2)) * big : (4 + p.stage * 3) * big, spread = it.isTree ? 75 : 42;
         tmp.aFx[0] = p.pop ?? -99; tmp.aFx[1] = p.dry ?? 0;
         if (it.style === 'pixel' && !it.isTree) { // the mosaic tile, square to its Hand
           const rot = p.rot ?? 0, c = Math.cos(rot), s = Math.sin(rot), hs = p.hs; // hs: the land at a 3 by 3 grid over the tile, row by row from -z
-          tmp.aPos[3] = TILE / 2; tmp.aFx[2] = rot;
+          const T = p.tile ?? TILE; // a sprig's tile is a third the size
+          tmp.aPos[3] = T / 2; tmp.aFx[2] = rot;
           for (let qz = 0; qz < 2; qz++) for (let qx = 0; qx < 2; qx++) {
             if (p.dryQ && !p.dryQ[qz * 2 + qx]) continue; // never on the water
-            const lx = (qx - 0.5) * TILE / 2, lz = (qz - 0.5) * TILE / 2;
+            const lx = (qx - 0.5) * T / 2, lz = (qz - 0.5) * T / 2;
             tmp.aPos[0] = p.wx + lx * c + lz * s; tmp.aPos[1] = p.wy; tmp.aPos[2] = p.wz + lz * c - lx * s;
             tmp.aCell[0] = it.cell[0] + qx * 0.5; tmp.aCell[1] = it.cell[1] + qz * 0.5;
             const H = (ix, iz) => (hs ? hs[iz * 3 + ix] : p.wy);

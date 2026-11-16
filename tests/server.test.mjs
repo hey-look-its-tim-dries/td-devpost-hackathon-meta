@@ -337,3 +337,29 @@ test('the garden: plant, see, water, uproot; a plot fills at 80; a wash takes it
   assert.equal(typeof c2.name, 'string');
   assert.equal((await fetch(API + '/golden', { method: 'POST', headers: J, body: JSON.stringify({ token: tokA, epoch: epoch + 9 }) })).status, 400);
 });
+
+test('the garden at scale: groves are read Hand by Hand; a hyper sow sends many sprigs at once; sprigs weigh a fifth of a grove', { skip }, async () => {
+  const J = { 'Content-Type': 'application/json' }, tok = 'S'.repeat(43);
+  const of = async (hand) => (await (await fetch(`${API}/plants?hand=${hand}`)).json()).plants;
+  const clear = async (hand) => { for (const p of await of(hand)) await fetch(`${API}/plants/${p[0]}`, { method: 'DELETE', headers: J, body: JSON.stringify({ token: tok }) }); };
+  await clear('hand-founder-4');
+  const sprig = (i, bit = 2) => ({ hand_id: 'hand-founder-4', bit, x: i * 0.5, y: 7, sp: 3, hab: 'dune', big: 2 });
+  const batch = (list) => fetch(API + '/plants', { method: 'POST', headers: J, body: JSON.stringify({ token: tok, batch: list }) });
+  const r = await batch(Array.from({ length: 40 }, (_, i) => sprig(i)));
+  assert.equal(r.status, 200);
+  const { ids } = await r.json();
+  assert.equal(ids.length, 40);
+  assert.ok(ids.every((id) => Number.isInteger(id)));
+  const mine = await of('hand-founder-4');
+  assert.equal(mine.length, 40);
+  assert.equal(mine[0][8], 2, 'kept as sprigs');
+  assert.ok(!(await of('hand-founder-5')).some((p) => p[1] === 'hand-founder-4'), 'another Hand has only its own');
+  assert.equal((await batch(Array.from({ length: 41 }, (_, i) => sprig(i)))).status, 400, 'forty at most');
+  assert.equal((await batch([sprig(1), { ...sprig(2), sp: -4 }])).status, 400, 'one bad sprig refuses the lot');
+  // a plot holds 400 units: a grove is 5, a sprig 1. 40 sprigs are in; 72 groves make 400; the next thing is refused
+  for (let i = 0; i < 72; i++) assert.equal((await fetch(API + '/plants', { method: 'POST', headers: J, body: JSON.stringify({ token: tok, ...sprig(i), big: 0 }) })).status, 200, `grove ${i}`);
+  assert.equal((await fetch(API + '/plants', { method: 'POST', headers: J, body: JSON.stringify({ token: tok, ...sprig(1) }) })).status, 409, 'full');
+  const part = await batch([sprig(1, 3), sprig(2)]); // one for a free plot, one for the full one
+  assert.deepEqual((await part.json()).ids.map((id) => id !== null), [true, false], 'what fits is planted, the rest is told');
+  await clear('hand-founder-4');
+});

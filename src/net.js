@@ -129,7 +129,7 @@ export function createNet({ api = API, storage = null, fetchFn = globalThis.fetc
     async stats() {
       try {
         const { status, body } = await call('/stats');
-        return status === 200 && Number.isInteger(body?.hands) && Number.isInteger(body?.flying) ? { hands: body.hands, flying: body.flying } : null;
+        return status === 200 && Number.isInteger(body?.hands) && Number.isInteger(body?.flying) ? { hands: body.hands, flying: body.flying, plants: Number.isInteger(body.plants) ? body.plants : undefined } : null;
       } catch {
         return null;
       }
@@ -138,15 +138,23 @@ export function createNet({ api = API, storage = null, fetchFn = globalThis.fetc
       try { return (await call(`/hands/${id}`, { method: 'DELETE', body: JSON.stringify({ token }) })).status === 204; } catch { return false; }
     },
     // ---- the garden: groves on the Hands ----
-    async plants() {
+    // one Hand's groves (the garden is read Hand by Hand, as you come near), or with no Hand the gardeners' board
+    async plants(hand = null) {
       try {
-        const { status, body } = await call('/plants');
+        const { status, body } = await call(hand ? `/plants?hand=${encodeURIComponent(hand)}` : '/plants?top=1');
         return status === 200 && Array.isArray(body?.plants) ? { plants: body.plants.map(rowToGrove), top: Array.isArray(body.top) ? body.top : [] } : null;
       } catch { return null; }
     },
+    // a hyper sow's sprigs, up to 40 at once: { ids: [id or null (no room), ...], tended } or { error }
+    async plantMany(list) {
+      try {
+        const { status, body } = await call('/plants', { method: 'POST', body: JSON.stringify({ token, batch: list.map((p) => ({ hand_id: p.hand, bit: p.bit, x: p.x, y: p.y, sp: p.sp, hab: p.hab, big: p.big })) }) });
+        return status === 200 && Array.isArray(body?.ids) ? { ids: body.ids, tended: body.tended } : { error: body?.error ?? String(status) };
+      } catch { return { error: 'offline' }; }
+    },
     async plant({ hand, bit, x, y, sp, hab, big }) {
       try {
-        const { status, body } = await call('/plants', { method: 'POST', body: JSON.stringify({ token, hand_id: hand, bit, x, y, sp, hab, big: big ? 1 : 0 }) });
+        const { status, body } = await call('/plants', { method: 'POST', body: JSON.stringify({ token, hand_id: hand, bit, x, y, sp, hab, big: big === 2 ? 2 : big ? 1 : 0 }) });
         return status === 200 ? { id: body.id, tended: body.tended } : { error: body?.error ?? String(status) };
       } catch { return { error: 'offline' }; }
     },
@@ -177,7 +185,7 @@ export function createNet({ api = API, storage = null, fetchFn = globalThis.fetc
           try { m = JSON.parse(e.data); } catch { return; }
           if (m.names) onNames?.(m.names);
           if (m.decos) onDecos?.(m.decos);
-          if (m.planted || m.tended || m.uprooted !== undefined || m.golden || m.bloomed) onGarden?.(m.planted ? { ...m, planted: rowToGrove(m.planted) } : m);
+          if (m.planted || m.plantedMany || m.tended || m.uprooted !== undefined || m.golden || m.bloomed) onGarden?.({ ...m, ...(m.planted ? { planted: rowToGrove(m.planted) } : {}), ...(m.plantedMany ? { plantedMany: m.plantedMany.map(rowToGrove) } : {}) });
           if (m.hello !== undefined) onHello?.(m.hello);
           else if (m.laid) onLaid?.(rowToHand(m.laid));
           else if (m.left) onLeft?.(m.left);
