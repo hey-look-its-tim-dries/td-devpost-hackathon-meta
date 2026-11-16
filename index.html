@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
     <title>Palm Whorl Cities</title>
     <meta name="description" content="Every hand is a piece of the world map: its lines are rivers, its fingertips print lands. Glide over the First Ten." />
     <link rel="icon" href="data:," />
@@ -28,6 +28,7 @@
         <div class="gap"></div>
         <p id="live" class="live"></p>
         <div class="menu">
+          <p class="sign-note">Sign in with Google to play: your garden is saved to your account.</p>
           <button id="xrButton" class="hidden" data-icon="headset">Enter in headset</button>
           <button id="previewButton" class="quiet" data-icon="dive">Play in the browser</button>
           <button id="webcamButton" class="quiet" data-icon="camera">Use my webcam as hands</button>
@@ -47,6 +48,7 @@
     <div class="guide hidden" id="guide"><div class="guide-inner"><button id="guideClose">Close</button><p class="eyebrow">Explained from A to Z</p><h2>How this game works</h2><div id="guideBody"></div></div></div>
     <!-- the lobby: between the title and the game, the world as it is right now (src/lobby.js) -->
     <div class="live-pill hidden" id="livePill" aria-live="polite"></div>
+    <div class="touch hidden" id="touch"></div>
     <div class="lobby hidden" id="lobby">
       <header>
         <div><p class="eyebrow">One desert, sown by everyone</p><h2>The world right now</h2></div>

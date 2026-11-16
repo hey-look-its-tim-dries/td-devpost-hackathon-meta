@@ -62,6 +62,7 @@ import { drawGarland } from './garden/garland.js';
 import { FB_APP_ID, GOOGLE_CLIENT_ID } from './config.js';
 import { googleUrl, idFromFragment, cleanPicture } from './net/google.js';
 import { cleanName } from './world/names.js';
+import { createTouch } from './touch.js';
 import { look as hudLook } from './ui/themed.js';
 import { createMusic } from './music.js';
 import { createSound } from './sound.js';
@@ -401,6 +402,11 @@ bloom.setFauna(fauna);
   try { cameG = idFromFragment(location.hash, sessionStorage.getItem('pwc.g.state')); sessionStorage.removeItem('pwc.g.state'); } catch {}
   if (came || cameG) { history.replaceState(null, '', location.pathname + location.search); const wait = setInterval(() => { if (online) { clearInterval(wait); if (cameG) bloom.signIn(cameG.idToken, 'Google').then((r) => { if (r?.picture) setFace(r.picture); }); else bloom.signIn(came.token); } }, 500); }
   const gButton = document.getElementById('gButton');
+  /* playing needs a Google sign-in (not on localhost: the checks; not where the browser keeps nothing: it could never be remembered) */
+  if (cameG) try { storage?.setItem('pwc.signed.v1', '1'); } catch {}
+  let signed = false;
+  try { signed = !!storage?.getItem('pwc.signed.v1'); } catch {}
+  if (GOOGLE_CLIENT_ID && gButton && storage && location.hostname !== 'localhost' && !signed) document.body.classList.add('must-sign');
   if (GOOGLE_CLIENT_ID && gButton) {
     gButton.classList.remove('hidden');
     gButton.addEventListener('click', () => { const state = crypto.randomUUID(); try { sessionStorage.setItem('pwc.g.state', state); } catch {} location.href = googleUrl(GOOGLE_CLIENT_ID, location.origin + location.pathname, state, crypto.randomUUID()); });
@@ -721,6 +727,7 @@ function readHead() {
 // ---------- steering ----------
 
 const keys = new Set();
+const touch = createTouch(document.getElementById('touch'), renderer.domElement); /* phones: gyroscope, thumb and buttons (src/touch.js) */
 addEventListener('keydown', (e) => { keys.add(e.key.toLowerCase()); if (e.key === ' ' && started) e.preventDefault(); }); // (the space bar sows: it must not press a button or scroll the page)
 addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()));
 const look = { yaw: 0, pitch: +(params.get('pitch') ?? -0.22), drag: false }; // ?pitch= for screenshots
@@ -758,8 +765,8 @@ function steering() {
   if (who === 'hand') return pointSteer(h.frame.forward);
   if (who === 'auto') return steerTo(glide, [flyTo.x, 0, flyTo.z], groundAt);
   if (who === 'head') { headNeutral ||= headQuat.toArray(); return { turn: 0.6 * headSteer(headNeutral, headQuat.toArray()), climb: 0 }; }
-  const k = (a, b) => (keys.has(a) || keys.has(b) ? 1 : 0);
-  return { turn: k('d', 'arrowright') - k('a', 'arrowleft'), climb: k('w', 'arrowup') - k('s', 'arrowdown') };
+  const k = (a, b) => (keys.has(a) || keys.has(b) ? 1 : 0), g = touch.steer() ?? { turn: 0, climb: 0 }; /* a phone: its tilt, or a thumb */
+  return { turn: Math.max(-1, Math.min(1, k('d', 'arrowright') - k('a', 'arrowleft') + g.turn)), climb: Math.max(-1, Math.min(1, k('w', 'arrowup') - k('s', 'arrowdown') + g.climb)) };
 }
 
 // ---------- your Hand: read it by eye, lay it into the world, keep it ----------
@@ -928,7 +935,7 @@ document.getElementById('forget').addEventListener('click', async (e) => {
   if (mine?.id && !mine.pending && !(await net.washHand(mine.id))) return (e.target.textContent = 'The map could not be reached: try again'); // keep it until the map lets go
   await net.profileDelete(); // the pouch on the map and any Facebook link go too (privacy.html)
   forgetHand(storage);
-  try { storage?.removeItem('pwc.chart.v1'); storage?.removeItem('pwc.pins.v1'); storage?.removeItem('pwc.garden.v1'); } catch {} // a wash takes charting, pins and the pouch too (spec 8.5)
+  try { storage?.removeItem('pwc.signed.v1'); storage?.removeItem('pwc.chart.v1'); storage?.removeItem('pwc.pins.v1'); storage?.removeItem('pwc.garden.v1'); } catch {} // a wash takes charting, pins and the pouch too (spec 8.5)
   location.reload();
 });
 document.getElementById('forget').classList.remove('hidden'); // always: a guest with only a garden can be forgotten too
@@ -1212,6 +1219,7 @@ function frame() {
 
 const banner = document.getElementById('banner');
 function start() {
+  touch.arm(); touch.show(true);
   if (!params.has('at')) { // you begin low over a Hand (your own, or the nearest), flying in from its outer side: sand under you from the first second
     let h = (mine && hands.find((q) => q.id === mine.id && q.pose)) ?? null, bd = Infinity;
     if (!h) for (const q of hands) { if (!q.pose) continue; const [x, z] = toWorld(q.pose, 0, 230), d = Math.hypot(x - glide.pos[0], z - glide.pos[2]); if (d < bd) { bd = d; h = q; } }

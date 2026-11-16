@@ -276,3 +276,36 @@ svg.icon { vertical-align: -0.2em; margin-right: 0.4em; flex: none; filter: drop
 @keyframes livePulse { 50% { opacity: 0.35; } }
 .lobby .lobby-name { display: block; width: 100%; box-sizing: border-box; margin-top: 8px; padding: 9px 14px; border-radius: 10px; border: 1px solid rgba(246, 232, 216, 0.3); background: rgba(11, 0, 26, 0.35); color: #fff; font: 600 15px Inter, system-ui, sans-serif; }
 .lobby .lobby-name::placeholder { color: rgba(246, 232, 216, 0.55); }
+
+/* playing needs a sign-in: until then only the Google button */
+.sign-note { display: none; margin: 0 0 6px; font: 600 15px Inter, system-ui, sans-serif; color: #fff; }
+body.must-sign .sign-note { display: block; }
+body.must-sign #xrButton, body.must-sign #previewButton, body.must-sign #webcamButton { display: none !important; }
+body.must-sign #gButton { background: #fff; color: #16100e; font-weight: 800; }
+/* a phone: buttons under the thumbs (src/touch.js) */
+body.touch canvas { touch-action: none; }
+body.touch { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; overscroll-behavior: none; }
+.touch { position: fixed; inset: 0; z-index: 4; pointer-events: none; }
+.touch .tb { position: absolute; pointer-events: auto; min-width: 58px; height: 58px; padding: 0 12px; border-radius: 29px; border: 2px solid rgba(255, 255, 255, 0.7); background: rgba(11, 0, 26, 0.55); color: #fff; font: 800 13px Inter, system-ui, sans-serif; letter-spacing: 0.05em; touch-action: none; }
+.touch .tb:active { background: rgba(255, 43, 214, 0.7); }
+.touch .sow { right: max(16px, env(safe-area-inset-right)); bottom: 22px; width: 92px; height: 92px; border-radius: 50%; font-size: 17px; background: rgba(255, 43, 214, 0.55); }
+.touch .hyper { right: calc(max(16px, env(safe-area-inset-right)) + 104px); bottom: 22px; }
+.touch .pour { right: max(16px, env(safe-area-inset-right)); bottom: 126px; }
+.touch .scatter { right: calc(max(16px, env(safe-area-inset-right)) + 76px); bottom: 100px; }
+.touch .prev { left: max(16px, env(safe-area-inset-left)); bottom: 22px; }
+.touch .next { left: calc(max(16px, env(safe-area-inset-left)) + 68px); bottom: 22px; }
+.touch .map { left: max(16px, env(safe-area-inset-left)); bottom: 92px; }
+.touch .centre { left: calc(max(16px, env(safe-area-inset-left)) + 68px); bottom: 92px; font-size: 22px; }
+/* a phone on its side: the menu must be on the first screen */
+@media (max-height: 520px) {
+  .banner-inner .gap { min-height: 6vh; }
+  .banner-inner .features { display: none; }
+  .banner h1 { font-size: clamp(1.6rem, 5.5vw, 3rem); margin: 0; }
+  .banner-inner .menu { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); width: 92vw; }
+  .banner .small { display: none; }
+  .lobby { overflow: auto; padding: 12px 14px; }
+  .lobby-main { min-height: 300px; }
+}
+.banner-inner .menu .sign-note { grid-column: 1 / -1; text-align: center; text-shadow: 0 1px 6px rgba(20, 10, 6, 0.9); }
+body.must-sign .banner-inner .menu #gButton { order: -1; grid-column: 1 / -1; justify-self: center; width: auto; padding-inline: 34px; }
+body.must-sign .banner-inner .menu .sign-note { order: -2; }
