@@ -4,7 +4,7 @@
 // gently. A gnome on board has a side quest for you; do it and it joins your team (or wavers, or converts
 // from another gardener's). The rules are in gnomes.js, the looks in render.js; this wires them to the
 // garden, the map, your flight and the other players. main.js calls frame() and act().
-import { GNOME, gnomeAt, activity, shout, questFor, advance, seedOf, lostGnome, gainedGnome } from './gnomes.js';
+import { GNOME, gnomeAt, activity, shout, questFor, advance, questEvents, seedOf, lostGnome, gainedGnome } from './gnomes.js';
 import { createGnomeRenderer } from './render.js';
 
 const SIZE = 20, RIDER = 17, CAP = 27; // metres per gnome unit at home and on a whorl (big enough to see on another player's whorl); how high a mushroom's cap sits
@@ -16,7 +16,7 @@ export function createGnomes({ scene, bloom, net, say, stamp, groundAt, creature
   const me = { tag: null, converted: 0, team: 0 };
   const mood = new Map(), away = new Set(), carried = new Set(), riders = []; // away: on your whorl; carried: on another gardener's
   const bubbles = Array.from({ length: 5 }, () => ({ label: null, until: -1, at: [0, 0, 0] }));
-  let homes = [], slow = 9, t = 0, told = '', before = { sown: 0, tends: 0, clouds: 0 };
+  let homes = [], slow = 9, t = 0, told = '', before = { sown: 0, tends: 0, clouds: 0, eaten: 0 };
   const moodOf = (id) => { if (!mood.has(id)) mood.set(id, { angry: -99, greet: -99, buzz: -99, dropped: -99, n: 0 }); return mood.get(id); };
   const whose = (id) => { const r = records.get(id); return !r ? 'a wild gnome' : r.tag === me.tag ? 'one of yours' : `one of ${r.owner}'s`; };
   function speak(text, x, y, z) { // a shout over a gnome's head, for a few seconds
@@ -101,20 +101,12 @@ export function createGnomes({ scene, bloom, net, say, stamp, groundAt, creature
       draw.add({ x, y, z, yaw: face, s: size, clip, t: t + gn.seed % 7, hat: gn.hat, seed: gn.seed });
     }
     // ---- gnomes on your whorl, and their quests ----
-    const c = bloom.counts, ev = [];
-    if (riders.length) {
-      ev.push({ type: 'at', x: pos[0], z: pos[2] }, { type: 'speed', v: speed }, { type: 'alt', h: alt });
-      if (ctx.wet) ev.push({ type: 'wet', dt });
-      if (bloom.foxfire.active(now)) ev.push({ type: 'fox' });
-      for (let k = before.sown; k < c.sown; k++) ev.push({ type: 'sow' });
-      for (let k = before.tends; k < c.tends; k++) ev.push({ type: 'tend' });
-      for (let k = before.clouds; k < c.clouds; k++) ev.push({ type: 'cloud' });
-    }
-    before = { sown: c.sown, tends: c.tends, clouds: c.clouds };
+    const c = bloom.counts, ev = riders.length ? questEvents(before, c, { x: pos[0], z: pos[2], speed, alt, wet: ctx.wet, dt }) : [];
+    before = { sown: c.sown, tends: c.tends, clouds: c.clouds, eaten: c.eaten };
     for (let i = riders.length - 1; i >= 0; i--) {
       const r = riders[i], l = creature.strand((i * 5 + 2) % creature.active), j = Math.min(l.count - 1, Math.max(1, Math.round(l.count * (0.22 + 0.2 * i)))) * 3;
       if (!r.doneAt) {
-        for (const e of ev) r.quest = advance(r.quest, e);
+        if (r.grabbed < t) for (const e of ev) r.quest = advance(r.quest, e); // (not what happened in the very frame it grabbed on)
         if (r.quest.done) { // done: cheers, a gift, and the map hears of it
           r.doneAt = t;
           const gift = bloom.gift();

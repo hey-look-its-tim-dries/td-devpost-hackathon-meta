@@ -20,7 +20,7 @@ export function createGestureCard() {
   );
   mesh.renderOrder = 30;
   mesh.visible = false;
-  mesh.position.set(0, -0.24, -0.6); // a child of the camera: bottom centre, about 22 degrees down
+  mesh.position.set(0, -0.245, -0.6); // a child of the camera: bottom centre, about 22 degrees down, just under the place and garden cards
   let drawn = '';
 
   function paint(s) {

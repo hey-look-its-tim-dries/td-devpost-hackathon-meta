@@ -77,6 +77,16 @@ export function advance(quest, e) {
   return have === quest.have ? quest : { ...quest, have: Math.min(quest.need, have), done: have >= quest.need };
 }
 
+// what happened since the last look, for the gnomes on board: was and now are the garden's counters ({ sown, tends,
+// clouds, eaten }), f is the flight ({ x, z, speed, alt, wet, dt }). Only a mushroom eaten now is a 'fox': the glow
+// you were already in when the gnome grabbed on does not count
+export function questEvents(was, now, f) {
+  const ev = [{ type: 'at', x: f.x, z: f.z }, { type: 'speed', v: f.speed }, { type: 'alt', h: f.alt }];
+  if (f.wet) ev.push({ type: 'wet', dt: f.dt });
+  for (const [k, type] of [['sown', 'sow'], ['tends', 'tend'], ['clouds', 'cloud'], ['eaten', 'fox']]) for (let i = was[k] ?? 0; i < (now[k] ?? 0); i++) ev.push({ type });
+  return ev;
+}
+
 // ---- teams: rec is { owner (who, or null for a wild gnome), loyalty 0..5 } ----
 // a quest done for it by `me`
 export function afterQuest(rec, me) {

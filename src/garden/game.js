@@ -7,6 +7,7 @@
 import { SPECIES, FLORA, FUNGI, STARTERS } from './species.js';
 import { createFoxfire, wildMushroom } from './foxfire.js';
 import { createGarden, habitatOf, vigour, UNITS, LEVELS } from './garden.js';
+import { hyperReady } from './hints.js';
 import { createPouch } from './pouch.js';
 import { clouds, golden, storm, stormDried } from './drift.js';
 import { paintHerbarium } from './herbarium.js';
@@ -23,7 +24,7 @@ const TIER = (level) => (level >= 6 ? 3 : level >= 3 ? 2 : 1); // the rarity you
 const HYPER = { seconds: 10, tile: 30, spacing: 14 }; // a hyper sow: ten seconds of single plants along your path, 14 m apart (pixel kinds: one a 30 m tile)
 const BLOOM = ['bare sand', 'first bloom', 'meadow', 'garden', 'full bloom'];
 
-export function createBloom({ scene, shared, storage, net, hands, groundAt, say, stamp, online, onDeco }) {
+export function createBloom({ scene, shared, storage, net, hands, groundAt, say, stamp, online, onDeco, byHand = () => false }) { // byHand: playing with hands (the headset), for the wording of hints
   const garden = createGarden(SPECIES), pouch = createPouch(storage, SPECIES, STARTERS), flora = createFlora(SPECIES, FLORA.concat(FUNGI), shared), fox = createFoxfire();
   // while the foxfire lasts everything you earn counts for more (twice, and more as you chain mushrooms)
   const credit = (what) => { let up = false; for (let i = fox.mult(Date.now()); i > 0; i--) up = pouch.credit(what) || up; return up; };
@@ -37,12 +38,12 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
   let near = [], every = []; // blooming plots near you (the radar, the wildlife) and all of them (the atlas)
   let sand = null, sandSaid = -1, anchorsNow = []; // the sandstorm now, the last one announced, the Hands' centres
   const herb = { kind: 'flower', page: 0 }; // what the herbarium tab shows
-  const counts = { sown: 0, tends: 0, clouds: 0 }; // what you did, for whoever is counting (the gnomes' side quests)
+  const counts = { sown: 0, tends: 0, clouds: 0, eaten: 0 }; // what you did, for whoever is counting (the gnomes' side quests)
   const bq = { total: -1, list: [] };
   const loaded = new Map(); // Hand id -> when its groves were last read from the map
   let charge = 1, hyperUntil = 0, lastSprig = null, flushAt = 0; // the hyper sow: its charge (the first is free), when it ends, where the last sprig fell
   const queue = []; // sprigs sown and not yet sent
-  const fill = (k) => { const was = charge; charge = Math.min(1, charge + k); if (was < 1 && charge >= 1) say('Hyper sow is ready: press F (hold a left pinch) and draw with flowers', 5); };
+  const fill = (k) => { const was = charge; charge = Math.min(1, charge + k); if (was < 1 && charge >= 1) say(hyperReady(byHand()), 5); };
   let t = 0; // game seconds, for the pop when something grows
 
   // a grove's place in the world: under its Hand's pose, on the land
@@ -247,6 +248,7 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
         const shroom = garden.nearest(place.hand.id, mx, my, REACH, (p) => p.id > 0 && fox.canEat(p.id, now) && (p.dry === 2 || (SPECIES[p.sp]?.kind === 'mushroom' && p.stage === 3 && !p.dry)));
         if (shroom) {
           const kind = wildMushroom(shroom, FUNGI) ?? shroom.sp, k = fox.eat(now);
+          counts.eaten++;
           fox.ate(shroom.id, now);
           if (pouch.gather(kind, 2)) discovered(kind);
           ctx.burst?.();
@@ -291,7 +293,14 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
     }
     if (dirty || flora.moved(pos)) { dirty = false; flora.rebuild(garden.all(), pos, groundAt); }
   }
-  function discovered(sp) { credit('discover'); stamp(`New in your herbarium: ${SPECIES[sp].name}`, `${SPECIES[sp].latin} · ${pouch.found.size} of ${SPECIES.length} found`, 'HERBARIUM'); }
+  // a new kind for your herbarium: a line on your panel (in a full garden they come every few seconds); the stamp
+  // is for the round numbers
+  function discovered(sp) {
+    credit('discover');
+    const n = pouch.found.size;
+    if (n === 10 || n % 25 === 0) stamp(`${n} kinds in your herbarium`, `the newest: ${SPECIES[sp].name} · ${n} of ${SPECIES.length} found`, 'HERBARIUM');
+    else say(`New in your herbarium: ${SPECIES[sp].name} (${SPECIES[sp].latin}) · ${n} of ${SPECIES.length}`, 3.5);
+  }
 
   // plots near you: notice blooms, and tell the wildlife where to live
   function blooms(ctx) {

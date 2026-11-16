@@ -9,7 +9,7 @@ export function createStamp() {
   const canvas = Object.assign(document.createElement('canvas'), { width: W, height: H });
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
-  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.32, 0.16), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false, opacity: 0 }));
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.29, 0.145), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false, opacity: 0 }));
   mesh.renderOrder = 35;
   mesh.position.set(0, 0.06, -0.65);
   mesh.visible = false;

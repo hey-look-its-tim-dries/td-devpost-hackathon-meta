@@ -268,3 +268,25 @@ export function createFling({ speed = 1.3, travel = 0.25, toss = 0.4, cooldown =
     },
   };
 }
+
+// Clearing a grove by hand: make a fist and pull it up, as you pull a weed. A closed hand moving up fast
+// for a hand's length, begun in front of you (above floorY: not a fist coming up from your lap). Once per pull.
+export function createPull({ speed = 1.0, travel = 0.22, fist = 0.2, cooldown = 0.9 } = {}) {
+  let last = null, run = 0, wait = 0, y0 = 0;
+  return {
+    update(frame, dt, floorY = -Infinity) {
+      wait = Math.max(0, wait - dt);
+      if (!frame || dt <= 0) { last = null; run = 0; return null; }
+      const y = frame.center[1], d = last === null ? 0 : y - last;
+      last = y;
+      if (frame.extension > fist || d / dt < speed) { run = 0; return null; }
+      if (!run) y0 = y - d;
+      run += d;
+      if (run < travel) return null;
+      run = 0;
+      if (y0 < floorY || wait > 0) return null;
+      wait = cooldown;
+      return 'pull';
+    },
+  };
+}

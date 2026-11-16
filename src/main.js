@@ -31,7 +31,8 @@ import { createStamp } from './stamp.js';
 import { createHud } from './hud.js';
 import { addProps } from './world/props.js';
 import { createAtlas } from './atlas/card.js';
-import { createPalmUp, createPush, createFling } from './gesture.js';
+import { createPalmUp, createPush, createFling, createPull } from './gesture.js';
+import { firstHint } from './garden/hints.js';
 import { createPins, address } from './world/pins.js';
 import { placeName } from './world/names.js';
 import { createCommunityArt } from './community-art.js';
@@ -260,6 +261,7 @@ function hudContents() {
   const pl = place && !place.handbit ? { code: 'WATER', name: 'on the rivers', hand: place.hand.name, owner: !place.hand.founder, charted: true, count: chart.count(place.hand.id), total: place.hand.data.handbits.length } : place && { code: place.handbit.code, name: summitOf(place.hand, place.handbit) ?? nameOf(place.hand, place.handbit), hand: place.hand.name, owner: !place.hand.founder, charted: chart.has(place.hand.id, place.index), count: chart.count(place.hand.id), total: place.hand.data.handbits.length };
   const g = bloom.hud(place), gn = gnomes.hud();
   g.gnome = gn.quest;
+  g.hands = renderer.xr.isPresenting; // the card's hints: hand movements in the headset, keys on a screen
   const radar = { range: 6000, others: [], hands: [], clouds: [], blooms: bloom.plots(), gold, storm: sandNow };
   others.each((c, id, pos) => radar.others.push({ x: pos[0], z: pos[2], name: others.nameOf(id) }));
   for (const h of hands) { const [x, z] = toWorld(h.pose, 0, 230); radar.hands.push({ x, z, name: h.name }); }
@@ -314,7 +316,7 @@ const bouquets = new Map(); // room id -> that player's bouquet, from the signat
 const theirGnomes = new Map(); // room id -> the gnomes on that player's whorl: [{ hat, id (the mushroom it left) }]
 let myGnomes = []; // the gnomes on yours
 const sendDeco = (sig) => roomLink?.deco(withRiders(sig, myGnomes)); // your bouquet and your gnomes, in one signature
-const bloom = createBloom({ scene, shared: world.shared, storage, net, hands, groundAt, say: (text, s) => panel.say(text, s), stamp: (a, b, k) => stamp(a, b, k), online: () => online, onDeco: (d) => sendDeco(d) });
+const bloom = createBloom({ scene, shared: world.shared, storage, net, hands, groundAt, say: (text, s) => panel.say(text, s), stamp: (a, b, k) => stamp(a, b, k), online: () => online, onDeco: (d) => sendDeco(d), byHand: () => renderer.xr.isPresenting });
 const fauna = createFauna(bloom.species);
 scene.add(fauna.group);
 bloom.setFauna(fauna);
@@ -470,7 +472,7 @@ function atlasState() {
   others.each((c, id, pos) => list.push({ pos, name: others.nameOf(id) }));
   const mineHand = mine && hands.find((h) => h.id === mine.id);
   return { hands, chart, me: { pos: glide.pos, yaw: glide.yaw }, others: list, pins: pins.list(), selected: selected?.id ?? null, inspect: selected && inspectOf(selected), mine: mine && { name: mine.name, handbits: mineHand?.data.handbits ?? [] }, names: mine ? placeNames[mine.id] ?? {} : {}, pickName,
-    garden: bloom.herbarium, blooms: bloom.allPlots(), storm: bloom.storm(),
+    garden: bloom.herbarium, blooms: bloom.allPlots(), storm: bloom.storm(), byHand: renderer.xr.isPresenting,
     journal: events && events.map((e) => ({ when: when(e.at), text: journalText(e) })).filter((e) => e.text),
     timeline: timelineOf(), until: timelineAt,
     waters: atlas.layers.watersheds ? Object.fromEntries(Object.entries(sheds).map(([id, n]) => [id, SHED_COLOURS[n % SHED_COLOURS.length]])) : null, community: communityOn ? { paint: (g, regions, tools) => community.paintTab(g, regions, tools) } : null };
@@ -841,12 +843,14 @@ function frame() {
   if (mode !== 'atelier' && mode !== 'atlas') glide.update(dt, steer, groundAt); // the world waits while you read your hand or your atlas
   if (sow) gardenAct('plant');
   // sowing by hand (in the headset): sweep an open hand to scatter seed that way, throw it forward to cast far
-  // ahead, press a flat palm down to pour water, toss it upward to set a gnome down. The hand that steers does none of these.
+  // ahead, press a flat palm down to pour water, toss it upward to set a gnome down, pull a fist up to clear a grove.
+  // The hand that steers does none of these.
   if (renderer.xr.isPresenting && started && mode === 'fly') for (const h of xrHands) {
     const swept = (h.fling ??= createFling()).update(h === steerer ? null : h.frame, dt, handFloor());
     if (swept === 'up') gnomes.act('drop', gnomeCtx); // tossed upward: the gnome that grabbed on last lets go
     else if (swept) gardenAct(`scatter:${swept}`);
     if ((h.pour ??= createPush()).update(h === steerer ? null : h.frame, dt, handFloor()) === 'push') gardenAct('pour');
+    if ((h.pull ??= createPull()).update(h === steerer ? null : h.frame, dt, handFloor())) gardenAct('uproot'); // a fist pulled up: the grove under you comes out
   }
   bloomCtx.place = place; bloomCtx.braiding = braiding; bloomCtx.flying = started && mode === 'fly';
   bloom.frame(dt, bloomCtx);
@@ -994,7 +998,7 @@ function start() {
   banner.classList.add('hidden');
   panel.say('Palm Whorl Cities', 4);
   // fly and garden first; the invitation to lay a Hand of your own comes once you have planted a little (or after a while)
-  setTimeout(() => panel.say(renderer.xr.isPresenting ? 'Point to fly · pinch and hold to sow · sweep an open hand to scatter · press a palm down to pour' : 'A D turn · W S climb · hold SPACE to sow · R Z C scatter · T pour · F hyper sow', 8), 4200);
+  setTimeout(() => panel.say(firstHint(renderer.xr.isPresenting), 8), 4200);
   invite = mine || params.has('noatelier') ? null : { at: t + (params.has('atelier') ? 4.2 : 90), planted: bloom.pouch.plantedTotal + 6 }; // ?atelier: at once (the tests)
 }
 async function enterHeadset() {

@@ -129,3 +129,25 @@ test('a quest can be asked for by kind (the film and the checks do), if the worl
   assert.ok(!noCousins.includes('cousin'), 'no cousin to visit: the day\'s own quest instead');
   assert.deepEqual(questFor(g, 5, { ...world, kind: 'nonsense' }), questFor(g, 5, world));
 });
+
+import { questEvents } from '../src/gnomes/gnomes.js';
+test('what a gnome on board sees is what happens while it is on board: being in the foxfire already is not eating a mushroom', () => {
+  const was = { sown: 3, tends: 1, clouds: 0, eaten: 2 }, now = { sown: 5, tends: 1, clouds: 1, eaten: 2 };
+  const ev = questEvents(was, now, { x: 10, z: 20, speed: 400, alt: 300, wet: false, dt: 0.1 });
+  assert.equal(ev.filter((e) => e.type === 'sow').length, 2);
+  assert.equal(ev.filter((e) => e.type === 'cloud').length, 1);
+  assert.equal(ev.filter((e) => e.type === 'tend').length, 0);
+  assert.equal(ev.filter((e) => e.type === 'fox').length, 0, 'no mushroom eaten since');
+  assert.deepEqual(ev.find((e) => e.type === 'at'), { type: 'at', x: 10, z: 20 });
+  assert.deepEqual(ev.find((e) => e.type === 'speed'), { type: 'speed', v: 400 });
+  assert.deepEqual(ev.find((e) => e.type === 'alt'), { type: 'alt', h: 300 });
+  assert.equal(ev.some((e) => e.type === 'wet'), false);
+  const fed = questEvents(now, { ...now, eaten: 3 }, { x: 0, z: 0, speed: 0, alt: 0, wet: true, dt: 0.5 });
+  assert.equal(fed.filter((e) => e.type === 'fox').length, 1, 'a mushroom eaten now');
+  assert.deepEqual(fed.find((e) => e.type === 'wet'), { type: 'wet', dt: 0.5 });
+  let q = questFor({ id: 9, seed: 1234 }, 1, { kind: 'foxfire' });
+  for (const e of ev) q = advance(q, e);
+  assert.ok(!q.done);
+  for (const e of fed) q = advance(q, e);
+  assert.equal(q.done, true);
+});

@@ -241,3 +241,16 @@ test('a toss starts with the hand already up: a hand raised fast from your lap s
   assert.deepEqual(rise(0.9, 1.0), [], 'it started under the floor (your lap): a hand being raised');
   assert.deepEqual(rise(1.1, 1.0), ['up'], 'it started up in front of you: a toss');
 });
+
+import { createPull } from '../src/gesture.js';
+test('pulling a fist up clears a grove: a closed hand, fast, upward, from in front of you, once', () => {
+  const frame = (y, extension) => ({ center: [0, y, -0.3], normal: [0, -1, 0], extension });
+  const lift = (p, from, step, n, ext, floorY = 1.0) => { let y = from, out = 0; for (let i = 0; i < n; i++) { y += step; if (p.update(frame(y, ext), 1 / 60, floorY)) out++; } return out; };
+  assert.equal(lift(createPull(), 1.1, 0.03, 14, 0.05), 1, '1.8 m/s up over 40 cm, a fist: one pull');
+  assert.equal(lift(createPull(), 1.1, 0.03, 14, 0.8), 0, 'an open hand pulls nothing (that is a toss)');
+  assert.equal(lift(createPull(), 1.1, 0.008, 40, 0.05), 0, 'a fist raised slowly pulls nothing');
+  assert.equal(lift(createPull(), 0.8, 0.03, 14, 0.05), 0, 'a fist coming up from your lap pulls nothing');
+  assert.equal(lift(createPull(), 1.6, -0.03, 14, 0.05), 0, 'a fist going down pulls nothing');
+  const p = createPull();
+  assert.equal(lift(p, 1.1, 0.03, 14, 0.05) + lift(p, 1.1, 0.03, 14, 0.05), 1, 'not again straight after');
+});

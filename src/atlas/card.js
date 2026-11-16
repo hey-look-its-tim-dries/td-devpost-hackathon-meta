@@ -5,7 +5,8 @@
 // your left palm up (it then follows your palm) or the M key. Taps come in as card uv (0..1).
 import * as THREE from 'three';
 import { drawMap, mapView, fromMap } from './map.js';
-import { W, H, TABS, TAB_LABELS, MAP, LAYERS, layout, hitAt } from './layout.js';
+import { W, H, TABS, TAB_LABELS, TAB, MAP, LAYERS, layout, hitAt } from './layout.js';
+import { MOVES } from '../garden/hints.js';
 import { TONES } from '../world/scene.js';
 import { themed, look } from '../ui/themed.js';
 
@@ -65,10 +66,10 @@ export function createAtlas() {
     g.fillStyle = PAPER; g.beginPath(); g.roundRect(0, 0, W, H, 36); g.fill();
     g.strokeStyle = INK; g.lineWidth = 4; g.stroke();
     TABS.forEach((t, i) => { // the tab row
-      const x = 24 + i * 214, on = t === tab;
+      const x = TAB.x + i * TAB.step, on = t === tab;
       g.fillStyle = on ? INK : PAPER; g.strokeStyle = INK; g.lineWidth = 3;
-      g.beginPath(); g.roundRect(x, 22, 200, 64, 32); g.fill(); g.stroke();
-      text(TAB_LABELS[t], x + 100, 64, { font: `700 28px ${SANS}`, color: on ? PAPER : INK, align: 'center' });
+      g.beginPath(); g.roundRect(x, 22, TAB.w, 64, 32); g.fill(); g.stroke();
+      text(TAB_LABELS[t], x + TAB.w / 2, 64, { font: `700 26px ${SANS}`, color: on ? PAPER : INK, align: 'center', max: TAB.w - 20 });
     });
     g.strokeStyle = INK; g.lineWidth = 3; g.beginPath(); g.roundRect(1100, 22, 76, 64, 32); g.stroke();
     text('✕', 1138, 66, { font: `700 32px ${SANS}`, align: 'center' });
@@ -91,6 +92,7 @@ export function createAtlas() {
     else if (tab === 'community') s.community ? s.community.paint(g, regions, { button, text }) : text('The Community Hand needs the shared map.', 60, 200, { font: `italic 400 34px ${SERIF}` });
     else if (tab === 'journal') journal(s);
     else if (tab === 'garden') s.garden?.paint(g, regions, { button, text });
+    else if (tab === 'how') how(s);
     if (s.pickName) nameCard(s.pickName); // naming floats over any tab
     tex.needsUpdate = true;
   }
@@ -106,6 +108,17 @@ export function createAtlas() {
     for (const line of q.lines) { text(line, x + 28, yy, { font: `400 25px ${SANS}`, color: 'rgba(22,16,14,0.75)', max: w - 56 }); yy += 36; }
     let by = y + h - 90;
     for (const b of [...q.buttons].reverse()) { button(b.id, x + 28, by, w - 56, 66, b.label, { primary: b.primary }); by -= 80; }
+  }
+  function how(s) { // every move, the way you are playing now first (hands in the headset, keys on a screen)
+    text('How to play', 60, 160, { font: `600 54px ${SERIF}` });
+    text(s.byHand ? 'with your hands' : 'on a screen', 60, 200, { font: `400 26px ${SANS}`, color: 'rgba(22,16,14,0.7)' });
+    text(s.byHand ? 'ON A SCREEN' : 'IN THE HEADSET', 880, 200, { font: `700 20px ${SANS}`, color: SEAL });
+    MOVES.forEach(([what, hand, screen], i) => {
+      const y = 262 + i * 51;
+      text(what, 60, y, { font: `700 26px ${SANS}`, color: SEAL, max: 250 });
+      text(s.byHand ? hand : screen ?? hand, 320, y, { font: `400 28px ${SERIF}`, max: 540 });
+      if (screen) text(s.byHand ? screen : hand, 880, y, { font: `400 21px ${SANS}`, color: 'rgba(22,16,14,0.6)', max: 290 }); // (nothing to add where it is the same either way)
+    });
   }
   function timeline(t) { // the world's history: drag to replay the continent growing
     const x = 300, y = MAP.y + MAP.h - 70, w = 600; // bottom centre, clear of the legend and the scale bar
