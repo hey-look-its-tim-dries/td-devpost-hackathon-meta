@@ -45,9 +45,9 @@ export class Room extends DurableObject {
     this.counts.set(a.id, c);
     if (++c.n > FLOOD) { this.live.delete(a.id); this.counts.delete(a.id); return ws.close(1008, 'too fast'); } // poses and names alike (review finding 6)
     if (typeof msg === 'string') { // { name }: once, or when it changes; everyone hears it
-      if (msg.length > 200) return;
+      if (msg.length > 420) return;
       let name = null, deco = null;
-      try { const m = JSON.parse(msg); name = cleanName(m.name); if (Array.isArray(m.deco)) deco = m.deco.filter((v) => Number.isInteger(v) && v >= 0 && v < 4096).slice(0, 12); } catch {}
+      try { const m = JSON.parse(msg); name = cleanName(m.name); if (Array.isArray(m.deco)) deco = m.deco.filter((v) => Number.isInteger(v) && v >= 0 && v < 4096).slice(0, 48); } catch {}
       if (deco) { // what a gardener planted most: it decorates their whorl for everyone
         ws.serializeAttachment({ ...a, deco });
         return this.broadcast(JSON.stringify({ decos: { [a.id]: deco } }));

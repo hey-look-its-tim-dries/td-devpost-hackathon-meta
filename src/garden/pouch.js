@@ -2,6 +2,8 @@
 // What a gardener carries: seeds by kind, water (five pours, refilled by skimming a river), the kinds
 // they have found (the herbarium), what they planted (it decorates their whorl) and experience. Kept
 // on this device under pwc.garden.v1. Pure.
+import { logPlanting, signature } from './bouquet.js';
+
 const KEY = 'pwc.garden.v1';
 const XP = { sprig: 1, plant: 5, tend: 3, gather: 1, discover: 15, bloom: 40, golden: 60, clear: 2 };
 
@@ -9,6 +11,7 @@ export function createPouch(storage, species, starters) {
   let s = null;
   try { s = JSON.parse(storage?.getItem(KEY) ?? 'null'); } catch {}
   if (!s || typeof s !== 'object' || !s.seeds) s = { seeds: Object.fromEntries(starters.map((id) => [id, 10])), sel: starters[0], water: 0, xp: 0, planted: {}, found: [...starters] };
+  s.log ??= Object.entries(s.planted ?? {}).map(([id, n]) => [+id, n, 0]); // gardens from before the log: what was sown, in no order
   const found = new Set(s.found);
   const save = () => { s.found = [...found]; try { storage?.setItem(KEY, JSON.stringify(s)); } catch {} };
   const carried = () => Object.keys(s.seeds).map(Number).filter((id) => s.seeds[id] > 0 && species[id]).sort((a, b) => a - b);
@@ -37,7 +40,9 @@ export function createPouch(storage, species, starters) {
       return s.sel;
     },
     giveBack(id) { s.seeds[id] = (s.seeds[id] ?? 0) + 1; save(); }, // a planting the map refused
-    planted(id) { s.planted[id] = (s.planted[id] ?? 0) + 1; save(); },
+    planted(id) { s.planted[id] = (s.planted[id] ?? 0) + 1; s.log = logPlanting(s.log, id, Math.floor(Date.now() / 86400000)); save(); },
+    log: () => s.log, // everything you sowed, in order: your bouquet (bouquet.js)
+    signature: () => signature(s.log),
     deco: (n = 12) => Object.keys(s.planted).map(Number).filter((id) => species[id]).sort((a, b) => s.planted[b] - s.planted[a] || a - b).slice(0, n),
     fill() { s.water = 5; save(); },
     pour() { if (s.water <= 0) return false; s.water--; save(); return true; },

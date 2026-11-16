@@ -44,6 +44,7 @@ import { forgetGone } from './world/tidy.js';
 import { createOthers } from './others.js';
 import { createBloom } from './garden/game.js';
 import { createFauna } from './garden/fauna.js';
+import { bouquet, fromSignature } from './garden/bouquet.js';
 
 // Palm Whorl Cities, first milestone: the First Ten. Ten founding hands lie in a ring around the
 // Source. Their lines are rivers, their fingertips are print lands, and black-ink scribbles knot
@@ -195,7 +196,7 @@ net.fetchWorld().then(({ hands: list, online: ok }) => {
   if (ok) { refreshNames(); forgetGone([...list.map((h) => h.id), mine?.id].filter(Boolean), chart, pins); } // Hands washed while you were away
 
   if (ok) bloom.load();
-  if (ok) roomLink = net.openRoom({ name: mine?.name ?? null, deco: bloom.pouch.deco(), onGarden: bloom.onGarden, onDecos: (m) => Object.assign(decos, m), onHello: (id) => (me = id), onNames: (m) => others.setNames(m), onSnapshot: (s) => others.apply(s, me, glide.pos), onLaid: applyLaid, onLeft: removeHand, onState: (st) => (roomState = st), onCommunity: (m) => { if (m.donated) community.add(m.donated); if (m.sealed) { stamp(`Community Hand ${m.sealed}`, 'all 22 handbits given · the next one begins'); net.community().then((c) => community.set(c)); } } });
+  if (ok) roomLink = net.openRoom({ name: mine?.name ?? null, deco: bloom.pouch.signature(), onGarden: bloom.onGarden, onDecos: (m) => { for (const [id, sig] of Object.entries(m)) bouquets.set(+id, bouquet(fromSignature(sig), { strands: 5, max: 80 })); }, onHello: (id) => (me = id), onNames: (m) => others.setNames(m), onSnapshot: (s) => others.apply(s, me, glide.pos), onLaid: applyLaid, onLeft: removeHand, onState: (st) => (roomState = st), onCommunity: (m) => { if (m.donated) community.add(m.donated); if (m.sealed) { stamp(`Community Hand ${m.sealed}`, 'all 22 handbits given · the next one begins'); net.community().then((c) => community.set(c)); } } });
   else panel.say('Playing alone: the map could not be reached', 6);
 });
 const others = createOthers({ max: 60 }); // the other players in your room, as lighter creatures
@@ -296,7 +297,7 @@ scene.add(streakInk.mesh);
 scene.add(ink.mesh);
 
 // ---------- Bloom: the garden game (src/garden/game.js) ----------
-const decos = {}; // room id -> what that player planted most, on their whorl
+const bouquets = new Map(); // room id -> that player's bouquet, from the signature they told the room
 const bloom = createBloom({ scene, shared: world.shared, storage, net, hands, groundAt, say: (text, s) => panel.say(text, s), stamp: (a, b, k) => stamp(a, b, k), online: () => online, onDeco: (d) => roomLink?.deco(d) });
 const fauna = createFauna(bloom.species);
 scene.add(fauna.group);
@@ -809,13 +810,14 @@ function frame() {
   others.each((c) => { for (let k = 0; k < c.strands; k++) { const l = c.strand(k), w = c.weight(k); ink.stroke(l.xyz, l.count, (s) => TAPER(s) * 0.7 * w); } }); // other players, a little lighter than you
   ink.end();
   // what gardeners planted flowers on their whorls; seed clouds are swirls of their own flower
-  const fl = bloom.flora, mineDeco = bloom.pouch.deco();
+  const fl = bloom.flora;
   fl.decoBegin();
-  if (mineDeco.length) for (let i = 0, n = Math.min(110, 3 + bloom.pouch.plantedTotal); i < n; i++) {
-    const l = creature.strand(i % creature.active), j = (5 + ((i * 7) % Math.max(1, l.count - 10))) * 3;
-    fl.deco(l.xyz[j], l.xyz[j + 1], l.xyz[j + 2], 9 + 5 * (i % 3), mineDeco[i % mineDeco.length]);
+  // "I am what I have sown": your bouquet rides your whorl from head (first sown) to tail, breathing a little
+  for (const o of bloom.bouquet()) {
+    const l = creature.strand(o.strand % creature.active), j = Math.min(l.count - 1, Math.max(1, Math.round(o.at * (l.count - 1)))) * 3;
+    fl.deco(l.xyz[j], l.xyz[j + 1], l.xyz[j + 2], (5 + 5 * o.size) * (1 + 0.12 * Math.sin(t * 2.2 + o.phase)), o.sp);
   }
-  others.each((c, id) => { const d = decos[id]; if (d?.length) for (let i = 0; i < 14; i++) { const l = c.strand(i % c.strands), j = (4 + ((i * 5) % Math.max(1, l.count - 8))) * 3; fl.deco(l.xyz[j], l.xyz[j + 1], l.xyz[j + 2], 11, d[i % d.length]); } });
+  others.each((c, id) => { const b = bouquets.get(id); if (b) for (const o of b) { const l = c.strand(o.strand % c.strands), j = Math.min(l.count - 1, Math.max(1, Math.round(o.at * (l.count - 1)))) * 3; fl.deco(l.xyz[j], l.xyz[j + 1], l.xyz[j + 2], (5 + 4 * o.size) * (1 + 0.12 * Math.sin(t * 2.2 + o.phase)), o.sp); } });
   for (const c of bloom.clouds()) if (!bloom.taken(c.id)) for (let i = 0; i < 10; i++) { const a = t * (0.5 + 0.07 * i) + i * 0.63, r = 30 + 50 * ((i * 0.618) % 1); fl.deco(c.x + Math.cos(a) * r, c.y + Math.sin(a * 1.3 + i) * 25, c.z + Math.sin(a) * r, 30, c.sp); }
   const sandNow = bloom.storm();
   dust.visible = !!sandNow;

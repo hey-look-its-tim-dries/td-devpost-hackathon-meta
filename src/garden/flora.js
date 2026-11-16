@@ -208,7 +208,7 @@ export function createFlora(species, flora, shared) {
     pixel: batch(cards, SPR, spriteMat(pixTex), 24000),
     paint: batch(cards, SPR, spriteMat(softTex), 24000),
     tile: batch(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), { ...SPR, aH: 4 }, spriteMat(pixTex, { tile: true }), 16000),
-    deco: batch(new THREE.PlaneGeometry(1, 1), SPR, spriteMat(softTex, { billboard: true }), 1200),
+    deco: batch(new THREE.PlaneGeometry(1, 1), SPR, spriteMat(softTex, { billboard: true }), 7000), // bouquets on every whorl in sight, and the seed clouds
   };
   for (const k in geos) B[k] = batch(geos[k], MSH, meshMat(), k in { open: 1, cup: 1, spike: 1 } ? 9000 : 2500);
   const group = new THREE.Group();

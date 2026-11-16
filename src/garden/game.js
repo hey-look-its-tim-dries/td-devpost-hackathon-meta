@@ -9,6 +9,7 @@ import { createGarden, habitatOf, vigour, UNITS, LEVELS } from './garden.js';
 import { createPouch } from './pouch.js';
 import { clouds, golden, storm, stormDried } from './drift.js';
 import { paintHerbarium } from './herbarium.js';
+import { bouquet } from './bouquet.js';
 import { createFlora, TILE } from './flora.js';
 import { toWorld, toHand } from '../world/founders.js';
 import { WORLD } from '../world/units.js';
@@ -33,6 +34,7 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
   let near = [], every = []; // blooming plots near you (the radar, the wildlife) and all of them (the atlas)
   let sand = null, sandSaid = -1, anchorsNow = []; // the sandstorm now, the last one announced, the Hands' centres
   const herb = { kind: 'flower', page: 0 }; // what the herbarium tab shows
+  const bq = { total: -1, list: [] };
   const loaded = new Map(); // Hand id -> when its groves were last read from the map
   let charge = 1, hyperUntil = 0, lastSprig = null, flushAt = 0; // the hyper sow: its charge (the first is free), when it ends, where the last sprig fell
   const queue = []; // sprigs sown and not yet sent
@@ -121,7 +123,7 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
     const up = pouch.credit('plant');
     fill(0.03);
     worldPlants++;
-    onDeco?.(pouch.deco());
+    onDeco?.(pouch.signature());
     if (up) stamp(`Gardener level ${pouch.level}`, TIER(pouch.level) > TIER(pouch.level - 1) ? 'rarer seeds will come to you now' : 'your whorl grows', 'GARDENER');
     if (!online()) return;
     net.plant(p).then((r) => {
@@ -162,7 +164,7 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
     if (queue.length && (queue.length >= 40 || performance.now() > flushAt)) {
       flushAt = performance.now() + 550;
       const sent = queue.splice(0, 40);
-      onDeco?.(pouch.deco());
+      onDeco?.(pouch.signature());
       if (online()) net.plantMany(sent).then((r) => sent.forEach((p, i) => {
         remove(p.id);
         const id = r.ids?.[i];
@@ -255,6 +257,8 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
   }
 
   return {
+    // your bouquet: every kind you sowed, in order, as ornaments for your whorl; made again only when you have sown more
+    bouquet() { if (bq.total !== pouch.plantedTotal) { bq.total = pouch.plantedTotal; bq.list = bouquet(pouch.log(), { strands: 24 }); } return bq.list; },
     garden, pouch, flora, species: SPECIES, onGarden, load, handsRead: () => loaded.size, plots: () => near, allPlots: () => every, storm: () => sand,
     // the atlas's Garden tab: the herbarium; taps choose a kind, a page, or the seed to sow
     herbarium: { paint: (g, regions, tools) => { const r = paintHerbarium(g, regions, tools, { species: SPECIES, found: pouch.found, has: pouch.has, icon: flora.icon, style: flora.styleOf, selected: pouch.selected, ...herb }); herb.page = r.page; } },
