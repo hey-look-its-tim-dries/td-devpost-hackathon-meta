@@ -286,7 +286,7 @@ function hudContents() {
   g.hands = renderer.xr.isPresenting; // the card's hints: hand movements in the headset, keys on a screen
   const radar = { range: 6000, others: [], hands: [], clouds: [], blooms: bloom.plots(), gold, storm: sandNow };
   others.each((c, id, pos) => radar.others.push({ x: pos[0], z: pos[2], name: others.nameOf(id) }));
-  for (const h of hands) { const [x, z] = toWorld(h.pose, 0, 230); radar.hands.push({ x, z, name: h.name }); }
+  for (const h of hands) { if (!h.pose) continue; const [x, z] = toWorld(h.pose, 0, 230); radar.hands.push({ x, z, name: h.name, ...lobbyShape(h) }); } // each Hand with its real outline, fingers and rivers
   for (const c of bloom.clouds()) if (!bloom.taken(c.id)) radar.clouds.push({ x: c.x, z: c.z, color: bloom.species[c.sp].color });
   return { show: false, yaw: glide.yaw, pos: glide.pos, altitude: glide.pos[1] - groundAt(glide.pos[0], glide.pos[2]), place: pl, markers: marks, active: false, garden: g, radar,
     // the board on the stats card: the top gardeners, taking turns with the top gnome converters once there are any

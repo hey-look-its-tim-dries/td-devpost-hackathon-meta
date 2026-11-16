@@ -120,7 +120,21 @@ export function createHud() {
     const fx = -Math.sin(yaw), fz = -Math.cos(yaw);
     const at = (x, z) => { const dx = x - pos[0], dz = z - pos[2]; let sx = (dx * -fz + dz * fx) / r.range, sy = -(dx * fx + dz * fz) / r.range; const l = Math.hypot(sx, sy), edge = l > 0.94; if (edge) { sx *= 0.94 / l; sy *= 0.94 / l; } return [cx + sx * R, cy + sy * R, edge]; };
     g.textAlign = 'center'; g.textBaseline = 'middle';
-    for (const h of r.hands) { const [x, y, edge] = at(h.x, h.z); if (edge) { g.fillStyle = SEAL; g.beginPath(); g.arc(x, y, 5, 0, Math.PI * 2); g.fill(); g.fillStyle = INK; g.font = '600 14px Inter, system-ui, sans-serif'; g.fillText(h.name, cx + (x - cx) * 0.84, cy + (y - cy) * 0.84); continue; } /* a Hand out of range: a dot on the rim, its name just inside, so you know which way to fly */ g.fillStyle = 'rgba(184,68,46,0.16)'; g.beginPath(); g.arc(x, y, (2300 / r.range) * R, 0, Math.PI * 2); g.fill(); g.fillStyle = 'rgba(22,16,14,0.55)'; g.font = '500 15px Inter, system-ui, sans-serif'; g.fillText(h.name, x, y); }
+    // the Hands as hands: each one's real palm and fingers in its skin tone, its palm lines as rivers, clipped to the radar's round
+    const raw = (x, z) => { const dx = x - pos[0], dz = z - pos[2]; return [cx + ((dx * -fz + dz * fx) / r.range) * R, cy - ((dx * fx + dz * fz) / r.range) * R]; };
+    g.save(); g.beginPath(); g.arc(cx, cy, R * 0.97, 0, Math.PI * 2); g.clip();
+    for (const h of r.hands) {
+      if (!h.outline || Math.hypot(h.x - pos[0], h.z - pos[2]) > r.range + 3500) continue;
+      const poly = (pts) => { g.beginPath(); pts.forEach((q, i) => { const [x, y] = raw(q[0], q[1]); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.closePath(); };
+      g.fillStyle = h.tone; g.strokeStyle = 'rgba(22,16,14,0.6)'; g.lineWidth = 1.2; g.globalAlpha = 0.9;
+      for (const f of h.fingers) { poly(f); g.fill(); g.stroke(); }
+      poly(h.outline); g.fill(); g.stroke();
+      g.strokeStyle = RIVER; g.lineWidth = 1.6;
+      for (const l of h.lines) { g.beginPath(); l.forEach((q, i) => { const [x, y] = raw(q[0], q[1]); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.stroke(); }
+      g.globalAlpha = 1;
+    }
+    g.restore();
+    for (const h of r.hands) { const [x, y, edge] = at(h.x, h.z); if (edge) { g.fillStyle = SEAL; g.beginPath(); g.arc(x, y, 5, 0, Math.PI * 2); g.fill(); g.fillStyle = INK; g.font = '600 14px Inter, system-ui, sans-serif'; g.fillText(h.name, cx + (x - cx) * 0.84, cy + (y - cy) * 0.84); continue; } g.font = '700 15px Inter, system-ui, sans-serif'; g.lineWidth = 3.5; g.strokeStyle = 'rgba(243,228,210,0.9)'; g.strokeText(h.name, x, y); g.fillStyle = INK; g.fillText(h.name, x, y); }
     if (r.storm) { const [x, y, edge] = at(r.storm.x, r.storm.z); if (!edge) { g.fillStyle = 'rgba(150,110,60,0.4)'; g.beginPath(); g.arc(x, y, (r.storm.r / r.range) * R, 0, Math.PI * 2); g.fill(); } }
     for (const p of r.blooms) { const [x, y, edge] = at(p.x, p.z); if (!edge) { g.fillStyle = LEAF; g.beginPath(); g.arc(x, y, 3 + p.level * 1.5, 0, Math.PI * 2); g.fill(); } }
     for (const q of r.clouds) { const [x, y, edge] = at(q.x, q.z); if (!edge) { g.fillStyle = q.color; g.beginPath(); g.arc(x, y, 6, 0, Math.PI * 2); g.fill(); g.strokeStyle = INK; g.lineWidth = 1.5; g.stroke(); } }
