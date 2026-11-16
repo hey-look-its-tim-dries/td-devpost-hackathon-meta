@@ -7,7 +7,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { pose } from './pose.js';
 import { HATS } from './gnomes.js';
 
-const MAX = 48, PARTS = ['body', 'belt', 'buckle', 'legL', 'legR', 'armL', 'armR', 'handL', 'handR', 'head', 'nose', 'cheeks', 'eyes', 'brows', 'beard', 'hat', 'bell'];
+const MAX = 48, PARTS = ['body', 'belt', 'buckle', 'buttons', 'legL', 'legR', 'shinL', 'shinR', 'armL', 'armR', 'foreL', 'foreR', 'handL', 'handR', 'head', 'nose', 'cheeks', 'eyes', 'brows', 'beard', 'hat', 'bell', 'scarf'];
 const COATS = ['#3b5fa8', '#2f7d5a', '#7a4a2a', '#8a3a6a', '#3a7a8a', '#a8652a', '#55606e'], BEARDS = ['#f5f1e6', '#e8e2d2', '#cfc8b8', '#f0d8a8'];
 const SKIN = new THREE.Color('#f0c39c'), NOSE = new THREE.Color('#e89a7c'), BOOT = new THREE.Color('#3d2a1c'), GOLD = new THREE.Color('#f2c230'), CHEEK = new THREE.Color('#f29a8a'), EYE = new THREE.Color('#1a1210');
 
@@ -37,6 +37,14 @@ export function createGnomeRenderer() {
     M.multiplyMatrices(root, T).multiply(J);
     meshes[name].setMatrixAt(n, M);
   };
+  const K = new THREE.Matrix4(), off = new THREE.Vector3();
+  const limb = (upper, lowers, rx, rz, bend) => { // a limb of two parts: the upper one at its joint, the lower ones hanging from it and bent at theirs (elbow, knee)
+    joint(upper, rx, 0, rz);
+    off.copy(rest[lowers[0]]).sub(rest[upper]);
+    e.set(bend, 0, 0, 'YZX'); J.makeRotationFromEuler(e); T.makeTranslation(off.x, off.y, off.z);
+    K.copy(M).multiply(T).multiply(J);
+    for (const name of lowers) meshes[name].setMatrixAt(n, K);
+  };
   return {
     group,
     get ready() { return ready; },
@@ -46,15 +54,16 @@ export function createGnomeRenderer() {
     add({ x, y, z, yaw = 0, s = 11, clip = 'idle', t = 0, hat = 0, seed = 0, motion = null, grip = 0 }) { /* grip: hangs from this height (gnome units), so the body swings under its hands */ // motion: how the flight throws a hanging gnome about (pose.js)
       if (!ready || n >= MAX) return;
       const p = pose(clip, t, seed, motion);
-      e.set(p.tilt, yaw, p.roll, 'YXZ'); q.setFromEuler(e);
+      e.set(p.tilt, yaw + (p.spin ?? 0), p.roll, 'YXZ'); q.setFromEuler(e);
       root.compose(v.set(x, y + p.y * s, z), q, one.set(s, s, s));
       if (grip) root.multiply(T.makeTranslation(0, -grip, 0));
-      joint('body', 0, 0, 0); joint('belt', 0, 0, 0); joint('buckle', 0, 0, 0);
-      joint('legL', p.legL, 0, 0); joint('legR', p.legR, 0, 0);
-      joint('armL', p.armLx, 0, p.armLz); joint('armR', p.armRx, 0, p.armRz); joint('handL', p.armLx, 0, p.armLz); joint('handR', p.armRx, 0, p.armRz);
-      for (const name of ['head', 'nose', 'cheeks', 'eyes', 'brows', 'beard', 'hat', 'bell']) joint(name, p.headX, p.headY, 0);
+      joint('body', 0, 0, 0); joint('belt', 0, 0, 0); joint('buckle', 0, 0, 0); joint('buttons', 0, 0, 0);
+      limb('legL', ['shinL'], p.legL, 0, p.kneeL ?? 0); limb('legR', ['shinR'], p.legR, 0, p.kneeR ?? 0);
+      limb('armL', ['foreL', 'handL'], p.armLx, p.armLz, p.elbowL ?? 0); limb('armR', ['foreR', 'handR'], p.armRx, p.armRz, p.elbowR ?? 0);
+      for (const name of ['head', 'nose', 'cheeks', 'eyes', 'brows', 'beard', 'hat', 'bell', 'scarf']) joint(name, p.headX, p.headY, 0);
       const coat = c.set(COATS[seed % COATS.length]);
-      meshes.body.setColorAt(n, coat); meshes.armL.setColorAt(n, coat); meshes.armR.setColorAt(n, coat);
+      meshes.body.setColorAt(n, coat); meshes.armL.setColorAt(n, coat); meshes.armR.setColorAt(n, coat); meshes.foreL.setColorAt(n, coat); meshes.foreR.setColorAt(n, coat);
+      meshes.shinL.setColorAt(n, BOOT); meshes.shinR.setColorAt(n, BOOT); meshes.buttons.setColorAt(n, GOLD); meshes.scarf.setColorAt(n, c.set(HATS[(hat + 3) % HATS.length]));
       meshes.legL.setColorAt(n, BOOT); meshes.legR.setColorAt(n, BOOT);
       meshes.head.setColorAt(n, SKIN); meshes.nose.setColorAt(n, NOSE); meshes.handL.setColorAt(n, SKIN); meshes.handR.setColorAt(n, SKIN);
       meshes.belt.setColorAt(n, BOOT); meshes.buckle.setColorAt(n, GOLD); meshes.bell.setColorAt(n, GOLD); meshes.cheeks.setColorAt(n, CHEEK); meshes.eyes.setColorAt(n, EYE);

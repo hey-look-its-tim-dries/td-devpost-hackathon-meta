@@ -15,7 +15,7 @@ import puppeteer from '/Users/timdries/Desktop/Projects/TD-GAME-LINKSAWAKENING/t
 const OUT = process.argv[2] ?? 'media/palm-whorl-cities-demo.mp4', SHOTS = process.env.SHOTS;
 const [W, H] = (process.env.SIZE ?? '1280x720').split('x').map(Number);
 const API = process.env.API ?? 'http://localhost:8787';
-const URL_ = process.env.URL_ ?? `http://localhost:8130/?emulate&nodevui&atelier&notutorial&tuft&quest=foxfire&at=0,1100,11800&api=${API}`; // ?atelier: the hand card at once
+const URL_ = process.env.URL_ ?? `http://localhost:8130/?emulate&nodevui&atelier&notutorial&tuft&quest=sow&at=0,1100,11800&api=${API}`; // ?atelier: the hand card at once
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const browser = await puppeteer.launch({ headless: 'new', executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', args: ['--use-angle=metal', '--enable-gpu', `--window-size=${W},${H}`] });
@@ -209,7 +209,9 @@ await page.evaluate(() => {
 const film = (fn, ...a) => page.evaluate(fn, ...a);
 const state = () => film(() => { const { mode, mine, hands, steering, speed, pos, xr } = __pwc.state; return { mode, mine, hands, steering, speed, pos, xr }; });
 const until = async (pred, label, ms = 30000) => { for (const end = Date.now() + ms; Date.now() < end; await wait(200)) { const s = await state(); if (pred(s)) return log(`${label} ${JSON.stringify(s)}`); } log(`TIMEOUT ${label} ${JSON.stringify(await state())}`); process.exitCode = 1; };
-const caption = (t) => film((t) => __film.caption(t), t);
+const caps = []; // [when (ms), what is said]: the narration is cut to these
+let chapter = '';
+const caption = (t) => { if (t) caps.push([Date.now(), t]); return film((h) => __film.caption(h), t ? `<span style="display:block;font:700 .95vw Inter,system-ui,sans-serif;letter-spacing:.28em;color:#ffcfa8;margin-bottom:.35em">${chapter}</span>${t}` : null); };
 const poke = (x, y, drag) => film((x, y, drag) => __film.poke(x, y, drag), x, y, drag ?? []);
 
 // ---------- the film ----------
@@ -217,12 +219,13 @@ await wait(3500); // the title, over the drifting world
 // the lobby: the world right now, with the second player on the live map
 await page.click('#previewButton');
 await wait(600);
-await caption('One world, live. See who is flying before you dive in.');
-await wait(5200);
+chapter = 'EARLY GAME · YOUR HAND BECOMES LAND';
+await caption('One live world, shared by everyone. See who is flying before you dive in.');
+await wait(4200);
 await caption(null);
 await page.click('#lobbyXr');
 await until((s) => s.xr, 'in the headset');
-await caption('A world map made of hands. Ten founders, then only players.');
+await caption('The whole map is made of hands. Ten founders, and then every player adds one.');
 await until((s) => s.mode === 'atelier', 'the card opens');
 await caption('First, in your own room: read your hand by eye.');
 log(`tip ${JSON.stringify(await film(() => __film.ready()))}`);
@@ -276,7 +279,7 @@ const near = (x, z, d, ms) => reach((p) => Math.hypot(p[0] - x, p[2] - z) < d, `
 const bloomNow = () => film(() => { const p = window.__pwc, h = p.bloom.hud(null), g = p.gnomes.hud(), s = p.state.pos, acts = {}; for (const a of window.__acts) acts[a] = (acts[a] ?? 0) + 1; return { acts, seeds: h.seeds, water: h.water, hyper: h.hyper, fox: !!h.fox, sown: p.bloom.counts.sown, tends: p.bloom.counts.tends, riders: g.riders, team: g.team, quest: g.quest && `${g.quest.kind} ${g.quest.have}/${g.quest.need}${g.quest.done ? ' done' : ''}`, speed: p.state.speed, alt: Math.round(s[1] - p.groundAt(s[0], s[2])), pos: s }; });
 const mark = async (label) => log(`${label} ${JSON.stringify(await bloomNow())}`);
 await film(() => { const b = window.__pwc.bloom, act = b.act; window.__acts = []; b.act = (what, ctx) => { window.__acts.push(what); return act.call(b, what, ctx); }; }); // what the hands asked the garden for, for the log
-await caption('Raise a hand and point. Your fingers are the arrow.');
+await caption('No controllers. Raise a hand and point: your fingers are the arrow.');
 await film(() => __film.lookAhead(-0.14));
 await near(1000, 10400, 800, 20000);
 await go(1000, 8700, 250);
@@ -287,7 +290,8 @@ await near(1000, 8700, 600, 12000);
 await go(1000, 3600, 215);
 await reach((p) => p[2] < 7300, 'over plot t', 8000);
 await mark('at the garden');
-await caption('Every Hand is a garden. Hold a pinch and you sow.');
+chapter = 'MID GAME · A GARDEN FOR EVERYONE';
+await caption('Every Hand is a garden. Hold a pinch, and seed flies out ahead of you.');
 await film(() => __film.sow(true));
 await wait(3000);
 await film(() => __film.sow(false));
@@ -305,7 +309,7 @@ await wait(300);
 await film(() => __film.sow(false));
 await mark('watered');
 // on over the river and plot p
-await caption('Players plant hundreds of real flowers and trees. Wildlife moves in.');
+await caption('Four hundred real flowers and trees to find. Where plots bloom, wildlife moves in.');
 await reach((p) => p[2] < 5500, 'over plot p', 12000);
 await caption('Sweep an open hand and you scatter seed.');
 await film(() => __film.sweep());
@@ -328,55 +332,88 @@ await reach((p) => p[2] > 6300, 'the end of lane B', 9000);
 const shroom = (garden?.shrooms ?? []).find((q) => q.gnome) ?? garden?.shrooms?.[0] ?? null;
 log(`mushroom ${JSON.stringify(shroom)}`);
 if (shroom) {
-  await go(shroom.x, 6500, 210);
+  await go(shroom.x, 6500, 175); /* level with the pass to come: no dive, so slow enough for the gnome to grab on */
   await near(shroom.x, 6500, 450, 12000);
+  chapter = 'LATE GAME · FOXFIRE, GNOMES, ONE WORLD';
   await caption('Mushrooms fruit among the flowers. Fly through one…');
-  for (let pass = 0; pass < 3; pass++) {
+  for (let pass = 0; pass < 2; pass++) {
     await go(shroom.x, shroom.z, 170);
     await near(shroom.x, shroom.z, 110, 15000);
     await wait(500);
     const b = await bloomNow();
-    if (b.riders || (b.fox && !shroom.gnome)) break;
+    if (b.riders || b.fox) break; /* the foxfire is on: the story goes on, gnome or no gnome */
     log(`missed the mushroom (pass ${pass + 1}): ${JSON.stringify(b)}`);
     await go(shroom.x, shroom.z + 1500, 200); // come round again from the south
     await near(shroom.x, shroom.z + 1500, 500, 14000);
   }
   await mark('mushroom');
-  await caption('…and the foxfire comes over the world: faster, brighter, everything counts double.');
+  await caption('…and the foxfire comes over the world. Everything counts double.');
+  await wait(4200);
+  // the foxfire's row of seeds: fly the line (the film logs each seed caught, for the bells on the sound track)
+  await film(() => { window.__tings = []; let last = 0; setInterval(() => { const tr = window.__pwc.trail, taken = tr.points().length - tr.left; if (taken < last) last = 0; for (let k = last; k < taken; k++) window.__tings.push([Date.now(), Math.max(0, tr.streak - (taken - k))]); last = taken; }, 40); });
+  await caption('Rows of seeds appear. Fly the line, and every seed rings one note higher.');
+  await film(() => __film.fly([() => { const tr = window.__pwc.trail, pts = tr.points(); let far = -1; for (let i = 0; i < pts.length; i++) if (tr.isTaken(i)) far = i; return pts[Math.min(pts.length - 1, far + 2)] ?? window.__pwc.state.pos; }]));
+  await wait(7000);
+  log(`tings ${await film(() => window.__tings.length)}`);
+  await caption('And a glimpse of what is coming: the gnome folk, giants, watching you fly over.');
+  await wait(4000);
+  if ((await bloomNow()).riders) {
+    await caption('A gnome grabbed on, with a wish. Grant it, and it joins your team.');
+    await film(() => __film.cruise()); await go(1000, 5200, 190);
+    await film(() => __film.sow(true)); await wait(5000); await film(() => __film.sow(false));
+    await mark('wish');
+  }
 }
 // on north to the other player
 await film(() => __film.fly([() => __film.friend() ?? [500, 420, 2900]]));
 log(`friend ${JSON.stringify(await film(() => __film.friend()))}`);
-await wait(4500);
-await caption('Other players fly beside you. Meet one, and your whorls braid: that is the greeting.');
+await wait(3000);
+await caption('Meet another player and your whorls braid. You swap seeds. That is the greeting.');
 for (let i = 0; i < 40 && !(await film(() => window.__pwc.state.braid)); i++) await wait(250);
 log(`braid ${JSON.stringify(await film(() => window.__pwc.state.braid))}`);
-await wait(4500);
-if ((await bloomNow()).riders) { await caption('A gnome lived in that mushroom. It grabbed on with a side quest: do it, and it joins your team.'); await wait(5500); }
+await wait(3500);
 await mark('gnome');
-await caption('Turn your left palm up: the atlas of the whole world.');
+await caption('Turn your left palm up: the atlas. The world, your garden, your friends and rivals.');
 await film(() => __film.palmUp(true));
 await until((s) => s.mode === 'atlas', 'the atlas', 6000);
 await film(() => { __film.T.lookRate = 3; __film.T.look = () => { const h = window.__pwc.space.head(); return [h[0] - 0.1, h[1] + 0.05, h[2] - 0.36]; }; });
-await wait(6500);
+await wait(5000);
 await caption(null);
 await film(() => { __film.palmUp(false); __film.lookAhead(-0.12); });
 await until((s) => s.mode === 'fly', 'atlas closed', 6000);
 await film(() => __film.fly([[0, 600, 1200], [0, 700, -2500]]));
-await caption('At the Source, everyone builds the Community Hand together.');
+await caption('At the Source lies the Community Hand: every grove sown in the world, one pixel each.');
 await film(() => { __film.T.lookRate = 1.2; __film.T.look = () => window.__pwc.space.toRig(0, 120, 0); });
-await wait(9000);
+await wait(6500);
 await caption(null);
-await film(() => __film.title('<div><p style="font:600 1.2vw Inter,system-ui,sans-serif;letter-spacing:.3em;text-transform:uppercase;color:#ffcfa8;margin:0 0 1vw">Every hand is a piece of the map</p><h1 style="font:600 6.5vw Georgia,serif;margin:0;line-height:.95">Palm Whorl Cities</h1><p style="font:400 1.5vw Inter,system-ui,sans-serif;margin:2vw 0 0;opacity:.85">Hands only · Meta Quest · WebXR</p></div>'));
-await wait(4500);
+await film(() => __film.title('<div><p style="font:600 1.2vw Inter,system-ui,sans-serif;letter-spacing:.3em;text-transform:uppercase;color:#ffcfa8;margin:0 0 1vw">Sow the desert into bloom, together</p><h1 style="font:600 6.5vw Georgia,serif;margin:0;line-height:.95">Palm Whorl Cities</h1><p style="font:400 1.5vw Inter,system-ui,sans-serif;margin:2vw 0 0;opacity:.85">Hands only · Meta Quest · WebXR</p></div>'));
+await wait(3800);
 log('cut');
 if (stills) clearInterval(stills);
 if (!SHOTS) {
+  const tings = await film(() => window.__tings ?? []).catch(() => []);
   await cdp.send('Page.stopScreencast');
   await browser.close();
   const list = frames.map(([name, at], i) => `file '${fs.realpathSync(name)}'\nduration ${((frames[i + 1]?.[1] ?? at + 0.04) - at).toFixed(4)}`).join('\n');
   fs.writeFileSync(`${dir}/list.txt`, list);
-  execFileSync('ffmpeg', ['-y', '-v', 'error', '-f', 'concat', '-safe', '0', '-i', `${dir}/list.txt`, '-vf', 'fps=30', '-c:v', 'libx264', '-preset', 'slow', '-crf', '19', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', OUT]);
+  execFileSync('ffmpeg', ['-y', '-v', 'error', '-f', 'concat', '-safe', '0', '-i', `${dir}/list.txt`, '-vf', 'fps=30', '-c:v', 'libx264', '-preset', 'medium', '-crf', '23', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', OUT]);
   console.log(`${frames.length} frames over ${(frames.at(-1)[1] - frames[0][1]).toFixed(1)} s -> ${OUT}`);
+  try { // narration (Kokoro, a local voice model) at each caption, never over the one before; a bell per seed; music under it
+    const kokoro = `${process.env.HOME}/projects/td-assistant-jarvis-1/backtalk/.venv/bin/kokoro`, base = frames[0][1] * 1000, ins = [], fx = [];
+    let end = 0;
+    caps.forEach(([at, text], i) => {
+      const wav = `${dir}/n${i}.wav`;
+      execFileSync(kokoro, ['-m', process.env.NARRATOR ?? 'bf_emma', '-s', '1.05', '-t', text.replace(/…/g, ''), '-o', wav], { stdio: 'ignore' });
+      const dur = +execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', wav]).toString(), start = Math.max((at - base) / 1000 + 0.3, end + 0.15);
+      end = start + dur;
+      ins.push('-i', wav); fx.push(`[${ins.length / 2 + 1}:a]adelay=${Math.round(start * 1000)}:all=1,volume=1.6[a${fx.length}]`);
+    });
+    const hz = (i) => { const k = i % 10; return 523.25 * 2 ** (([0, 2, 4, 7, 9][k % 5] + 12 * Math.floor(k / 5)) / 12); };
+    for (const [at, streak] of tings) { ins.push('-f', 'lavfi', '-t', '0.6', '-i', `sine=f=${hz(streak).toFixed(1)}`); fx.push(`[${ins.filter((x) => x === '-i').length + 1}:a]afade=t=out:st=0.05:d=0.5,adelay=${Math.max(0, Math.round(at - base))}:all=1,volume=0.5[a${fx.length}]`); }
+    const withSound = OUT.replace(/\.mp4$/, '.sound.mp4');
+    execFileSync('ffmpeg', ['-y', '-v', 'error', '-i', OUT, '-stream_loop', '-1', '-i', new URL('../assets/music/midnight-drive.ogg', import.meta.url).pathname, ...ins, '-filter_complex', `[1:a]volume=0.16[m];${fx.join(';')};[m]${fx.map((_, i) => `[a${i}]`).join('')}amix=inputs=${fx.length + 1}:normalize=0:duration=first[out]`, '-map', '0:v', '-map', '[out]', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '160k', '-shortest', withSound]);
+    fs.renameSync(withSound, OUT);
+    console.log(`sound: ${caps.length} lines of narration, ${tings.length} bells, music`);
+  } catch (e) { console.log('no sound track:', String(e.message).slice(0, 400)); }
   fs.rmSync(dir, { recursive: true, force: true });
 } else await browser.close();

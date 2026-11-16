@@ -403,7 +403,7 @@ const ownSeed = () => { try { return userName ?? storage?.getItem('pwc.account.v
 const seedWhorl = () => { const s = ownSeed(); if (!mine && s) creature.style(seedClasses(s)); };
 seedWhorl();
 setInterval(() => others.each((c, id) => { const name = others.nameOf(id), h = name && hands.find((q) => q.name === name && q.prints); c.style(h ? classesOf(h) : seedClasses(name ?? `traveller ${id}`)); /* a Hand's own prints, else a whorl from their name */ }), 2000); // other players' whorls, from their Hands
-const CHASE = { back: 190, up: 40 }; // further back than the creature is long, so all of it is in front of you
+const CHASE = { back: 158, up: 34 }; /* a fifth nearer than before: the whorl is the prettiest thing on screen, let it be seen */ // further back than the creature is long, so all of it is in front of you
 const chase = { pos: new THREE.Vector3(glide.pos[0], glide.pos[1] + CHASE.up, glide.pos[2] + CHASE.back), yaw: glide.yaw };
 const ink = createInk(MAX_LAYERS * 5 * (LINE.points + 1) + creature.strands * 71 + 60 * 5 * 41, { width: 1.1, color: '#16100e' }); // every Hand's five, you, and up to 60 others
 // speed lines: ink streaks hanging in the air that rush past when you are fast
@@ -1418,7 +1418,7 @@ showStats();
 
 // read-only peek for tests and curious players
 window.__pwc = {
-  bloom, fauna, gnomes, gnomeDraw: gnomes.draw, glide, hands, groundAt, atlasTab: (tab) => { atlas.setTab(tab); atlasPaint = 0; },
+  trail, bloom, fauna, gnomes, gnomeDraw: gnomes.draw, glide, hands, groundAt, atlasTab: (tab) => { atlas.setTab(tab); atlasPaint = 0; },
   get state() {
     return { hands: hands.length, pos: glide.pos.map(Math.round), yaw: +glide.yaw.toFixed(2), fps: Math.round(fps), scribbles: knots.length + 9, /* the Hands' knots and a constant: tests wait on knots hatching */ started, webcam: webcam ? webcam.update().map((q) => q.handedness) : null, steering: xrHands.some((q) => q.engaged), palm: xrHands.map((q) => q.frame && q.frame.normal.map((v) => +v.toFixed(2))), hand: xrHands.map((q) => q.frame && { point: q.frame.forward.map((v) => +v.toFixed(2)), open: +q.frame.extension.toFixed(2), height: +q.frame.center[1].toFixed(2) }), speed: Math.round(glide.speed), calls: renderer.info.render.calls, xr: renderer.xr.isPresenting, lod: surface.centre.map(Math.round), patches: surface.patches, mode, mine: mine?.name ?? null, braid: braiding, atlas: { tab: atlas.tab, selected: selected?.name ?? null }, pairCode: atelier.route?.code ?? null, flowStep: flow?.step ?? null, online, others: others.count, pending: !!mine?.pending, room: roomState };
   },

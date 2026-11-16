@@ -5,6 +5,7 @@
 // from another gardener's). The rules are in gnomes.js, the looks in render.js; this wires them to the
 // garden, the map, your flight and the other players. main.js calls frame() and act().
 import { GNOME, gnomeAt, activity, shout, questFor, advance, questEvents, seedOf, lostGnome, gainedGnome, dangle, JOYS } from './gnomes.js';
+import { DANCES } from './pose.js';
 import { createGnomeRenderer } from './render.js';
 
 const SIZE = 20, RIDER = 184, CAP = 27; // metres per gnome unit at home and on a whorl (a passenger is a big, proud thing to carry: you see it from across a Hand); how high a mushroom's cap sits
@@ -142,7 +143,7 @@ export function createGnomes({ scene, bloom, net, say, stamp, groundAt, creature
         const gx = cx + i, gz = cz + j, h = hash(gx, gz);
         if (h > 0.3) continue;
         const x = (gx + (hash(gz, gx) - 0.5) * 0.7) * C, z = (gz + (hash(gx + 7, gz - 3) - 0.5) * 0.7) * C, y = ctx.groundAt(x, z), d = Math.hypot(x - pos[0], z - pos[2]), seed = Math.floor(h * 1e5);
-        draw.add({ x, y, z, yaw: Math.atan2(pos[0] - x, pos[2] - z), s: (140 + 1500 * h) * ctx.fox * Math.max(0.22, Math.min(1, (d - 200) / 700)), /* giants from afar, smaller as you come near: never in your way */ clip: d < 300 ? 'cheer' : 'gaze', t: t + seed % 9, hat: seed, seed, motion: { up: Math.atan2(pos[1] - y, Math.max(1, d)) } });
+        draw.add({ x, y, z, yaw: Math.atan2(pos[0] - x, pos[2] - z), s: (140 + 1500 * h) * ctx.fox * Math.max(0.22, Math.min(1, (d - 200) / 700)), /* giants from afar, smaller as you come near: never in your way */ clip: d < 300 ? 'cheer' : seed % 5 < 2 ? 'gaze' : DANCES[seed % DANCES.length], t: seed % 5 < 2 ? t + seed % 9 : t, /* two in five watch and wave; the rest dance, all on one beat */ hat: seed, seed, motion: { up: Math.atan2(pos[1] - y, Math.max(1, d)) } });
       }
     }
     draw.end();

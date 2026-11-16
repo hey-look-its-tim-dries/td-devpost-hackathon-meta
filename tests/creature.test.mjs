@@ -168,3 +168,16 @@ test('a whorl of your own before a Hand: five print classes from a text, the sam
   const seen = new Set(Array.from({ length: 40 }, (_, i) => seedClasses(`player ${i}`).join()));
   assert.ok(seen.size >= 35, 'forty players, (nearly) forty whorls');
 });
+
+test('gnomes dance: four dances on the beat, each its own, with knees and elbows that bend; a standing gnome keeps them straight', async () => {
+  const { pose, DANCES } = await import('../src/gnomes/pose.js');
+  assert.ok(DANCES.length >= 4);
+  const still = pose('idle', 1, 3);
+  assert.equal(still.elbowL, 0); assert.equal(still.kneeR, 0); assert.equal(still.spin, 0);
+  const sig = (clip) => { let k = 0, e = 0, moved = 0, prev = null; for (let t = 0; t < 4; t += 0.05) { const p = pose(clip, t, 3, { up: 0.6 }); k = Math.max(k, Math.abs(p.kneeL), Math.abs(p.kneeR)); e = Math.max(e, Math.abs(p.elbowL), Math.abs(p.elbowR)); if (prev) moved += Math.abs(p.armLz - prev.armLz) + Math.abs(p.legL - prev.legL) + Math.abs(p.y - prev.y) + Math.abs(p.roll - prev.roll) + Math.abs(p.spin - prev.spin); prev = p; } return { k, e, moved }; };
+  const seen = new Set();
+  for (const d of DANCES) { const s = sig(d); assert.ok(s.k > 0.3, `${d}: knees bend`); assert.ok(s.e > 0.3, `${d}: elbows bend`); assert.ok(s.moved > 8, `${d}: it really moves (${s.moved})`); seen.add(s.moved.toFixed(2)); }
+  assert.equal(seen.size, DANCES.length, 'no two dances alike');
+  const a = pose(DANCES[0], 0.3, 3), b = pose(DANCES[0], 0.3 + 2, 3); // 120 beats a minute: the same step every two seconds (four beats)
+  assert.ok(Math.abs(a.kneeL - b.kneeL) < 1e-6 && Math.abs(a.armRz - b.armRz) < 1e-6);
+});

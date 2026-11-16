@@ -1,8 +1,8 @@
 # tools/blender/gnome.py: an original gnome, smooth and round, made of rigid parts with their origins at the joints,
 # so the game can pose it in code (src/gnomes/pose.js) and colour every part per gnome. One unit is the gnome's
 # height to the hat's base; Blender's -Y is its front, Z is up. Parts and the joint each turns about:
-#   body, belt, buckle (the hips) · legL, legR · armL + handL, armR + handR (the shoulders)
-#   head, nose, cheeks, eyes, brows, beard, hat, bell (the neck). No materials: the game colours the parts.
+#   body, belt, buckle, buttons (the hips) · legL/R (hips) with shinL/R (knees) · armL/R (shoulders) with foreL/R + handL/R (elbows)
+#   head, nose, cheeks, eyes, brows, beard, hat, bell, scarf (the neck). No materials: the game colours the parts.
 #   /opt/homebrew/bin/blender --background --python tools/blender/gnome.py -- assets/gnome.glb
 import bpy, bmesh, sys, math
 from mathutils import Matrix, Vector
@@ -45,21 +45,37 @@ def buckle(bm):
     bmesh.ops.scale(bm, vec=(0.085, 0.03, 0.07), verts=v); bmesh.ops.translate(bm, vec=(0, -0.228, 0.32), verts=v)
 part('buckle', HIP, buckle)
 for side, x in (('L', -1), ('R', 1)):
-    def leg(bm, x=x):
-        cone(bm, (0.09 * x, 0), 0.07, 0.25, 0.058, 0.07, 14)                       # a trouser leg
+    HIPJ, KNEE = (0.09 * x, 0, 0.24), (0.09 * x, 0, 0.15)
+    def thigh(bm, x=x):
+        cone(bm, (0.09 * x, 0), 0.15, 0.25, 0.064, 0.072, 14)                      # a trouser leg, hip to knee
+        ball(bm, (0.09 * x, 0, 0.15), 0.064, (1, 1, 0.9), 12, 8)                   # the knee
+    part('leg' + side, HIPJ, thigh)
+    def shin(bm, x=x):
+        cone(bm, (0.09 * x, 0), 0.07, 0.152, 0.058, 0.064, 14)                     # knee to boot
         ball(bm, (0.09 * x, -0.045, 0.05), 0.07, (1.0, 1.75, 0.75), 14, 8)         # a round boot, toe out front
         cone(bm, (0.09 * x, 0), 0.085, 0.115, 0.075, 0.072, 14)                    # its cuff
-    part('leg' + side, (0.09 * x, 0, 0.24), leg)
-    SH = (0.2 * x, 0, 0.52)
+        ball(bm, (0.09 * x, -0.125, 0.07), 0.03, (1, 1, 1), 8, 6)                  # the toe curls up
+    part('shin' + side, KNEE, shin)
+    SH, EL = (0.2 * x, 0, 0.52), (0.235 * x, 0, 0.405)
     def arm(bm, x=x):
-        cone(bm, (0.235 * x, 0), 0.3, 0.535, 0.066, 0.05, 14)                      # a sleeve, wide at the cuff
+        cone(bm, (0.235 * x, 0), 0.405, 0.535, 0.058, 0.05, 14)                    # the upper sleeve
         ball(bm, (0.228 * x, 0, 0.525), 0.062, (1, 1, 0.8), 12, 8)                 # the shoulder
-        cone(bm, (0.235 * x, 0), 0.292, 0.31, 0.072, 0.07, 14)
     part('arm' + side, SH, arm)
+    def fore(bm, x=x):
+        ball(bm, (0.235 * x, 0, 0.405), 0.058, (1, 1, 1), 12, 8)                   # the elbow
+        cone(bm, (0.235 * x, 0), 0.3, 0.41, 0.068, 0.057, 14)                      # the lower sleeve, wide at the cuff
+        cone(bm, (0.235 * x, 0), 0.29, 0.308, 0.074, 0.071, 14)
+    part('fore' + side, EL, fore)
     def hand(bm, x=x):
         ball(bm, (0.235 * x, 0, 0.262), 0.058, (1, 1, 1.1), 12, 8)                 # a mitten
         ball(bm, (0.235 * x - 0.03 * x, -0.045, 0.275), 0.026, (1, 1, 1.3), 8, 6)  # and its thumb
-    part('hand' + side, SH, hand)
+    part('hand' + side, EL, hand)
+part('buttons', HIP, lambda bm: [ball(bm, (0, -0.19 - 0.012 * i, 0.5 - 0.055 * i), 0.018, (1, 0.6, 1), 8, 6) for i in range(3)])  # three gold buttons down the coat
+def scarf(bm):
+    cone(bm, (0, 0), 0.545, 0.6, 0.165, 0.15, 20)                                  # wound round the neck
+    v = bmesh.ops.create_cube(bm, size=1.0)['verts']                               # and one end hanging down the front
+    bmesh.ops.scale(bm, vec=(0.07, 0.025, 0.16), verts=v); bmesh.ops.translate(bm, vec=(0.09, -0.165, 0.49), verts=v)
+part('scarf', NECK, scarf)
 def head(bm):
     ball(bm, (0, 0, 0.68), 0.158, (1, 0.97, 1.0), 20, 12)
     for x in (-1, 1): ball(bm, (0.152 * x, 0.01, 0.675), 0.05, (0.45, 0.8, 1.15), 10, 8)   # ears
