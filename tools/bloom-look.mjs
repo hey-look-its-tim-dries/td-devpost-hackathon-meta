@@ -2,14 +2,14 @@
 // the room-event path, local only: nothing is sent to the map) and saves screenshots.
 //   node tools/bloom-look.mjs <out dir> [x,y,z] [groves] [stage]     needs serve.py on :8130 and the map on :8787
 import puppeteer from '/Users/timdries/Desktop/Projects/TD-GAME-LINKSAWAKENING/tests/node_modules/puppeteer-core/lib/esm/puppeteer/puppeteer-core.js';
-const [out = '.', at = '0,260,7600', groves = '300', stage = ''] = process.argv.slice(2);
+const [out = '.', at = '0,260,7600', groves = '300', stage = '', extra = ''] = process.argv.slice(2);
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const browser = await puppeteer.launch({ headless: true, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--no-sandbox', '--window-size=1280,720'] });
 const page = await browser.newPage();
 await page.setViewport({ width: 1280, height: 720 });
 page.on('pageerror', (e) => { console.log('PAGEERROR', e.message); process.exitCode = 1; });
 page.on('console', (m) => { if (m.type() === 'error' && !/favicon|ERR_/.test(m.text())) console.log('console.error', m.text().slice(0, 300)); });
-await page.goto(`http://localhost:8130/?play&noatelier&api=http://localhost:8787&at=${at}`, { waitUntil: 'domcontentloaded' });
+await page.goto(`http://localhost:8130/?play&noatelier&api=http://localhost:8787&at=${at}${extra}`, { waitUntil: 'domcontentloaded' });
 for (let i = 0; i < 60; i++) { await wait(1000); if (await page.evaluate(() => window.__pwc?.state.started && window.__pwc.hands.filter((h) => h.data?.cells).length >= 10)) break; }
 const n = await page.evaluate(async (groves, stage) => {
   const p = window.__pwc, b = p.bloom, g = p.glide, S = b.species;
@@ -29,4 +29,5 @@ const n = await page.evaluate(async (groves, stage) => {
 }, +groves, stage);
 for (let i = 0; i < 4; i++) { await wait(i ? 2500 : 3500); await page.screenshot({ path: `${out}/bloom-${i}.png` }); }
 console.log('groves', n, JSON.stringify(await page.evaluate(() => { const p = window.__pwc, s = p.state; return { fps: s.fps, calls: s.calls, pos: s.pos, speed: s.speed, shown: p.bloom.flora.shown, fauna: p.fauna.count, hud: p.bloom.hud(null).seeds }; })));
+if (process.env.TILES) console.log('tiles', JSON.stringify(await page.evaluate(() => { const m = window.__pwc.bloom.flora.group.children[2], a = m.geometry.attributes, f = (k, n) => Array.from(a[k].array.slice(0, n)).map((v) => +v.toFixed(1)); return { n: m.geometry.instanceCount, aPos: f('aPos', 8), aH: f('aH', 8), aCell: f('aCell', 4), aFx: f('aFx', 6), keys: Object.keys(a), side: m.material.side, index: !!m.geometry.index, uTime: m.material.uniforms.uTime.value }; })));
 await browser.close();

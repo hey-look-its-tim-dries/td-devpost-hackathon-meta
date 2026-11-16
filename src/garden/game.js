@@ -37,7 +37,8 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
     const [wx, wz] = toWorld(h.pose, p.x, p.y);
     p.wx = wx; p.wz = wz; p.wy = groundAt(wx, wz); p.rot = -h.pose.rot;
     const c = Math.cos(p.rot), s = Math.sin(p.rot), half = TILE / 2;
-    p.hs = [[-1, 1], [1, 1], [-1, -1], [1, -1]].map(([x, z]) => groundAt(wx + (x * c + z * s) * half, wz + (z * c - x * s) * half));
+    p.hs = []; // the land at a 3 by 3 grid over its tile (row by row from -z), so the mosaic bends with it
+    for (let iz = -1; iz <= 1; iz++) for (let ix = -1; ix <= 1; ix++) p.hs.push(groundAt(wx + (ix * c + iz * s) * half, wz + (iz * c - ix * s) * half));
     if (p.hab === 'bank') for (let k = 0; k < 8 && !p.water; k++) { const a = k * Math.PI / 4, x = wx + Math.cos(a) * 60, z = wz + Math.sin(a) * 60, w = whereAt(hands, x, z); if (w && !w.handbit) p.water = [x, z]; }
     p.dry = { fresh: 0, dry: 1, dead: 2 }[vigour(p, Date.now())];
     return true;

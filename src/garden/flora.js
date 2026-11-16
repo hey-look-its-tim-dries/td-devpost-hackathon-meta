@@ -65,16 +65,16 @@ const SPRITE_FRAG = /* glsl */ `
 `;
 const TILE_VERT = /* glsl */ `
   ${COMMON}
-  attribute vec2 aCell; attribute vec4 aH; // the land's height at the tile's four corners
+  attribute vec2 aCell; attribute vec4 aH; // the land's height at this quarter tile's four corners
   varying vec2 vUv; varying float vDry;
   #include <fog_pars_vertex>
   void main() {
-    vUv = (aCell + vec2(uv.x, 1.0 - uv.y)) / ${ROW}.0;
+    vUv = (aCell + vec2(uv.x, 1.0 - uv.y) * 0.5) / ${ROW}.0; // each tile is laid as four quarters, so it bends with the land
     vDry = aFx.y;
     float c = cos(aFx.z), s = sin(aFx.z), g = clamp((uTime - aFx.x) / 1.2, 0.0, 1.0);
     vec2 q = vec2(position.x * c + position.z * s, position.z * c - position.x * s) * aPos.w * g;
     float h = mix(mix(aH.x, aH.y, uv.x), mix(aH.z, aH.w, uv.x), uv.y); // follows the slope under it
-    vec4 mvPosition = viewMatrix * vec4(aPos.x + q.x, h + 1.4, aPos.z + q.y, 1.0);
+    vec4 mvPosition = viewMatrix * vec4(aPos.x + q.x, h + 3.0, aPos.z + q.y, 1.0);
     gl_Position = projectionMatrix * mvPosition;
     #include <fog_vertex>
   }
@@ -154,7 +154,7 @@ function batch(base, attrs, material, cap) {
 
 export function createFlora(species, flora, shared) {
   const { soft, pix, cell } = paintAtlases(species, flora);
-  const tex = (canvas, pixel) => { const t = new THREE.CanvasTexture(canvas); t.colorSpace = THREE.SRGBColorSpace; t.magFilter = pixel ? THREE.NearestFilter : THREE.LinearFilter; t.minFilter = THREE.LinearMipmapLinearFilter; t.generateMipmaps = true; t.anisotropy = 4; return t; };
+  const tex = (canvas, pixel) => { const t = new THREE.CanvasTexture(canvas); t.colorSpace = THREE.SRGBColorSpace; t.flipY = false; /* cells are addressed from the canvas's top left */ t.magFilter = pixel ? THREE.NearestFilter : THREE.LinearFilter; t.minFilter = THREE.LinearMipmapLinearFilter; t.generateMipmaps = true; t.anisotropy = 4; return t; };
   const softTex = tex(soft, false), pixTex = tex(pix, true);
   const uTime = { value: 0 };
   const spriteMat = (map, o = {}) => new THREE.ShaderMaterial({ uniforms: { ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog), uMap: { value: map }, uTime, uBillboard: { value: o.billboard ? 1 : 0 }, uTile: { value: o.tile ? 1 : 0 } }, vertexShader: o.tile ? TILE_VERT : SPRITE_VERT, fragmentShader: SPRITE_FRAG, side: THREE.DoubleSide, fog: true });
@@ -164,7 +164,7 @@ export function createFlora(species, flora, shared) {
   const B = {
     pixel: batch(cards, SPR, spriteMat(pixTex), 24000),
     paint: batch(cards, SPR, spriteMat(softTex), 24000),
-    tile: batch(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), { ...SPR, aH: 4 }, spriteMat(pixTex, { tile: true }), 5000),
+    tile: batch(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), { ...SPR, aH: 4 }, spriteMat(pixTex, { tile: true }), 16000),
     deco: batch(new THREE.PlaneGeometry(1, 1), SPR, spriteMat(softTex, { billboard: true }), 1200),
   };
   for (const k in geos) B[k] = batch(geos[k], MSH, meshMat(), k in { open: 1, cup: 1, spike: 1 } ? 9000 : 2500);
@@ -204,10 +204,16 @@ export function createFlora(species, flora, shared) {
         const n = it.isTree ? Math.min(3, 1 + Math.floor(p.stage / 2)) * big : (4 + p.stage * 3) * big, spread = it.isTree ? 75 : 42;
         tmp.aFx[0] = p.pop ?? -99; tmp.aFx[1] = p.dry ?? 0;
         if (it.style === 'pixel' && !it.isTree) { // the mosaic tile, square to its Hand
-          tmp.aPos[0] = p.wx; tmp.aPos[1] = p.wy; tmp.aPos[2] = p.wz; tmp.aPos[3] = TILE * (0.7 + 0.3 * k) * (p.big ? 1.4 : 1);
-          tmp.aFx[2] = p.rot ?? 0; tmp.aCell[0] = it.cell[0]; tmp.aCell[1] = it.cell[1];
-          if (p.hs) tmp.aH.splice(0, 4, ...p.hs); else tmp.aH.fill(p.wy);
-          B.tile.put(tmp);
+          const rot = p.rot ?? 0, c = Math.cos(rot), s = Math.sin(rot), hs = p.hs; // hs: the land at a 3 by 3 grid over the tile, row by row from -z
+          tmp.aPos[3] = TILE / 2; tmp.aFx[2] = rot;
+          for (let qz = 0; qz < 2; qz++) for (let qx = 0; qx < 2; qx++) {
+            const lx = (qx - 0.5) * TILE / 2, lz = (qz - 0.5) * TILE / 2;
+            tmp.aPos[0] = p.wx + lx * c + lz * s; tmp.aPos[1] = p.wy; tmp.aPos[2] = p.wz + lz * c - lx * s;
+            tmp.aCell[0] = it.cell[0] + qx * 0.5; tmp.aCell[1] = it.cell[1] + qz * 0.5;
+            const H = (ix, iz) => (hs ? hs[iz * 3 + ix] : p.wy);
+            tmp.aH[0] = H(qx, qz + 1); tmp.aH[1] = H(qx + 1, qz + 1); tmp.aH[2] = H(qx, qz); tmp.aH[3] = H(qx + 1, qz);
+            B.tile.put(tmp);
+          }
         }
         const b = it.style === 'mesh' ? B[it.mesh] : B[it.style];
         for (let i = 0; i < n; i++) {
