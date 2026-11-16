@@ -129,7 +129,7 @@ export function createNet({ api = API, storage = null, fetchFn = globalThis.fetc
     async stats() {
       try {
         const { status, body } = await call('/stats');
-        return status === 200 && Number.isInteger(body?.hands) && Number.isInteger(body?.flying) ? { hands: body.hands, flying: body.flying, plants: Number.isInteger(body.plants) ? body.plants : undefined } : null;
+        return status === 200 && Number.isInteger(body?.hands) && Number.isInteger(body?.flying) ? { hands: body.hands, flying: body.flying, ...(Number.isInteger(body.plants) ? { plants: body.plants } : {}) } : null;
       } catch {
         return null;
       }

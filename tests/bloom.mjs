@@ -16,12 +16,23 @@ const open = async (label) => {
 const until = async (page, fn, what, arg) => { for (let i = 0; i < 480; i++) { const v = await page.evaluate(fn, arg); if (v) return v; await wait(250); } throw new Error(`timed out: ${what}`); };
 const ready = (p) => until(p, () => window.__pwc?.state.started && window.__pwc.hands.filter((h) => h.data?.cells).length >= 10 && window.__pwc.state.room === 'open' && window.__pwc.bloom.handsRead() > 0, 'ready');
 const mineIds = (p) => p.evaluate(() => [...window.__pwc.bloom.garden.all()].filter((g) => g.id > 0).map((g) => g.id));
+let a = null, had0 = null;
 try {
-  const a = await open('A'), b = await open('B');
+  a = await open('A');
+  const b = await open('B');
   await ready(a); await ready(b);
   await wait(2500); // what the map already holds near here has been read
-  const had0 = await mineIds(a);
+  had0 = await mineIds(a);
   // A sows
+  // the longest stretch of sand due north of the start (x = 0): the whorl is put back at its start before each act, as it flies on at 340 m/s
+  const homeZ = await a.evaluate(async () => {
+    const { whereAt } = await import('/src/world/where.js'), p = window.__pwc;
+    let best = [0, 7600], run = 0, from = 0;
+    for (let z = 7600; z > 2500; z -= 20) { if (whereAt(p.hands, 0, z)?.handbit) { if (!run) from = z; run += 20; if (run > best[0]) best = [run, from]; } else run = 0; }
+    return best[1] - 40;
+  });
+  const home = () => a.evaluate((z) => { const g = window.__pwc.glide; g.pos[0] = 0; g.pos[2] = z; g.pos[1] = window.__pwc.groundAt(0, z) + 120; g.yaw = 0; g.speed = 90; }, homeZ);
+  await home(); await wait(300);
   await a.keyboard.down('Space'); await wait(4000); await a.keyboard.up('Space');
   const sown = await until(a, (old) => { const g = [...window.__pwc.bloom.garden.all()].filter((q) => !old.includes(q.id)); return g.length >= 3 && g.every((q) => q.id > 0) && g.map((q) => q.id); }, 'A planted and the map answered', had0);
   console.log('A sowed', sown.length, 'groves; speed while sowing', await a.evaluate(() => window.__pwc.state.speed));
@@ -30,9 +41,9 @@ try {
   assert.ok(hudB >= sown.length, `B counts ${hudB}`);
   // a hyper sow: for ten seconds single plants fall along A's path; they reach the map in batches, and B
   const sprigs = () => [...window.__pwc.bloom.garden.all()].filter((g) => g.big === 2 && g.id > 0).length;
-  await a.evaluate(() => { const g = window.__pwc.glide; g.pos[0] = 0; g.pos[1] = 260; g.pos[2] = 7600; g.yaw = 0; });
+  await home(); await wait(300);
   await a.keyboard.press('KeyF');
-  await wait(4500);
+  for (let i = 0; i < 4; i++) { await wait(2400); await home(); } // ten seconds, kept over the Hand
   const drawn = await until(a, () => { const g = [...window.__pwc.bloom.garden.all()].filter((q) => q.big === 2); return g.length >= 8 && window.__pwc.bloom.hud(null).hyper === 0 && g.every((q) => q.id > 0) && g.length; }, "A drew with sprigs and the map took them");
   await until(b, (n) => [...window.__pwc.bloom.garden.all()].filter((g) => g.big === 2 && g.id > 0).length >= n, 'B sees the drawing', drawn);
   console.log('hyper sow:', drawn, 'sprigs drawn by A, seen by B:', await b.evaluate(sprigs));
@@ -58,7 +69,9 @@ try {
   assert.ok(gone.length, 'A cleared a grove');
   await until(b, (ids) => ids.every((id) => !window.__pwc.bloom.garden.get(id)), 'B sees it cleared', gone);
   console.log('cleared on both');
-  // tidy: A takes its test groves off the map
-  await a.evaluate(async (old) => { const p = window.__pwc; for (const g of [...p.bloom.garden.all()]) if (g.id > 0 && !old.includes(g.id)) await p.net.uproot(g.id); }, had0);
   console.log('BLOOM OK: sow, see, water, clear between two players');
-} catch (e) { console.log('FAILED', e.message); process.exitCode = 1; } finally { await browser.close(); }
+} catch (e) { console.log('FAILED', e.message, a ? JSON.stringify(await a.evaluate(() => { const p = window.__pwc, g = [...p.bloom.garden.all()].filter((q) => q.big === 2), h = p.bloom.hud(p.hands[0] && null); return { hyper: h.hyper, charge: h.charge, seeds: h.seeds, sprigs: g.length, temp: g.filter((q) => q.id < 0).length, pos: p.state.pos, mode: p.state.mode }; }).catch(() => null)) : ''); process.exitCode = 1; } finally {
+  // tidy, pass or fail: A takes what it planted off the map, so the next run finds room
+  if (a && had0) await a.evaluate(async (old) => { const p = window.__pwc; for (const g of [...p.bloom.garden.all()]) if (g.id > 0 && !old.includes(g.id)) await p.net.uproot(g.id); }, had0).catch(() => {});
+  await browser.close();
+}

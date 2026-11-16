@@ -943,7 +943,7 @@ showStats();
 
 // read-only peek for tests and curious players
 window.__pwc = {
-  bloom, fauna, glide, hands, atlasTab: (tab) => { atlas.setTab(tab); atlasPaint = 0; },
+  bloom, fauna, glide, hands, groundAt, atlasTab: (tab) => { atlas.setTab(tab); atlasPaint = 0; },
   get state() {
     return { hands: hands.length, pos: glide.pos.map(Math.round), yaw: +glide.yaw.toFixed(2), fps: Math.round(fps), scribbles: knots.length + 9, /* the Hands' knots and a constant: tests wait on knots hatching */ started, webcam: webcam ? webcam.update().map((q) => q.handedness) : null, steering: xrHands.some((q) => q.engaged), palm: xrHands.map((q) => q.frame && q.frame.normal.map((v) => +v.toFixed(2))), hand: xrHands.map((q) => q.frame && { point: q.frame.forward.map((v) => +v.toFixed(2)), open: +q.frame.extension.toFixed(2), height: +q.frame.center[1].toFixed(2) }), speed: Math.round(glide.speed), calls: renderer.info.render.calls, xr: renderer.xr.isPresenting, lod: surface.centre.map(Math.round), patches: surface.patches, mode, mine: mine?.name ?? null, braid: braiding, atlas: { tab: atlas.tab, selected: selected?.name ?? null }, pairCode: atelier.route?.code ?? null, flowStep: flow?.step ?? null, online, others: others.count, pending: !!mine?.pending, room: roomState };
   },
