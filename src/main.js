@@ -122,15 +122,17 @@ const freeLayer = () => { for (let i = 0; i < MAX_LAYERS; i++) if (!hands.some((
 // three bakers; one that dies (a worker that fails to load, or runs out of memory) is replaced and its jobs
 // sent again, once each
 const retried = new Set();
-const workers = [];
+const workers = [], deaths = [];
+const baker = (layer) => workers[layer % workers.length] ?? workers.find(Boolean);
 const spawnWorker = (k) => {
   const w = new Worker(new URL('./hand/worker.js', import.meta.url), { type: 'module' });
   w.onmessage = onBaked;
   w.onerror = (e) => {
     console.error('hand worker failed', e.message, e.filename, e.lineno);
     e.preventDefault?.();
-    workers[k] = spawnWorker(k);
-    for (const [layer, f] of pendingBake) if (layer % workers.length === k && !retried.has(layer)) { retried.add(layer); workers[k].postMessage({ id: layer, palm: f.palm, prints: f.prints, cell: 0.75 }); }
+    // a baker that keeps dying stays dead (no respawn loop); the others take its work
+    workers[k] = (deaths[k] = (deaths[k] ?? 0) + 1) > 3 ? null : spawnWorker(k);
+    for (const [layer, f] of pendingBake) if (layer % workers.length === k && !retried.has(layer)) { retried.add(layer); baker(layer)?.postMessage({ id: layer, palm: f.palm, prints: f.prints, cell: 0.75 }); }
   };
   return w;
 };
@@ -154,7 +156,7 @@ const bake = (f) => {
   const layer = freeLayer();
   if (layer < 0) return console.warn('the world is full on this device', f.name);
   pendingBake.set(layer, f);
-  workers[layer % workers.length].postMessage({ id: layer, palm: f.palm, prints: f.prints, cell: 0.75 });
+  baker(layer)?.postMessage({ id: layer, palm: f.palm, prints: f.prints, cell: 0.75 });
 };
 const sameBytes = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
 // a Hand laid by anyone, now: it bakes into a free layer and rises like your own (Review Focus 1)
@@ -519,19 +521,20 @@ function openAtelier() {
 // route A: a pairing code (and its QR) on the card, then the phone's DNA when it arrives (spec 7.1, 10)
 let pairing = null; // AbortController while waiting for the phone
 async function usePhone() {
+  pairing?.abort();
+  const mineP = (pairing = new AbortController());
   atelier.setRoute({ kind: 'phone', code: null, qr: null });
   atelier.paint(flow);
   const r = await net.pair();
   if (!r) { atelier.setRoute(null); atelier.paint(flow); return panel.say('The phone route needs the shared map: read by eye', 5); }
-  const url = new URL(`phone.html#${r.code}`, location.href).href + (params.get('api') ? `?api=${encodeURIComponent(params.get('api'))}` : '');
+  const url = new URL(`phone.html${params.get('api') ? `?api=${encodeURIComponent(params.get('api'))}` : ''}#${r.code}`, location.href).href;
   let qr = null;
   try { const { default: qrcode } = await import('https://esm.sh/qrcode-generator@1.4.4'); const q = qrcode(0, 'M'); q.addData(url); q.make(); qr = Array.from({ length: q.getModuleCount() }, (_, i) => Array.from({ length: q.getModuleCount() }, (_, j) => q.isDark(i, j))); } catch {}
-  if (atelier.route?.kind !== 'phone') return;
+  if (mineP.signal.aborted || atelier.route?.kind !== 'phone') return;
   atelier.setRoute({ kind: 'phone', code: r.code, qr });
   atelier.paint(flow);
-  pairing = new AbortController();
-  const dna = await net.waitPair(r.code, { signal: pairing.signal });
-  pairing = null;
+  const dna = await net.waitPair(r.code, { signal: mineP.signal });
+  if (pairing === mineP) pairing = null;
   if (!dna || mode !== 'atelier' || atelier.route?.kind !== 'phone') return;
   flow.fromPhone(dna);
   atelier.setRoute(null);
@@ -557,6 +560,7 @@ function merge() {
   flow.done();
   const dna = flow.dna(), land = hands.map((h) => ({ pose: h.pose, shape: handShape(unpackPalm(h.palm)), name: h.name }));
   const fits = findFits(land, handShape(unpackPalm(dna.palm)));
+  pairing?.abort();
   atelier.close();
   if (!fits.length) { mode = 'fly'; return panel.say('No room on the coast right now', 5); }
   for (const f of fits) f.names = f.next.map((i) => (i < 0 ? 'the Source' : land[i].name));
@@ -646,7 +650,11 @@ document.getElementById('forget').addEventListener('click', async (e) => {
 if (mine) for (const id of ['forget', 'export']) document.getElementById(id).classList.remove('hidden');
 // files you take home: your data (spec 8.5) and your postcard (spec 6.4)
 const download = (blob, name) => { const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: name }); document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); };
-const exportMine = () => { let charted = {}; try { charted = JSON.parse(storage?.getItem('pwc.chart.v1') ?? '{}'); } catch {} download(new Blob([exportData(mine, charted, pins.list())], { type: 'application/json' }), 'palm-whorl-cities-my-data.json'); };
+const exportMine = async () => {
+  let charted = {}; try { charted = JSON.parse(storage?.getItem('pwc.chart.v1') ?? '{}'); } catch {}
+  const c = mine?.id && (await net.community()), gift = c?.slots?.find((s) => s.hand_id === mine.id); // ponytail: the open Community Hand only; a gift to a sealed one is in the journal
+  download(new Blob([exportData(mine, charted, pins.list(), { names: (mine && placeNames[mine.id]) ?? {}, gift: gift ? { no: c.no, slot: gift.slot } : null })], { type: 'application/json' }), 'palm-whorl-cities-my-data.json');
+};
 function postcard() {
   const h = mine && hands.find((q) => q.id === mine.id);
   if (!h) return panel.say('Lay your Hand first', 3);
@@ -817,7 +825,7 @@ async function enterHeadset() {
   headNeutral = null;
   start();
   session.addEventListener('end', () => {
-    if (mode === 'atelier') { atelier.close(); flow = null; mode = 'fly'; } // so the next start opens the card at the new head pose
+    if (mode === 'atelier') { pairing?.abort(); atelier.close(); flow = null; mode = 'fly'; } // so the next start opens the card at the new head pose
     inRoom = false;
     started = false;
     banner.classList.remove('hidden');

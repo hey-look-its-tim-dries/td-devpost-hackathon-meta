@@ -22,7 +22,12 @@ test('the postcard carries the Hand name, its handbit names, a compass, and a da
 });
 test('export: your DNA, place, name, charting and pins as JSON, nothing else', () => {
   const j = JSON.parse(exportData({ palm: f.palm, prints: f.prints, pose: f.pose, name: 'Oru', id: 'h1' }, { 'h2': { m: 3, n: 20 } }, [{ label: 'A' }]));
-  assert.deepEqual(Object.keys(j).sort(), ['charted', 'hand', 'note', 'pins']);
+  assert.deepEqual(Object.keys(j).sort(), ['charted', 'gift', 'hand', 'names', 'note', 'pins']);
   assert.equal(j.hand.prints.length, 5);
   assert.equal(typeof j.hand.palm, 'string', 'base64, as the map keeps it');
+});
+test('export also carries what the map holds for you: your names and your Community gift (deferred minor)', () => {
+  const j = JSON.parse(exportData({ palm: f.palm, prints: f.prints, pose: f.pose, name: 'Oru', id: 'h1' }, {}, [], { names: { I1: 'Oru Vale' }, gift: { no: 2, slot: 'I1' } }));
+  assert.deepEqual(j.names, { I1: 'Oru Vale' });
+  assert.deepEqual(j.gift, { no: 2, slot: 'I1' });
 });

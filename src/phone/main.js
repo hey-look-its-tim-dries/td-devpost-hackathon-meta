@@ -199,7 +199,7 @@ async function send() {
   const palm = packPalm({ ...templatePalm({ seed: state.seed, fate: false }), lines });
   const r = await net.sendPair(state.code, { palm, prints: state.prints });
   if (r.ok) $('msg').innerHTML = '<b>Done.</b> Look back at your headset: your Hand is waiting there for its colours and its place in the world. The photos are gone.';
-  else $('msg').innerHTML = `It did not arrive (${r.error}). Check that the code on your headset is still showing, and <a href="#${state.code}" onclick="location.reload()">try again</a>.`;
+  else { $('msg').innerHTML = `It did not arrive (<span id="err"></span>). Check that the code on your headset is still showing, and <a href="#${state.code}" onclick="location.reload()">try again</a>.`; $('err').textContent = r.error; } // the server's words as text, never as markup
 }
 
 start();

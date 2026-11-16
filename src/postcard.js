@@ -63,10 +63,10 @@ export function drawPostcard(g, { name, palm, handbits = [], names = {}, date = 
 }
 
 // spec 8.5: what this device and the map keep of you, as a file
-export function exportData(hand, charted, pins) {
+export function exportData(hand, charted, pins, { names = {}, gift = null } = {}) {
   return JSON.stringify({
-    note: 'Palm Whorl Cities keeps only this: your Hand\'s map DNA, where it lies, its name, what you charted and pinned. No images, no tracking data.',
+    note: 'Palm Whorl Cities keeps only this: your Hand\'s map DNA, where it lies, its name, what you charted and pinned, the names you gave it and your Community gift. No images, no tracking data.',
     hand: hand && { id: hand.id ?? null, name: hand.name, palm: toB64(hand.palm), prints: hand.prints.map(toB64), pose: hand.pose },
-    charted, pins,
+    charted, pins, names, gift,
   }, null, 2);
 }
