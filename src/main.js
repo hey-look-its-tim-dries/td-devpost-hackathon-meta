@@ -33,6 +33,8 @@ import { addProps } from './world/props.js';
 import { createAtlas } from './atlas/card.js';
 import { createPalmUp, createPush, createFling, createPull } from './gesture.js';
 import { firstHint } from './garden/hints.js';
+import { createTutorial, coach } from './garden/tutorial.js';
+import { createTutorialCard } from './tutorialcard.js';
 import { createPins, address } from './world/pins.js';
 import { placeName } from './world/names.js';
 import { createCommunityArt } from './community-art.js';
@@ -254,6 +256,11 @@ function hudContents() {
   let near = null, nd = Infinity;
   others.each((c, id, pos) => { const d = Math.hypot(pos[0] - glide.pos[0], pos[2] - glide.pos[2]); if (d < nd) { nd = d; near = { label: others.nameOf(id) ?? 'traveller', x: pos[0], z: pos[2], color: '#16100e' }; } });
   if (near) marks.push(near);
+  if (!place) { // over the wilderness: which way the nearest Hand lies
+    let best = null, bd = Infinity;
+    for (const h of hands) { if (!h.pose) continue; const [x, z] = toWorld(h.pose, 0, 230), d = Math.hypot(x - glide.pos[0], z - glide.pos[2]); if (d < bd) { bd = d; best = { label: 'Nearest Hand', x, z, color: '#3f7d3a' }; } }
+    if (best) marks.push(best);
+  }
   const gold = bloom.gold();
   if (gold) marks.push({ label: 'Golden seed', x: gold.x, z: gold.z, color: '#c9a35a' });
   const sandNow = bloom.storm();
@@ -396,7 +403,7 @@ addEventListener('resize', () => composer?.setSize?.(innerWidth, innerHeight));
 let invite = null; // when to offer a new player a Hand of their own
 let sowing = false; // the plant key or a right-hand pinch is held
 const bloomCtx = { pos: glide.pos, forward: [0, 0, -1], place: null, flying: false, braiding: null, burst: () => creature.burst(), near: (x, z, r) => Math.hypot(x - glide.pos[0], z - glide.pos[2]) < r };
-const gardenAct = (what) => { if (started && mode === 'fly') { bloomCtx.place = place; bloomCtx.braiding = braiding; bloomCtx.forward = glide.forward(); bloom.act(what, bloomCtx); if (what === 'plant') creature.burst(); } };
+const gardenAct = (what) => { if (started && mode === 'fly') { const k = what.startsWith('scatter') ? 'scatter' : what === 'prev' ? 'next' : what; if (k in acts) acts[k]++; bloomCtx.place = place; bloomCtx.braiding = braiding; bloomCtx.forward = glide.forward(); bloom.act(what, bloomCtx); if (what === 'plant') creature.burst(); } };
 addEventListener('keydown', (e) => {
   if (e.key === ' ' && mode === 'fly' && started) e.preventDefault(); // the plant key never scrolls or presses a button
   if (e.repeat || mode !== 'fly' || !started) return;
@@ -437,9 +444,16 @@ const xrHands = [0, 1].map((i) => {
 let webcam = null;
 const card = createGestureCard(); // what your hand is commanding, fixed at the bottom of your view
 camera.add(card.mesh);
+// the tutorial (src/garden/tutorial.js): for whoever has not done it, one move at a time on a card until it is done.
+// ?notutorial: never; ?atelier (the hand card at once: the checks) leaves it out too
+const tutorial = createTutorial({ done: params.has('notutorial') || params.has('atelier') || storage?.getItem('pwc.tutorial.v1') === '1' });
+const lesson = createTutorialCard(), acts = { next: 0, scatter: 0, pour: 0, hyper: 0 }; // acts: what you asked the garden for, counted for the tutorial
+const endTutorial = (done) => { tutorial.stop(); try { storage?.setItem('pwc.tutorial.v1', '1'); } catch {} if (done) stamp('You can fly and garden', 'mushrooms and gnomes are yours to find', 'TUTORIAL DONE'); else panel.say('Tutorial skipped: the atlas has a How page', 4); };
+addEventListener('keydown', (e) => { if (e.key === 'Escape' && tutorial.active && mode === 'fly') endTutorial(false); });
 camera.add(seal.mesh);
 const hud = createHud();
 camera.add(hud.group);
+hud.group.add(lesson.mesh); // the tutorial's card, with the HUD: on a screen it grows with it
 const pins = createPins(storage); // up to five pinned places, on the compass
 let flyTo = null; // { x, z, label } while Fly here steers you
 const community = createCommunityArt(); // lies on the Source lake, once the map has answered
@@ -472,7 +486,7 @@ function atlasState() {
   others.each((c, id, pos) => list.push({ pos, name: others.nameOf(id) }));
   const mineHand = mine && hands.find((h) => h.id === mine.id);
   return { hands, chart, me: { pos: glide.pos, yaw: glide.yaw }, others: list, pins: pins.list(), selected: selected?.id ?? null, inspect: selected && inspectOf(selected), mine: mine && { name: mine.name, handbits: mineHand?.data.handbits ?? [] }, names: mine ? placeNames[mine.id] ?? {} : {}, pickName,
-    garden: bloom.herbarium, blooms: bloom.allPlots(), storm: bloom.storm(), byHand: renderer.xr.isPresenting,
+    garden: bloom.herbarium, blooms: bloom.allPlots(), storm: bloom.storm(), byHand: renderer.xr.isPresenting, tutorial: tutorial.active, muted: music.muted,
     journal: events && events.map((e) => ({ when: when(e.at), text: journalText(e) })).filter((e) => e.text),
     timeline: timelineOf(), until: timelineAt,
     waters: atlas.layers.watersheds ? Object.fromEntries(Object.entries(sheds).map(([id, n]) => [id, SHED_COLOURS[n % SHED_COLOURS.length]])) : null, community: communityOn ? { paint: (g, regions, tools) => community.paintTab(g, regions, tools) } : null };
@@ -526,6 +540,8 @@ function atlasDo(a) {
     });
   }
   else if (a.type === 'postcard') postcard();
+  else if (a.type === 'tutorial') { if (tutorial.active) endTutorial(false); else tutorial.start(); closeAtlas(); }
+  else if (a.type === 'music') music.toggle();
   else if (a.type === 'export') exportMine();
   else if (a.type === 'pin' && selected) { const hb = inspectAt?.handbit; pins.add({ handId: selected.id, code: hb?.code ?? null, ...placeOf(selected, hb), label: hb ? `${selected.name} ${hb.code}` : selected.name }); }
   else if (a.type === 'fly' && selected) { const hb = inspectAt?.handbit; flyTo = { ...placeOf(selected, hb), label: hb ? `${selected.name} ${hb.code}` : selected.name }; closeAtlas(); panel.say(`Flying to ${flyTo.label}: steer to take over`, 4); return; }
@@ -597,7 +613,7 @@ function readHead() {
 // ---------- steering ----------
 
 const keys = new Set();
-addEventListener('keydown', (e) => keys.add(e.key.toLowerCase()));
+addEventListener('keydown', (e) => { keys.add(e.key.toLowerCase()); if (e.key === ' ' && started) e.preventDefault(); }); // (the space bar sows: it must not press a button or scroll the page)
 addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()));
 const look = { yaw: 0, pitch: +(params.get('pitch') ?? -0.22), drag: false }; // ?pitch= for screenshots
 renderer.domElement.addEventListener('pointerdown', (e) => {
@@ -858,7 +874,18 @@ function frame() {
   gnomeCtx.yaw = glide.yaw + Math.PI; gnomeCtx.speed = glide.speed; gnomeCtx.alt = glide.pos[1] - groundAt(glide.pos[0], glide.pos[2]);
   gnomeCtx.flying = started && mode === 'fly'; gnomeCtx.place = place; gnomeCtx.wet = !!place && !place.handbit && gnomeCtx.alt < 140;
   gnomes.frame(dt, gnomeCtx);
-  if (invite && mode === 'fly' && (t > invite.at || bloom.pouch.plantedTotal >= invite.planted)) { invite = null; openAtelier(); }
+  // the tutorial: fed with what you are doing; the hand card waits until it is over
+  if (tutorial.active && started && (mode === 'fly' || mode === 'atlas')) {
+    const r = tutorial.update({ turn: steer.turn, climb: steer.climb, sown: bloom.counts.sown, water: bloom.pouch.water, atlas: mode === 'atlas', acts }, dt);
+    if (r) creature.burst();
+    if (r === 'done') endTutorial(true);
+    if (invite) invite.at = Math.max(invite.at, t + 20);
+  }
+  if (tutorial.active && started && mode === 'fly') {
+    const here = { onHand: !!place?.handbit, onWater: !!place && !place.handbit, alt: glide.pos[1] - groundAt(glide.pos[0], glide.pos[2]), limit: 320 }, miss = coach(tutorial.step.id, here);
+    lesson.update(dt, { index: tutorial.index, step: tutorial.step, progress: tutorial.progress, hands: renderer.xr.isPresenting, coach: miss, ready: !miss && ['sow', 'scatter', 'pour', 'hyper', 'water'].includes(tutorial.step.id) });
+  } else lesson.update(dt, null);
+  if (invite && mode === 'fly' && !tutorial.active && (t > invite.at || bloom.pouch.plantedTotal >= invite.planted)) { invite = null; openAtelier(); }
   fauna.update(dt, t, glide.pos, groundAt);
   creature.grow(Math.min(1, (bloom.pouch.level - 1) / 8 + bloom.pouch.plantedTotal / 500));
   roomLink?.send({ x: glide.pos[0], y: glide.pos[1], z: glide.pos[2], yaw: glide.yaw, pitch: glide.pitch, mode: Math.max(0, ['fly', 'atelier', 'merge', 'rise'].indexOf(mode)) }); // at most 5 a second
@@ -921,6 +948,8 @@ function frame() {
     const l = creature.strand(o.strand % creature.active), j = Math.min(l.count - 1, Math.max(1, Math.round(o.at * (l.count - 1)))) * 3;
     fl.deco(l.xyz[j], l.xyz[j + 1], l.xyz[j + 2], (5 + 5 * o.size) * (1 + 0.12 * Math.sin(t * 2.2 + o.phase)), o.sp);
   }
+  // what you carry: tiny flecks of each kind of seed in your pouch, so a seed cloud caught shows on you at once
+  for (const o of bloom.motes(creature.active)) { const l = creature.strand(o.strand), j = Math.min(l.count - 1, Math.max(1, Math.round(o.at * (l.count - 1)))) * 3; fl.deco(l.xyz[j], l.xyz[j + 1], l.xyz[j + 2], 4.5 * (1 + 0.25 * Math.sin(t * 3 + o.phase)), o.sp); }
   others.each((c, id) => { const b = bouquets.get(id); if (b) for (const o of b) { const l = c.strand(o.strand % c.strands), j = Math.min(l.count - 1, Math.max(1, Math.round(o.at * (l.count - 1)))) * 3; fl.deco(l.xyz[j], l.xyz[j + 1], l.xyz[j + 2], (5 + 4 * o.size) * (1 + 0.12 * Math.sin(t * 2.2 + o.phase)), o.sp); } });
   for (const c of bloom.clouds()) if (!bloom.taken(c.id)) for (let i = 0; i < 10; i++) { const a = t * (0.5 + 0.07 * i) + i * 0.63, r = 30 + 50 * ((i * 0.618) % 1); fl.deco(c.x + Math.cos(a) * r, c.y + Math.sin(a * 1.3 + i) * 25, c.z + Math.sin(a) * r, 30, c.sp); }
   sandstorm.update(t, bloom.storm(), groundAt);
@@ -993,12 +1022,13 @@ function frame() {
 
 const banner = document.getElementById('banner');
 function start() {
+  document.activeElement?.blur?.(); // the start button keeps the focus otherwise, and the space bar would press it again
   started = true;
   music.arm(); // sound may only begin after a press: this is it
   banner.classList.add('hidden');
   panel.say('Palm Whorl Cities', 4);
   // fly and garden first; the invitation to lay a Hand of your own comes once you have planted a little (or after a while)
-  setTimeout(() => panel.say(firstHint(renderer.xr.isPresenting), 8), 4200);
+  if (!tutorial.active) setTimeout(() => panel.say(firstHint(renderer.xr.isPresenting), 8), 4200); // (the tutorial teaches the rest)
   invite = mine || params.has('noatelier') ? null : { at: t + (params.has('atelier') ? 4.2 : 90), planted: bloom.pouch.plantedTotal + 6 }; // ?atelier: at once (the tests)
 }
 async function enterHeadset() {

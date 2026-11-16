@@ -48,3 +48,14 @@ export function fromSignature(ints) {
   for (let i = 0; i < ints.length; i += 2) { if (ints[i + 1] > 63) return []; out.push([ints[i], Math.max(1, Math.round(2 ** (ints[i + 1] / 4)) - 1), i / 2]); }
   return out;
 }
+
+// What you carry, on your whorl at once: a few tiny flecks per kind of seed in your pouch (one per four seeds, eight
+// at most), each on its own place along a strand. seeds: { species id: how many }. The same list every time.
+export function motes(seeds, { strands, max = 160 }) {
+  const out = [];
+  for (const [id, n] of Object.entries(seeds)) for (let i = 0, k = Math.min(8, Math.ceil(n / 4)); i < k; i++) {
+    const h = mix(+id * 131 + i * 17 + 5);
+    out.push({ sp: +id, strand: h % strands, at: 0.06 + 0.9 * (((h >>> 8) % 1000) / 1000), phase: ((h >>> 18) % 628) / 100 });
+  }
+  return out.slice(0, max);
+}

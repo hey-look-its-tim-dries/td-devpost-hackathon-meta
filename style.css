@@ -120,7 +120,8 @@ button:focus-visible {
   pointer-events: none;
 }
 
-#xrButton.hidden {
+#xrButton.hidden,
+#fbButton.hidden {
   display: none;
 }
 

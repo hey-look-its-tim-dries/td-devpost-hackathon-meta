@@ -47,3 +47,14 @@ test('a signature small enough to tell the room carries the order and the weight
   assert.ok(bouquet(back, { strands: 5 }).length > 10);
   assert.deepEqual(fromSignature([5, 'x', 9999, -1]), [], 'junk from the room is nothing');
 });
+
+import { motes } from '../src/garden/bouquet.js';
+test('what you carry shows on your whorl at once: a few flecks per kind of seed, more for more, the same every frame', () => {
+  const few = motes({ 3: 2 }, { strands: 24 }), more = motes({ 3: 40 }, { strands: 24 }), two = motes({ 3: 40, 9: 10 }, { strands: 24 });
+  assert.ok(few.length >= 1 && more.length > few.length);
+  assert.ok(two.some((m) => m.sp === 9) && two.some((m) => m.sp === 3));
+  assert.deepEqual(motes({ 3: 40, 9: 10 }, { strands: 24 }), two);
+  assert.ok(two.every((m) => Number.isInteger(m.strand) && m.strand >= 0 && m.strand < 24 && m.at > 0 && m.at < 1));
+  assert.equal(motes({ 3: 0 }, { strands: 24 }).length, 0, 'a kind you have sown out leaves no fleck');
+  assert.ok(motes(Object.fromEntries(Array.from({ length: 300 }, (_, i) => [i, 50])), { strands: 24 }).length <= 160);
+});

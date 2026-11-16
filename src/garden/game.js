@@ -11,7 +11,7 @@ import { hyperReady } from './hints.js';
 import { createPouch } from './pouch.js';
 import { clouds, golden, storm, stormDried } from './drift.js';
 import { paintHerbarium } from './herbarium.js';
-import { bouquet } from './bouquet.js';
+import { bouquet, motes } from './bouquet.js';
 import { createFlora, TILE } from './flora.js';
 import { toWorld, toHand } from '../world/founders.js';
 import { WORLD } from '../world/units.js';
@@ -38,6 +38,7 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
   let near = [], every = []; // blooming plots near you (the radar, the wildlife) and all of them (the atlas)
   let sand = null, sandSaid = -1, anchorsNow = []; // the sandstorm now, the last one announced, the Hands' centres
   const herb = { kind: 'flower', page: 0 }; // what the herbarium tab shows
+  let moteKey = '', moteList = [];
   const counts = { sown: 0, tends: 0, clouds: 0, eaten: 0 }; // what you did, for whoever is counting (the gnomes' side quests)
   const bq = { total: -1, list: [] };
   const loaded = new Map(); // Hand id -> when its groves were last read from the map
@@ -362,6 +363,8 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
     gold: () => (gold && !goldTaken.has(gold.epoch) ? gold : null),
     taken: (id) => taken.has(id),
     refreshTop,
+    // flecks for the seeds you carry, on your whorl (made again only when your pouch changes)
+    motes(strands) { const key = `${pouch.total}:${pouch.carried().length}:${strands}`; if (key !== moteKey) { moteKey = key; moteList = motes(pouch.dump().seeds, { strands }); } return moteList; },
     // what the HUD shows of the garden
     hud(place) {
       const tNow = Date.now(), sel = SPECIES[pouch.selected], out = { fox: fox.active(tNow) ? { left: fox.left(tNow), mult: fox.mult(tNow) } : null, charge, hyper: Math.max(0, Math.ceil((hyperUntil - performance.now()) / 1000)), seeds: pouch.total, water: pouch.water, wet, level: pouch.level, xp: pouch.xp, found: pouch.found.size, of: SPECIES.length, planted: pouch.plantedTotal, plants: worldPlants, top,

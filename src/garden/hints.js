@@ -27,7 +27,7 @@ export function hintLine(gd, hands) {
   return gd.charge >= 1 ? 'F: HYPER SOW READY · SPACE plant · Q/E seed · X clear' : `SPACE plant · Q/E seed · X clear · hyper sow ${Math.round(gd.charge * 100)}%`;
 }
 export const hyperReady = (hands) => `Hyper sow is ready: ${hands ? 'hold a left pinch' : 'press F'} and draw with flowers`;
-// said once, a few seconds after you start
+// said once, a few seconds after you start (unless the tutorial is teaching you)
 export const firstHint = (hands) => (hands
   ? 'Point to fly · pinch and hold to sow · sweep an open hand to scatter · left palm up: the atlas, and how to play'
   : 'A D turn · W S climb · hold SPACE to sow · R Z C scatter · T pour · F hyper sow · M: the atlas, and how to play');
