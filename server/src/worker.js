@@ -25,13 +25,14 @@ export default {
       return new Response(r.body, { status: r.status, headers: cors(req, env, { 'Content-Type': 'application/json', 'ETag': r.headers.get('ETag') ?? '', 'Cache-Control': 'public, max-age=10' }) });
     }
     // the rest of the World's doors: names (and, below, the Community Hand, the journal, pairing)
-    const passWorld = async (to) => {
+    const passWorld = async (to, max = MAX_BODY) => {
       const text = req.method === 'GET' ? undefined : await req.text();
-      if (text && text.length > MAX_BODY) return json(req, env, { error: 'too big' }, 413);
+      if (text && text.length > max) return json(req, env, { error: 'too big' }, 413);
       const r = await world.fetch(new Request(`https://world${to}`, { method: req.method, body: text, headers: { 'CF-Connecting-IP': req.headers.get('CF-Connecting-IP') ?? 'local' } }));
       return r.status === 204 ? new Response(null, { status: 204, headers: cors(req, env) }) : new Response(r.body, { status: r.status, headers: cors(req, env, { 'Content-Type': 'application/json' }) });
     };
     if (/^\/plants(\/\d{1,12}(\/tend)?)?$/.test(path) || (path === '/golden' && req.method === 'POST')) return passWorld(path + (req.method === 'GET' ? url.search : ''));
+    if ((/^\/profile(\/get|\/delete)?$/.test(path) || path === '/login/facebook') && req.method === 'POST') return passWorld(path, 32768); // a pouch is up to 24 kB
     if (path === '/names' && (req.method === 'GET' || req.method === 'POST')) return passWorld('/names');
     if (path === '/community' && (req.method === 'GET' || req.method === 'POST')) return passWorld('/community');
     if ((path === '/events' || path === '/watersheds') && req.method === 'GET') return passWorld(path + new URL(req.url).search);

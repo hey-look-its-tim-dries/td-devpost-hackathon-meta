@@ -17,7 +17,7 @@ export async function drawGarland(canvas) {
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
   g.clearRect(0, 0, w, h);
   if (!img) return;
-  const cx = w / 2, cy = h / 2, rx = Math.min(w * 0.49, 700), ry = h * 0.53, // taller than the window: the top and bottom arcs peep in and leave the words clear n = Math.round(70 + (rx + ry) / 8);
+  const cx = w / 2, cy = h / 2, rx = Math.min(w * 0.49, 700), ry = h * 0.6, /* taller than the window: the arcs peep in and leave the words clear */ n = Math.round(70 + (rx + ry) / 8);
   const at = (a, off) => [cx + Math.cos(a) * (rx + off), cy + Math.sin(a) * (ry + off * 0.8)];
   // leaves first: pairs of green blades all round, pointing out and in
   for (let i = 0; i < n * 2; i++) {

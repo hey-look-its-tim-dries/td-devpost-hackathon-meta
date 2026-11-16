@@ -20,4 +20,5 @@ tag = "v1"
 new_sqlite_classes = ["World", "Room"]
 
 [vars]
+FB_APP_ID = "" # the Meta app's App ID, for Facebook Login; its secret: `npx wrangler secret put FB_APP_SECRET`
 ORIGINS = "https://hey-look-its-tim-dries.github.io,http://localhost:8130,http://127.0.0.1:8130,http://localhost:8123,http://127.0.0.1:8123"

@@ -363,3 +363,22 @@ test('the garden at scale: groves are read Hand by Hand; a hyper sow sends many 
   assert.deepEqual((await part.json()).ids.map((id) => id !== null), [true, false], 'what fits is planted, the rest is told');
   await clear('hand-founder-4');
 });
+
+test('profiles: a gardener\'s pouch is kept on the map by device, read back, refused when junk or huge, and deleted on request; Facebook login says so when it is not set up', { skip }, async () => {
+  const J = { 'Content-Type': 'application/json' }, tok = 'P'.repeat(43), post = (path, b) => fetch(API + path, { method: 'POST', headers: J, body: JSON.stringify(b) });
+  await post('/profile/delete', { token: tok });
+  assert.deepEqual(await (await post('/profile/get', { token: tok })).json(), { data: null, linked: false });
+  const data = { seeds: { 3: 5 }, sel: 3, water: 2, xp: 120, planted: { 3: 9 }, found: [0, 1, 2, 3], log: [[3, 9, 20000]] };
+  assert.equal((await post('/profile', { token: tok, data })).status, 204);
+  const back = await (await post('/profile/get', { token: tok })).json();
+  assert.deepEqual(back.data, data);
+  assert.equal(back.linked, false);
+  assert.equal((await post('/profile', { token: tok, data: 'junk' })).status, 400);
+  assert.equal((await post('/profile', { token: 'short', data })).status, 400);
+  assert.equal((await post('/profile', { token: tok, data: { ...data, log: Array.from({ length: 9000 }, () => [1, 1, 1]) } })).status, 413, 'a pouch is small');
+  assert.deepEqual((await (await post('/profile/get', { token: 'Q'.repeat(43) })).json()).data, null, 'another device has its own');
+  const fb = await post('/login/facebook', { token: tok, access_token: 'EAAB'.padEnd(60, 'x') });
+  assert.ok([501, 403].includes(fb.status), `not set up here (501), or Facebook refuses the made-up token (403): ${fb.status}`);
+  assert.equal((await post('/profile/delete', { token: tok })).status, 204);
+  assert.equal((await (await post('/profile/get', { token: tok })).json()).data, null);
+});

@@ -170,6 +170,12 @@ export function createNet({ api = API, storage = null, fetchFn = globalThis.fetc
     async claimGolden(epoch) {
       try { const { status, body } = await call('/golden', { method: 'POST', body: JSON.stringify({ token, epoch }) }); return status === 200 ? body : null; } catch { return null; }
     },
+    // ---- the pouch on the map, and signing in ----
+    async profileGet() { try { const { status, body } = await call('/profile/get', { method: 'POST', body: JSON.stringify({ token }) }); return status === 200 ? body : null; } catch { return null; } },
+    async profilePut(data) { try { return (await call('/profile', { method: 'POST', body: JSON.stringify({ token, data }) })).status === 204; } catch { return false; } },
+    async profileDelete() { try { return (await call('/profile/delete', { method: 'POST', body: JSON.stringify({ token }) })).status === 204; } catch { return false; } },
+    // { ok, data } or { error }: the map checks the token with Facebook itself
+    async loginFacebook(accessToken) { try { const { status, body } = await call('/login/facebook', { method: 'POST', body: JSON.stringify({ token, access_token: accessToken }) }); return status === 200 ? body : { error: body?.error ?? String(status) }; } catch { return { error: 'offline' }; } },
     // the live room: poses out (at most 5 a second), snapshots and lay events in; reconnects by itself
     openRoom({ name = null, deco = null, onHello, onNames, onSnapshot, onLaid, onLeft, onState, onCommunity, onGarden, onDecos } = {}) {
       let ws = null, closed = false, wait = 1000, lastSent = 0, shard = 0, followed = false;

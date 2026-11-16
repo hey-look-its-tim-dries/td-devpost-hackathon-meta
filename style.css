@@ -158,3 +158,5 @@ button:focus-visible {
 .eyebrow { color: #b8442e; }
 
 .banner a { color: inherit; }
+
+.banner .small, .banner .live { text-shadow: 0 1px 6px rgba(20, 10, 6, 0.9), 0 0 2px rgba(20, 10, 6, 0.9); } /* legible over the wreath */

@@ -13,14 +13,15 @@ const open = async (label) => {
   await page.goto(URL_, { waitUntil: 'domcontentloaded' });
   return page;
 };
-const until = async (page, fn, what, arg) => { for (let i = 0; i < 480; i++) { const v = await page.evaluate(fn, arg); if (v) return v; await wait(250); } throw new Error(`timed out: ${what}`); };
+const until = async (page, fn, what, arg) => { for (let i = 0; i < 960; i++) { const v = await page.evaluate(fn, arg); if (v) return v; await wait(250); } throw new Error(`timed out: ${what}`); };
 const ready = (p) => until(p, () => window.__pwc?.state.started && window.__pwc.hands.filter((h) => h.data?.cells).length >= 10 && window.__pwc.state.room === 'open' && window.__pwc.bloom.handsRead() > 0, 'ready');
 const mineIds = (p) => p.evaluate(() => [...window.__pwc.bloom.garden.all()].filter((g) => g.id > 0).map((g) => g.id));
 let a = null, had0 = null;
 try {
   a = await open('A');
+  await ready(a); // one at a time: two software-rendered pages starting together starve each other
   const b = await open('B');
-  await ready(a); await ready(b);
+  await ready(b);
   await wait(2500); // what the map already holds near here has been read
   had0 = await mineIds(a);
   // A sows

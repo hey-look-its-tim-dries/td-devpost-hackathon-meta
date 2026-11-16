@@ -36,10 +36,42 @@ On top of the flying, everyone gardens the desert together.
   every compass: the first to reach it wins a legendary species. The HUD shows who is flying, a radar with other
   players, seed clouds and blooming plots, and the top gardeners.
 
+- **Hyper sow:** watering and gathering charge it. **F** (hold a left pinch for a second) gives ten seconds in which
+  single plants fall along your path, free, 14 m apart: you draw with flowers. Pixel kinds lay 30 m tiles.
+- **Sowing by hand:** sweep an open hand to scatter five groves to that side, throw it forward to cast them far ahead,
+  press a flat palm down to pour water over the groves around you. On keys: **Z C** scatter, **R** cast, **T** pour.
+- **I am what I have sown:** your whorl wears your whole sowing history as a bouquet, in order from head (first sown)
+  to tail; what you sowed most has more and larger flowers; a day's plantings share strands. Others see it too.
 - **Sandstorm:** every ten minutes a wall of dust crosses the world for four. Groves under its path are parched until
   someone waters them. It shows on the compass, the radar and the atlas, and is the same storm for every player.
 - **Atlas:** the new Garden tab is your herbarium (every species by kind, found ones in colour, tap one you carry to
   sow it); the World map has a bloom layer with every blooming plot and the storm.
+
+### How the garden is kept
+
+- Groves are rows in the map's database, indexed by Hand and plot. A plot holds 400 units (a grove 5, a hyper-sown
+  plant 1), so a Hand holds at most 34 x 400 units, and the game reads the garden **Hand by Hand as you come near**:
+  what a player downloads does not grow with the size of the world. Live changes arrive through the room.
+- Your pouch (seeds, herbarium, sowing log) is kept on your device and on the map, by device token, and comes back
+  after a cleared browser. Signed in with Facebook, all your devices share one pouch.
+- Not done yet: all writes still go through one Durable Object (the World). Past a few hundred plantings a second
+  that needs one object per Hand.
+
+### Signing in with Facebook (optional; guests keep playing by device)
+
+The code is in place and off until an App ID is set. The owner does this once:
+
+1. At developers.facebook.com create an app with the "Authenticate and request data from users with Facebook Login" use case.
+2. Basic settings: app domain `hey-look-its-tim-dries.github.io`; privacy policy URL and data deletion instructions
+   URL: `https://hey-look-its-tim-dries.github.io/td-devpost-hackathon-meta/privacy.html`.
+3. Facebook Login settings: valid OAuth redirect URI `https://hey-look-its-tim-dries.github.io/td-devpost-hackathon-meta/`.
+4. Switch `public_profile` to Advanced Access and set the app Live (otherwise only the app's own testers can sign in).
+5. Put the App ID in `src/config.js` and in `server/wrangler.toml` (`FB_APP_ID`), run
+   `npx wrangler secret put FB_APP_SECRET` in `server/`, deploy.
+
+The game asks for the public profile only and keeps a hash of the app-scoped user id, nothing else. Meta offers no
+sign-in with the headset's own Meta account to a page opened by URL (only to apps installed from the Horizon Store);
+the VR glasses run the same OS and accounts as Quest.
 
 Checks: `node tests/bloom.mjs` (two browsers sow, see, water and clear) and `node tools/bloom-look.mjs <dir>` for screenshots.
 Flower art from other makers is in `assets/flora` with its licences in `assets/flora/CREDITS.md`.

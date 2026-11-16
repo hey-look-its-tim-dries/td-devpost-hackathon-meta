@@ -76,3 +76,16 @@ create table if not exists plant (
   at integer not null
 );
 create index if not exists plant_plot on plant (hand_id, bit);
+
+-- profiles: a gardener's pouch by device ('dev:<token hash>') or by account ('fb:<hash of the app-scoped user id>')
+create table if not exists profile (
+  id text primary key,
+  data text not null,
+  updated integer not null
+);
+-- a device signed in to an account shares that account's pouch
+create table if not exists account (
+  token_hash text primary key,
+  account text not null,
+  at integer not null
+);

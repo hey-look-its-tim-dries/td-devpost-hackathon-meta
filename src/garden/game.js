@@ -81,13 +81,27 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
   // The garden is read Hand by Hand as you come near (and again every five minutes): however many Hands the world
   // has, you only ever hold the groves of the ones around you. What others plant meanwhile arrives through the room.
   let ready = false, topAt = 0;
-  const load = () => { ready = true; refreshTop(); };
+  // The pouch is kept on the map too (by device, or by account once signed in): it comes back when the map holds
+  // more than this device, and goes up every twenty seconds when it has changed.
+  let synced = '', syncAt = 0;
+  const mark = () => `${pouch.xp}:${pouch.plantedTotal}:${pouch.total}:${pouch.found.size}`;
+  const took = (data, words) => { if (pouch.adopt(data)) { bq.total = -1; onDeco?.(pouch.signature()); say(words, 5); } synced = mark(); };
+  const load = () => { ready = true; refreshTop(); net.profileGet().then((r) => { if (r) took(r.data, 'Your garden came back from the map'); }); };
+  async function signIn(accessToken) {
+    const r = await net.loginFacebook(accessToken);
+    if (r.error) return say(`Facebook sign-in failed: ${r.error}`, 6);
+    took(r.data, 'Signed in: the garden of your account came with you');
+    say('Signed in with Facebook: your garden follows you to every device', 6);
+    synced = ''; // and what this device holds goes up
+  }
   async function readHand(h) {
-    loaded.set(h.id, Date.now());
+    const asked = Date.now();
+    loaded.set(h.id, asked);
     const r = await net.plants(h.id);
     if (!r) return loaded.delete(h.id);
     const now = new Set(r.plants.map((p) => p.id));
-    for (const p of [...garden.all()]) if (p.hand === h.id && p.id > 0 && !now.has(p.id)) remove(p.id); // cleared while you were away
+    // cleared while you were away; but never what was planted or watered while this answer was on its way (the room told us)
+    for (const p of [...garden.all()]) if (p.hand === h.id && p.id > 0 && !now.has(p.id) && p.tended < asked - 5000) remove(p.id);
     for (const p of r.plants) { const q = garden.get(p.id); if (q) grown(p.id, p.stage, p.tended); else add(p); }
   }
   const refreshTop = () => { if (!online()) return; net.plants().then((r) => { if (r) top = r.top; }); net.stats().then((st) => { if (st?.plants !== undefined) worldPlants = st.plants; }); };
@@ -244,6 +258,7 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
       slow = 0;
       for (let i = waiting.length - 1; i >= 0; i--) if (handOf(waiting[i].hand)) add(waiting.splice(i, 1)[0]); // Hands that have risen since
       if (ready && now - topAt > 30000) { topAt = now; refreshTop(); }
+      if (ready && online() && now - syncAt > 20000 && mark() !== synced) { syncAt = now; const m = mark(); net.profilePut(pouch.dump()).then((ok) => { if (ok) synced = m; }); }
       if (ready && online()) for (const h of hands) { if (!h.pose || !h.data?.cells || (h.rise ?? 1) < 1) continue; const [hx, hz] = toWorld(h.pose, 0, 230); if (Math.hypot(hx - pos[0], hz - pos[2]) < 9000 && now - (loaded.get(h.id) ?? 0) > 300000) readHand(h); }
       const anchors = hands.filter((h) => h.pose).map((h) => { const [x, z] = toWorld(h.pose, 0, 230); return { id: h.id, x, z }; });
       const lift = (c) => ({ ...c, y: groundAt(c.x, c.z) + c.up });
@@ -288,7 +303,7 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
   return {
     // your bouquet: every kind you sowed, in order, as ornaments for your whorl; made again only when you have sown more
     bouquet() { if (bq.total !== pouch.plantedTotal) { bq.total = pouch.plantedTotal; bq.list = bouquet(pouch.log(), { strands: 24 }); } return bq.list; },
-    garden, pouch, flora, species: SPECIES, onGarden, load, handsRead: () => loaded.size, plots: () => near, allPlots: () => every, storm: () => sand,
+    garden, pouch, flora, species: SPECIES, onGarden, load, signIn, handsRead: () => loaded.size, plots: () => near, allPlots: () => every, storm: () => sand,
     // the atlas's Garden tab: the herbarium; taps choose a kind, a page, or the seed to sow
     herbarium: { paint: (g, regions, tools) => { const r = paintHerbarium(g, regions, tools, { species: SPECIES, found: pouch.found, has: pouch.has, icon: flora.icon, style: flora.styleOf, selected: pouch.selected, ...herb }); herb.page = r.page; } },
     herbariumDo(a) { if (a.type === 'kind') { herb.kind = a.arg; herb.page = 0; } else if (a.type === 'page') herb.page = Math.max(0, herb.page + (a.arg === 'next' ? 1 : -1)); else if (a.type === 'seed') { pouch.select(+a.arg); say(`Sowing ${SPECIES[+a.arg].name}`, 2); } },

@@ -10,6 +10,7 @@ import { overlaps, findFits, confluences } from '../../src/world/fit.js';
 import { handShape } from '../../src/hand/shape.js';
 import { unpackPalm, toB64, fromB64 } from '../../src/hand/dna.js';
 import { cleanName, HANDBIT_FEATURE, SUMMIT_FEATURE } from '../../src/world/names.js';
+import { verifyFacebook } from '../../src/net/facebook.js';
 import { slotFor, isSealed } from '../../src/world/community.js';
 import { toWorld } from '../../src/world/founders.js';
 
@@ -85,6 +86,7 @@ export class World extends DurableObject {
     const plantM = url.pathname.match(/^\/plants(?:\/(\d{1,12})(\/tend)?)?$/);
     if (plantM && req.method !== 'GET') { const out = this.chain.then(() => (!plantM[1] ? this.plant(req) : plantM[2] ? this.tend(+plantM[1], req) : this.uproot(+plantM[1], req))); this.chain = out.catch(() => {}); return out; }
     if (url.pathname === '/golden' && req.method === 'POST') return this.golden(req);
+    if ((url.pathname.startsWith('/profile') || url.pathname === '/login/facebook') && req.method === 'POST') return this.profile(url.pathname, req);
     if (url.pathname === '/stats') {
       const now = Date.now();
       let flying = 0;
@@ -283,6 +285,41 @@ export class World extends DurableObject {
     try { await this.event('golden', null, { name }); } catch (e) { console.error('journal', e); }
     this.ctx.waitUntil(this.tell({ golden: { epoch, name } }));
     return Response.json({ won: true, name });
+  }
+
+  // ---- profiles: a gardener's pouch (seeds, herbarium, sowing log) kept on the map ----
+  // Every device has one, under the hash of its token. Signing in with Facebook links the device to an account
+  // (the hash of the app-scoped user id: no name, no e-mail is asked for or kept), so every device signed in to
+  // it shares one pouch. /profile/delete forgets the pouch and the link.
+  async profile(path, req) {
+    const b = await this.body(req);
+    if (!b) return Response.json({ error: 'no token' }, { status: 400 });
+    const dev = await sha(b.token), link = await this.env.DB.prepare('select account from account where token_hash = ?').bind(dev).first(), id = link?.account ?? `dev:${dev}`;
+    const read = async (key) => { const r = await this.env.DB.prepare('select data from profile where id = ?').bind(key).first(); try { return r ? JSON.parse(r.data) : null; } catch { return null; } };
+    if (path === '/profile/get') return Response.json({ data: await read(id), linked: !!link });
+    if (path === '/profile/delete') {
+      await this.env.DB.batch([this.env.DB.prepare('delete from profile where id = ? or id = ?').bind(id, `dev:${dev}`), this.env.DB.prepare('delete from account where token_hash = ?').bind(dev)]);
+      return new Response(null, { status: 204 });
+    }
+    if (path === '/profile') {
+      const d = b.data;
+      if (!d || typeof d !== 'object' || Array.isArray(d) || typeof d.seeds !== 'object' || !Array.isArray(d.found) || !Array.isArray(d.log) || !Number.isFinite(d.xp)) return Response.json({ error: 'not a pouch' }, { status: 400 });
+      const text = JSON.stringify({ seeds: d.seeds, sel: d.sel, water: d.water, xp: d.xp, planted: d.planted, found: d.found, log: d.log });
+      if (text.length > 24000) return Response.json({ error: 'too big' }, { status: 413 });
+      await this.env.DB.prepare('insert into profile (id, data, updated) values (?, ?, ?) on conflict (id) do update set data = excluded.data, updated = excluded.updated').bind(id, text, Date.now()).run();
+      return new Response(null, { status: 204 });
+    }
+    if (path === '/login/facebook') {
+      if (!this.env.FB_APP_ID || !this.env.FB_APP_SECRET) return Response.json({ error: 'Facebook login is not set up on this map' }, { status: 501 });
+      const user = await verifyFacebook(fetch, this.env.FB_APP_ID, this.env.FB_APP_SECRET, b.access_token);
+      if (!user) return Response.json({ error: 'Facebook did not vouch for that sign-in' }, { status: 403 });
+      const account = `fb:${await sha(`fb:${user}`)}`, mine = await read(`dev:${dev}`), theirs = await read(account);
+      await this.env.DB.prepare('insert into account (token_hash, account, at) values (?, ?, ?) on conflict (token_hash) do update set account = excluded.account, at = excluded.at').bind(dev, account, Date.now()).run();
+      // the first sign-in brings this device's pouch along; later ones find the account's own (the client keeps the richer)
+      if (!theirs && mine) await this.env.DB.prepare('insert or ignore into profile (id, data, updated) values (?, ?, ?)').bind(account, JSON.stringify(mine), Date.now()).run();
+      return Response.json({ ok: true, data: theirs ?? mine });
+    }
+    return Response.json({ error: 'not found' }, { status: 404 });
   }
 
   async event(kind, handId, data) { await this.env.DB.prepare('insert into event (at, kind, hand_id, data) values (?, ?, ?, ?)').bind(Date.now(), kind, handId, JSON.stringify(data ?? null)).run(); }

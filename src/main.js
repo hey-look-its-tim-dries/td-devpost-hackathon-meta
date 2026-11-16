@@ -46,6 +46,8 @@ import { createBloom } from './garden/game.js';
 import { createFauna } from './garden/fauna.js';
 import { bouquet, fromSignature } from './garden/bouquet.js';
 import { drawGarland } from './garden/garland.js';
+import { FB_APP_ID } from './config.js';
+import { dialogUrl, fromFragment } from './net/facebook.js';
 
 // Palm Whorl Cities, first milestone: the First Ten. Ten founding hands lie in a ring around the
 // Source. Their lines are rivers, their fingertips are print lands, and black-ink scribbles knot
@@ -303,6 +305,19 @@ const bloom = createBloom({ scene, shared: world.shared, storage, net, hands, gr
 const fauna = createFauna(bloom.species);
 scene.add(fauna.group);
 bloom.setFauna(fauna);
+// Signing in with Facebook (only when the owner has set an App ID): the button goes to Facebook's own dialog; the
+// page comes back with a token in its fragment, which is taken out of the address at once and sent to the map to
+// check. Signing in is optional: guests keep their garden by device.
+{
+  const fbButton = document.getElementById('fbButton'), KEY = 'pwc.fb.state';
+  let came = null;
+  try { came = fromFragment(location.hash, sessionStorage.getItem(KEY)); sessionStorage.removeItem(KEY); } catch {}
+  if (came) { history.replaceState(null, '', location.pathname + location.search); const wait = setInterval(() => { if (online) { clearInterval(wait); bloom.signIn(came.token); } }, 500); }
+  if (FB_APP_ID && fbButton) {
+    fbButton.classList.remove('hidden');
+    fbButton.addEventListener('click', () => { const state = crypto.randomUUID(); try { sessionStorage.setItem(KEY, state); } catch {} location.href = dialogUrl(FB_APP_ID, location.origin + location.pathname, state); });
+  }
+}
 drawGarland(document.getElementById('garland')); // the opening screen's wreath
 addEventListener('resize', () => drawGarland(document.getElementById('garland')));
 fauna.setLand((x, z) => !!whereAt(hands, x, z)?.handbit); // herds keep out of the rivers
@@ -700,11 +715,13 @@ addEventListener('keydown', (e) => {
 document.getElementById('forget').addEventListener('click', async (e) => {
   e.preventDefault();
   if (mine?.id && !mine.pending && !(await net.washHand(mine.id))) return (e.target.textContent = 'The map could not be reached: try again'); // keep it until the map lets go
+  await net.profileDelete(); // the pouch on the map and any Facebook link go too (privacy.html)
   forgetHand(storage);
-  try { storage?.removeItem('pwc.chart.v1'); storage?.removeItem('pwc.pins.v1'); } catch {} // a wash takes charting and pins too (spec 8.5)
+  try { storage?.removeItem('pwc.chart.v1'); storage?.removeItem('pwc.pins.v1'); storage?.removeItem('pwc.garden.v1'); } catch {} // a wash takes charting, pins and the pouch too (spec 8.5)
   location.reload();
 });
-if (mine) for (const id of ['forget', 'export']) document.getElementById(id).classList.remove('hidden');
+document.getElementById('forget').classList.remove('hidden'); // always: a guest with only a garden can be forgotten too
+if (mine) document.getElementById('export').classList.remove('hidden');
 // files you take home: your data (spec 8.5) and your postcard (spec 6.4)
 const download = (blob, name) => { const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: name }); document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); };
 const exportMine = async () => {
