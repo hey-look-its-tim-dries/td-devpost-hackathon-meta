@@ -121,3 +121,29 @@ test('the golden seed: one for the whole world, a legend, somewhere new each tim
   assert.notEqual(golden(T0 + 20 * 60000, anchors, S, flora).epoch, g.epoch);
   assert.equal(golden(T0, [], S, flora), null);
 });
+
+import { storm, stormDried, STORM } from '../src/garden/drift.js';
+test('the sandstorm: one crosses the world now and then, the same for everyone, and is gone between', () => {
+  const anchors = [{ id: 'a', x: 0, z: 0 }, { id: 'b', x: 5000, z: 0 }], e0 = Math.ceil(T0 / STORM.period) * STORM.period;
+  const s = storm(e0 + 10000, anchors);
+  assert.ok(s && s.r > 300, 'blowing');
+  assert.deepEqual(storm(e0 + 10000, [...anchors].reverse()), s);
+  const later = storm(e0 + 60000, anchors);
+  assert.ok(Math.hypot(later.x - s.x, later.z - s.z) > 1000, 'it moves');
+  assert.equal(storm(e0 + STORM.blows + 1000, anchors), null, 'calm again');
+  assert.equal(storm(e0 + 10000, []), null);
+});
+test('a grove the storm passed over is dry until someone waters it; elsewhere, or watered since, it is not', () => {
+  const anchors = [{ id: 'a', x: 0, z: 0 }], e0 = Math.ceil(T0 / STORM.period) * STORM.period, mid = storm(e0 + STORM.blows / 2, anchors), after = e0 + STORM.blows + 5000;
+  assert.equal(stormDried(mid.x, mid.z, e0 - 1000, after, anchors), true, 'under its path, not tended since');
+  assert.equal(stormDried(mid.x, mid.z, after - 1000, after, anchors), false, 'watered after it passed');
+  assert.equal(stormDried(mid.x + 9000, mid.z + 9000, e0 - 1000, after, anchors), false, 'far from its path');
+  assert.equal(stormDried(mid.x, mid.z, e0 - 1000, e0 + 1000, anchors), false, 'it has not reached there yet');
+});
+test('a plot counts a grove as the game says it is (storm-dried), not only by its age', () => {
+  const g = createGarden(S);
+  for (let i = 0; i < 6; i++) g.add(grove(i + 1, { stage: 3 }));
+  const fresh = g.plot('h', 3, T0).score;
+  for (const p of g.all()) p.dry = 1;
+  assert.ok(g.plot('h', 3, T0).score < fresh);
+});

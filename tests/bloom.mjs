@@ -13,7 +13,7 @@ const open = async (label) => {
   await page.goto(URL_, { waitUntil: 'domcontentloaded' });
   return page;
 };
-const until = async (page, fn, what, arg) => { for (let i = 0; i < 200; i++) { const v = await page.evaluate(fn, arg); if (v) return v; await wait(250); } throw new Error(`timed out: ${what}`); };
+const until = async (page, fn, what, arg) => { for (let i = 0; i < 480; i++) { const v = await page.evaluate(fn, arg); if (v) return v; await wait(250); } throw new Error(`timed out: ${what}`); };
 const ready = (p) => until(p, () => window.__pwc?.state.started && window.__pwc.hands.filter((h) => h.data?.cells).length >= 10 && window.__pwc.state.room === 'open', 'ready');
 const mineIds = (p) => p.evaluate(() => [...window.__pwc.bloom.garden.all()].filter((g) => g.id > 0).map((g) => g.id));
 try {

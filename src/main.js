@@ -245,8 +245,10 @@ function hudContents() {
   if (near) marks.push(near);
   const gold = bloom.gold();
   if (gold) marks.push({ label: 'Golden seed', x: gold.x, z: gold.z, color: '#c9a35a' });
+  const sandNow = bloom.storm();
+  if (sandNow) marks.push({ label: 'Sandstorm', x: sandNow.x, z: sandNow.z, color: '#8a6a44' });
   const pl = place && !place.handbit ? { code: 'WATER', name: 'on the rivers', hand: place.hand.name, owner: !place.hand.founder, charted: true, count: chart.count(place.hand.id), total: place.hand.data.handbits.length } : place && { code: place.handbit.code, name: summitOf(place.hand, place.handbit) ?? nameOf(place.hand, place.handbit), hand: place.hand.name, owner: !place.hand.founder, charted: chart.has(place.hand.id, place.index), count: chart.count(place.hand.id), total: place.hand.data.handbits.length };
-  const g = bloom.hud(place), radar = { range: 6000, others: [], hands: [], clouds: [], blooms: bloom.plots(), gold };
+  const g = bloom.hud(place), radar = { range: 6000, others: [], hands: [], clouds: [], blooms: bloom.plots(), gold, storm: sandNow };
   others.each((c, id, pos) => radar.others.push({ x: pos[0], z: pos[2], name: others.nameOf(id) }));
   for (const h of hands) { const [x, z] = toWorld(h.pose, 0, 230); radar.hands.push({ x, z, name: h.name }); }
   for (const c of bloom.clouds()) if (!bloom.taken(c.id)) radar.clouds.push({ x: c.x, z: c.z, color: bloom.species[c.sp].color });
@@ -288,8 +290,8 @@ const CHASE = { back: 190, up: 40 }; // further back than the creature is long, 
 const chase = { pos: new THREE.Vector3(glide.pos[0], glide.pos[1] + CHASE.up, glide.pos[2] + CHASE.back), yaw: glide.yaw };
 const ink = createInk(MAX_LAYERS * 5 * (LINE.points + 1) + creature.strands * 71 + 60 * 5 * 41, { width: 1.1, color: '#16100e' }); // every Hand's five, you, and up to 60 others
 // speed lines: ink streaks hanging in the air that rush past when you are fast
-const streaks = Array.from({ length: 320 }, () => new THREE.Vector3(Infinity, 0, 0));
-const streakInk = createInk(streaks.length, { width: 0.7, color: '#16100e' });
+const streaks = Array.from({ length: 150 }, () => new THREE.Vector3(Infinity, 0, 0));
+const streakInk = createInk(streaks.length, { width: 0.22, color: '#16100e' }); // hair-thin: a hint of rushing air, not hail
 scene.add(streakInk.mesh);
 scene.add(ink.mesh);
 
@@ -299,9 +301,15 @@ const bloom = createBloom({ scene, shared: world.shared, storage, net, hands, gr
 const fauna = createFauna(bloom.species);
 scene.add(fauna.group);
 bloom.setFauna(fauna);
+fauna.setLand((x, z) => !!whereAt(hands, x, z)?.handbit); // herds keep out of the rivers
 const goldBeam = new THREE.Mesh(new THREE.CylinderGeometry(7, 7, 2400, 8, 1, true), new THREE.MeshBasicMaterial({ color: 0xe9c46a, transparent: true, opacity: 0.55, depthWrite: false, fog: false }));
 goldBeam.visible = false;
 scene.add(goldBeam);
+const dust = new THREE.Mesh(new THREE.CylinderGeometry(900, 1000, 900, 40, 1, true), new THREE.MeshBasicMaterial({ color: 0xb08a5a, transparent: true, opacity: 0.38, side: THREE.DoubleSide, depthWrite: false }));
+const dustCap = new THREE.Mesh(new THREE.SphereGeometry(900, 24, 10, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xc39a66, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false }));
+dustCap.position.y = 450; dustCap.scale.y = 0.35;
+dust.add(dustCap); dust.visible = false;
+scene.add(dust); // the sandstorm: a wall of dust that crosses the world (src/garden/drift.js)
 let invite = null; // when to offer a new player a Hand of their own
 let sowing = false; // the plant key or a right-hand pinch is held
 const bloomCtx = { pos: glide.pos, place: null, flying: false, braiding: null, burst: () => creature.burst(), near: (x, z, r) => Math.hypot(x - glide.pos[0], z - glide.pos[2]) < r };
@@ -374,6 +382,7 @@ function atlasState() {
   others.each((c, id, pos) => list.push({ pos, name: others.nameOf(id) }));
   const mineHand = mine && hands.find((h) => h.id === mine.id);
   return { hands, chart, me: { pos: glide.pos, yaw: glide.yaw }, others: list, pins: pins.list(), selected: selected?.id ?? null, inspect: selected && inspectOf(selected), mine: mine && { name: mine.name, handbits: mineHand?.data.handbits ?? [] }, names: mine ? placeNames[mine.id] ?? {} : {}, pickName,
+    garden: bloom.herbarium, blooms: bloom.allPlots(), storm: bloom.storm(),
     journal: events && events.map((e) => ({ when: when(e.at), text: journalText(e) })).filter((e) => e.text),
     timeline: timelineOf(), until: timelineAt,
     waters: atlas.layers.watersheds ? Object.fromEntries(Object.entries(sheds).map(([id, n]) => [id, SHED_COLOURS[n % SHED_COLOURS.length]])) : null, community: communityOn ? { paint: (g, regions, tools) => community.paintTab(g, regions, tools) } : null };
@@ -400,7 +409,8 @@ function timelineOf() { // the world's history on a slider: from the first Hand 
 function atlasDo(a) {
   if (!a) return;
   if (a.type === 'close') return closeAtlas();
-  if (a.type === 'tab') atlas.setTab(a.tab);
+  if (a.type === 'seed' || a.type === 'kind' || a.type === 'page') bloom.herbariumDo(a);
+  else if (a.type === 'tab') atlas.setTab(a.tab);
   else if (a.type === 'layer') atlas.toggle(a.layer);
   else if (a.type === 'zoom') atlas.zoom(a.dir === 'in' ? 1.6 : 1 / 1.6);
   else if (a.type === 'timeline') { const tl = timelineOf(); if (tl) timelineAt = a.k >= 0.999 ? Infinity : tl.from + Math.max(0, a.k) * (tl.to - tl.from); }
@@ -805,6 +815,9 @@ function frame() {
   }
   others.each((c, id) => { const d = decos[id]; if (d?.length) for (let i = 0; i < 14; i++) { const l = c.strand(i % c.strands), j = (4 + ((i * 5) % Math.max(1, l.count - 8))) * 3; fl.deco(l.xyz[j], l.xyz[j + 1], l.xyz[j + 2], 11, d[i % d.length]); } });
   for (const c of bloom.clouds()) if (!bloom.taken(c.id)) for (let i = 0; i < 10; i++) { const a = t * (0.5 + 0.07 * i) + i * 0.63, r = 30 + 50 * ((i * 0.618) % 1); fl.deco(c.x + Math.cos(a) * r, c.y + Math.sin(a * 1.3 + i) * 25, c.z + Math.sin(a) * r, 30, c.sp); }
+  const sandNow = bloom.storm();
+  dust.visible = !!sandNow;
+  if (sandNow) { dust.position.set(sandNow.x, groundAt(sandNow.x, sandNow.z) + 380, sandNow.z); dust.rotation.y = t * 0.4; dust.material.opacity = 0.3 + 0.08 * Math.sin(t * 1.7); }
   const gold = bloom.gold();
   goldBeam.visible = !!gold;
   if (gold) { goldBeam.position.set(gold.x, gold.y, gold.z); for (let i = 0; i < 16; i++) { const a = t * 1.4 + i * 0.3927, r = 60 + 20 * Math.sin(t * 2 + i); fl.deco(gold.x + Math.cos(a) * r, gold.y + Math.sin(a * 2) * 30, gold.z + Math.sin(a) * r, 40, gold.sp); } }
@@ -816,11 +829,12 @@ function frame() {
   for (const p of streaks) {
     const rel = p.clone().sub(chase.pos);
     if (!Number.isFinite(p.x) || rel.dot(vel) < -40 * glide.speed || rel.length() > Math.max(900, glide.speed * 3.5)) { // behind you or lost: put it ahead again
-      const a = Math.random() * Math.PI * 2, r = 14 + Math.random() * 130, ahead = glide.speed * (0.8 + Math.random() * 2.2);
+      const a = Math.random() * Math.PI * 2, r = 70 + Math.random() * 190, // well off the line you fly: never across the middle of your view
+      ahead = glide.speed * (0.8 + Math.random() * 2.2);
       const sx = chase.pos.x + f[0] * ahead + Math.cos(a) * r * f[2], sz = chase.pos.z + f[2] * ahead - Math.cos(a) * r * f[0];
       p.set(sx, Math.max(chase.pos.y + Math.sin(a) * r * 0.6 - 20, groundAt(sx, sz) + 4), sz); // in the air, never under the land
     }
-    streakInk.segment(p, p.clone().addScaledVector(vel, -0.04 - 0.11 * rush()), fast, 0);
+    streakInk.segment(p, p.clone().addScaledVector(vel, -0.02 - 0.05 * rush()), fast * 0.7, 0);
   }
   streakInk.end();
 
@@ -927,7 +941,7 @@ showStats();
 
 // read-only peek for tests and curious players
 window.__pwc = {
-  bloom, fauna, glide, hands,
+  bloom, fauna, glide, hands, atlasTab: (tab) => { atlas.setTab(tab); atlasPaint = 0; },
   get state() {
     return { hands: hands.length, pos: glide.pos.map(Math.round), yaw: +glide.yaw.toFixed(2), fps: Math.round(fps), scribbles: knots.length + 9, /* the Hands' knots and a constant: tests wait on knots hatching */ started, webcam: webcam ? webcam.update().map((q) => q.handedness) : null, steering: xrHands.some((q) => q.engaged), palm: xrHands.map((q) => q.frame && q.frame.normal.map((v) => +v.toFixed(2))), hand: xrHands.map((q) => q.frame && { point: q.frame.forward.map((v) => +v.toFixed(2)), open: +q.frame.extension.toFixed(2), height: +q.frame.center[1].toFixed(2) }), speed: Math.round(glide.speed), calls: renderer.info.render.calls, xr: renderer.xr.isPresenting, lod: surface.centre.map(Math.round), patches: surface.patches, mode, mine: mine?.name ?? null, braid: braiding, atlas: { tab: atlas.tab, selected: selected?.name ?? null }, pairCode: atelier.route?.code ?? null, flowStep: flow?.step ?? null, online, others: others.count, pending: !!mine?.pending, room: roomState };
   },

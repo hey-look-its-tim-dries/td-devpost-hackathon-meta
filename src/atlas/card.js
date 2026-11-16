@@ -89,6 +89,7 @@ export function createAtlas() {
     } else if (tab === 'hand') myHand(s);
     else if (tab === 'community') s.community ? s.community.paint(g, regions, { button, text }) : text('The Community Hand needs the shared map.', 60, 200, { font: `italic 400 34px ${SERIF}` });
     else if (tab === 'journal') journal(s);
+    else if (tab === 'garden') s.garden?.paint(g, regions, { button, text });
     if (s.pickName) nameCard(s.pickName); // naming floats over any tab
     tex.needsUpdate = true;
   }

@@ -45,6 +45,7 @@ export function createHud() {
       g.font = `${k % 2 ? 500 : 700} ${k % 2 ? 22 : 30}px Inter, system-ui, sans-serif`;
       g.fillText(PUN[k], 512 + x * 470, 60);
     }
+    const said = []; // where labels already stand: a marker too close to one keeps its arrow but not its words
     for (const m of marks) { // markers above the ribbon, edge arrows when off it
       const x = 512 + m.x * 470, col = m.color ?? SEAL;
       g.fillStyle = col;
@@ -53,7 +54,7 @@ export function createHud() {
       else { g.moveTo(x, 34); g.lineTo(x - 9, 18); g.lineTo(x + 9, 18); }
       g.fill();
       g.font = '600 20px Inter, system-ui, sans-serif'; g.fillStyle = INK;
-      if (Math.abs(m.x) < 0.999) g.fillText(`${m.label} ${spans(m.dist)}`, x, 108);
+      if (Math.abs(m.x) < 0.999 && said.every((q) => Math.abs(q - x) > 190)) { said.push(x); g.fillText(`${m.label} ${spans(m.dist)}`, x, 108); }
     }
     ribbon.tex.needsUpdate = true;
   }
@@ -116,6 +117,7 @@ export function createHud() {
     const at = (x, z) => { const dx = x - pos[0], dz = z - pos[2]; let sx = (dx * -fz + dz * fx) / r.range, sy = -(dx * fx + dz * fz) / r.range; const l = Math.hypot(sx, sy), edge = l > 0.94; if (edge) { sx *= 0.94 / l; sy *= 0.94 / l; } return [cx + sx * R, cy + sy * R, edge]; };
     g.textAlign = 'center'; g.textBaseline = 'middle';
     for (const h of r.hands) { const [x, y, edge] = at(h.x, h.z); if (edge) continue; g.fillStyle = 'rgba(184,68,46,0.16)'; g.beginPath(); g.arc(x, y, (2300 / r.range) * R, 0, Math.PI * 2); g.fill(); g.fillStyle = 'rgba(22,16,14,0.55)'; g.font = '500 15px Inter, system-ui, sans-serif'; g.fillText(h.name, x, y); }
+    if (r.storm) { const [x, y, edge] = at(r.storm.x, r.storm.z); if (!edge) { g.fillStyle = 'rgba(150,110,60,0.4)'; g.beginPath(); g.arc(x, y, (r.storm.r / r.range) * R, 0, Math.PI * 2); g.fill(); } }
     for (const p of r.blooms) { const [x, y, edge] = at(p.x, p.z); if (!edge) { g.fillStyle = LEAF; g.beginPath(); g.arc(x, y, 3 + p.level * 1.5, 0, Math.PI * 2); g.fill(); } }
     for (const q of r.clouds) { const [x, y, edge] = at(q.x, q.z); if (!edge) { g.fillStyle = q.color; g.beginPath(); g.arc(x, y, 6, 0, Math.PI * 2); g.fill(); g.strokeStyle = INK; g.lineWidth = 1.5; g.stroke(); } }
     if (r.gold) { const [x, y] = at(r.gold.x, r.gold.z); g.fillStyle = GILT; g.strokeStyle = INK; g.lineWidth = 2; g.beginPath(); for (let i = 0; i < 10; i++) { const a = i * Math.PI / 5 - Math.PI / 2, q = i % 2 ? 6 : 14; g.lineTo(x + Math.cos(a) * q, y + Math.sin(a) * q); } g.closePath(); g.fill(); g.stroke(); }

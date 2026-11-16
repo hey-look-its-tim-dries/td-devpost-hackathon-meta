@@ -30,8 +30,8 @@ export const fromMap = (v, px, py, w, h) => [v.cx + (px - w / 2) / v.scale, v.cz
 //   raster(hand) -> { image, x0, y0, w, h, cell } | null: the Hand's handbits painted charted/uncharted,
 //   selected: a Hand id to ring, pins [{ x, z, label }], waters: handId -> colour (watersheds), until: ms (timeline)
 export function drawMap(g, o) {
-  const { hands, chart, me, others = [], view: v, w, h, raster = null, selected = null, pins = [], waters = null, until = Infinity } = o;
-  const L = { rivers: true, owners: true, classes: true, players: true, charted: true, watersheds: false, ...(o.layers ?? {}) };
+  const { hands, chart, me, others = [], view: v, w, h, raster = null, selected = null, pins = [], waters = null, until = Infinity, blooms = [], storm = null } = o;
+  const L = { rivers: true, owners: true, classes: true, players: true, charted: true, watersheds: false, bloom: true, ...(o.layers ?? {}) };
   const M = (x, z) => toMap(v, x, z, w, h);
   g.fillStyle = PARCH; g.fillRect(0, 0, w, h);
   // the Paper Sea's faint grid, one line a span
@@ -88,6 +88,10 @@ export function drawMap(g, o) {
     }
   }
   for (const p of pins) { const [px, py] = M(p.x, p.z); g.fillStyle = GILT; g.beginPath(); g.arc(px, py - 10, 7, 0, Math.PI * 2); g.fill(); g.strokeStyle = INK; g.lineWidth = 1.5; g.stroke(); g.beginPath(); g.moveTo(px, py); g.lineTo(px, py - 4); g.stroke(); }
+  if (L.bloom) { // plots in bloom, greener and larger the lusher; and the sandstorm, when one blows
+    for (const b of blooms) { const [px, py] = M(b.x, b.z); g.fillStyle = ['', 'rgba(111,160,74,0.55)', 'rgba(79,143,58,0.7)', 'rgba(52,122,52,0.8)', 'rgba(184,68,46,0.85)'][b.level]; g.beginPath(); g.arc(px, py, 3 + 2.5 * b.level, 0, Math.PI * 2); g.fill(); }
+    if (storm) { const [px, py] = M(storm.x, storm.z), [qx] = M(storm.x + storm.r, storm.z); g.fillStyle = 'rgba(160,120,70,0.35)'; g.strokeStyle = 'rgba(120,80,40,0.8)'; g.lineWidth = 2; g.beginPath(); g.arc(px, py, Math.max(6, Math.abs(qx - px)), 0, Math.PI * 2); g.fill(); g.stroke(); }
+  }
   if (L.players) for (const o2 of others) { const [px, py] = M(o2.pos[0], o2.pos[2]); g.fillStyle = INK; g.beginPath(); g.arc(px, py, 4, 0, Math.PI * 2); g.fill(); }
   // you: an arrow along your heading (yaw 0 is north, -z)
   const [mx, my] = M(me.pos[0], me.pos[2]);

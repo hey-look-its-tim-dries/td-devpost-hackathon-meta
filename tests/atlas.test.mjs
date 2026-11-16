@@ -38,7 +38,7 @@ test('tabs: a tap on Journal opens the Journal', () => {
   const regions = layout('world');
   const j = regions.find((r) => r.id === 'tab:journal');
   assert.deepEqual(hitAt(regions, [j.x + 5, j.y + 5]), { type: 'tab', tab: 'journal' });
-  assert.deepEqual(TABS, ['world', 'hand', 'community', 'journal']);
+  assert.deepEqual(TABS, ['world', 'hand', 'garden', 'community', 'journal']);
   assert.equal(hitAt(regions, [-5, -5]), null);
 });
 test('the timeline draws only the Hands laid by then', () => {

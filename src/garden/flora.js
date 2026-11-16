@@ -6,6 +6,7 @@
 // Groves near you are drawn; the lists are rebuilt when the garden changes or you have flown on.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { rng } from '../hand/dna.js';
 import { paintAtlases, styleOf, ROW, PIX, SOFT, GEN } from './paint.js';
 
@@ -205,6 +206,28 @@ export function createFlora(species, flora, shared) {
   }
   const tmp = { aPos: [0, 0, 0, 0], aFx: [0, 0, 0], aCell: [0, 0], aH: [0, 0, 0, 0] };
   const last = { x: Infinity, z: Infinity };
+  // Three flower models by Kenney (Nature Kit, CC0; assets/flora/kenney-nature-kit) give every other 3D flower
+  // species its shape. Only their geometry is used: the lower half takes the stem's green, the upper half the
+  // species' own colour, so they grow, sway and wither like the rest.
+  const meshFlowers = flora.filter((id) => info.get(id).style === 'mesh' && !info.get(id).isTree).filter((_, i) => i % 2 === 1);
+  ['flower_redA', 'flower_redB', 'flower_redC'].forEach((name, n) => new GLTFLoader().load(new URL(`../../assets/flora/kenney-nature-kit/${name}.glb`, import.meta.url).href, (gltf) => {
+    const parts = [];
+    gltf.scene.updateMatrixWorld(true);
+    gltf.scene.traverse((o) => { if (!o.isMesh) return; const q = (o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone()).applyMatrix4(o.matrixWorld); for (const k of Object.keys(q.attributes)) if (k !== 'position' && k !== 'normal') q.deleteAttribute(k); if (!q.attributes.normal) q.computeVertexNormals(); parts.push(q); });
+    if (!parts.length) return;
+    const geo = mergeGeometries(parts);
+    geo.computeBoundingBox();
+    const bb = geo.boundingBox, h = bb.max.y - bb.min.y || 1;
+    geo.translate(-(bb.min.x + bb.max.x) / 2, -bb.min.y, -(bb.min.z + bb.max.z) / 2).scale(1 / h, 1 / h, 1 / h); // feet on the ground, one unit tall
+    const pos = geo.attributes.position, partOf = new Float32Array(pos.count);
+    for (let i = 0; i < pos.count; i += 3) partOf.fill((pos.getY(i) + pos.getY(i + 1) + pos.getY(i + 2)) / 3 > 0.5 ? 1 : 0, i, i + 3); // by triangle: bloom above, stem below
+    geo.setAttribute('aPart', new THREE.BufferAttribute(partOf, 1));
+    const key = `kenney${n}`;
+    B[key] = batch(geo, MSH, meshMat(), 6000);
+    group.add(B[key].mesh);
+    meshFlowers.forEach((id, i) => { if (i % 3 === n) info.get(id).mesh = key; });
+    last.x = Infinity; // draw again with the new shapes
+  }, undefined, () => {}));
   let shown = 0;
 
   return {

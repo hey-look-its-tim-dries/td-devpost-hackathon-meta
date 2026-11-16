@@ -413,7 +413,10 @@ export function createFauna(species, { max = DEFAULT_MAX } = {}) {
   function herdStop(h, p) {
     const ho = h * HS, k = herd.S[ho + 3], G = herd.seed[h], a = rnd(G, 20 + 2 * k) * TAU, d = herd.S[ho + 4] * Math.sqrt(rnd(G, 21 + 2 * k));
     herd.S[ho] = p.x + Math.cos(a) * d; herd.S[ho + 1] = p.z + Math.sin(a) * d;
+    // herds keep to the land: a stop in the water is tried again a little elsewhere (the game says what is land)
+    for (let i = 1; land && i < 9 && !land(herd.S[ho], herd.S[ho + 1]); i++) { const b = rnd(G, 300 + 9 * k + i) * TAU, e = herd.S[ho + 4] * Math.sqrt(rnd(G, 400 + 9 * k + i)); herd.S[ho] = p.x + Math.cos(b) * e; herd.S[ho + 1] = p.z + Math.sin(b) * e; }
   }
+  let land = null;
   const INIT = { bird: initBird, insect: initInsect, fish: initFish, animal: initAnimal };
 
   function set(list) {
@@ -675,5 +678,5 @@ export function createFauna(species, { max = DEFAULT_MAX } = {}) {
     animals(dt, t, groundAt);
   }
 
-  return { group, set, update, get count() { return B.n + I.n + F.n + A.n; } };
+  return { group, set, update, setLand(fn) { land = fn; }, get count() { return B.n + I.n + F.n + A.n; } };
 }

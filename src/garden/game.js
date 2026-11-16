@@ -7,7 +7,8 @@
 import { SPECIES, FLORA, STARTERS } from './species.js';
 import { createGarden, habitatOf, vigour, CAP, LEVELS } from './garden.js';
 import { createPouch } from './pouch.js';
-import { clouds, golden } from './drift.js';
+import { clouds, golden, storm, stormDried } from './drift.js';
+import { paintHerbarium } from './herbarium.js';
 import { createFlora, TILE } from './flora.js';
 import { toWorld, toHand } from '../world/founders.js';
 import { WORLD } from '../world/units.js';
@@ -28,7 +29,9 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
   const taken = new Set(); // clouds you gathered
   const goldTaken = new Set(); // golden rounds someone has won
   let fauna = null, dirty = true, tick = 0, slow = 0, tempId = -1, top = [], worldPlants = 0, lastPlant = 0, lastTend = 0, lastPollen = 0, drift = [], gold = null, plotsKey = '', wet = false;
-  let near = []; // blooming plots near you, for the radar
+  let near = [], every = []; // blooming plots near you (the radar, the wildlife) and all of them (the atlas)
+  let sand = null, sandSaid = -1, anchorsNow = []; // the sandstorm now, the last one announced, the Hands' centres
+  const herb = { kind: 'flower', page: 0 }; // what the herbarium tab shows
   let t = 0; // game seconds, for the pop when something grows
 
   // a grove's place in the world: under its Hand's pose, on the land
@@ -48,7 +51,7 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
     p.dryQ = [];
     for (let qz = 0; qz < 2; qz++) for (let qx = 0; qx < 2; qx++) { const lx = (qx - 0.5) * half, lz = (qz - 0.5) * half; p.dryQ.push(onSand(wx + lx * c + lz * s, wz + lz * c - lx * s)); }
     if (p.hab === 'bank') for (let k = 0; k < 8 && !p.water; k++) { const a = k * Math.PI / 4, x = wx + Math.cos(a) * 60, z = wz + Math.sin(a) * 60, w = whereAt(hands, x, z); if (w && !w.handbit) p.water = [x, z]; }
-    p.dry = { fresh: 0, dry: 1, dead: 2 }[vigour(p, Date.now())];
+    p.dry = Math.max({ fresh: 0, dry: 1, dead: 2 }[vigour(p, Date.now())], stormDried(wx, wz, p.tended, Date.now(), anchorsNow) ? 1 : 0);
     return true;
   }
   function add(p, pop = false) {
@@ -176,7 +179,10 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
       drift = clouds(now, anchors, SPECIES, FLORA).filter((c) => Math.hypot(c.x - pos[0], c.z - pos[2]) < 5000).map(lift);
       const g = golden(now, anchors, SPECIES, FLORA);
       gold = g && lift(g);
-      for (const p of garden.all()) { const d = { fresh: 0, dry: 1, dead: 2 }[vigour(p, now)]; if (d !== p.dry) { p.dry = d; dirty = true; } }
+      anchorsNow = anchors;
+      sand = storm(now, anchors);
+      if (sand && sand.epoch !== sandSaid) { sandSaid = sand.epoch; if (ctx.flying) say('A sandstorm is crossing the world: water what it parches', 7); }
+      for (const p of garden.all()) { const d = Math.max({ fresh: 0, dry: 1, dead: 2 }[vigour(p, now)], stormDried(p.wx, p.wz, p.tended, now, anchors) ? 1 : 0); if (d !== p.dry) { p.dry = d; dirty = true; } }
       blooms(ctx);
     }
     if (dirty || flora.moved(pos)) { dirty = false; flora.rebuild(garden.all(), pos, groundAt); }
@@ -186,6 +192,7 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
   // plots near you: notice blooms, and tell the wildlife where to live
   function blooms(ctx) {
     const now = Date.now(), plots = [];
+    every = [];
     for (const { hand, bit } of garden.plotKeys()) {
       const h = handOf(hand), hb = h?.data.handbits[bit];
       if (!hb) continue;
@@ -194,6 +201,7 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
       if (before !== undefined && pl.level > before) { if (pl.level === 4) stamp(`${hb.name} is in full bloom`, `${h.name} · ${pl.kinds.size} kinds`, 'FULL BLOOM'); else say(`${hb.name} of ${h.name}: ${BLOOM[pl.level]}`, 3.5); pouch.credit('bloom'); }
       if (!pl.level) continue;
       const [x, z] = toWorld(h.pose, hb.cx, hb.cy);
+      every.push({ x, z, level: pl.level });
       if (Math.hypot(x - ctx.pos[0], z - ctx.pos[2]) > 6000) continue;
       const hab = /^[TIMRL]1$/.test(hb.code) ? 'ridge' : pl.bank * 3 >= pl.n ? 'bank' : 'dune';
       const water = garden.groves(hand, bit).filter((p) => p.water).slice(0, 6).map((p) => p.water);
@@ -207,7 +215,10 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
   }
 
   return {
-    garden, pouch, flora, species: SPECIES, onGarden, load, plots: () => near,
+    garden, pouch, flora, species: SPECIES, onGarden, load, plots: () => near, allPlots: () => every, storm: () => sand,
+    // the atlas's Garden tab: the herbarium; taps choose a kind, a page, or the seed to sow
+    herbarium: { paint: (g, regions, tools) => { const r = paintHerbarium(g, regions, tools, { species: SPECIES, found: pouch.found, has: pouch.has, icon: flora.icon, style: flora.styleOf, selected: pouch.selected, ...herb }); herb.page = r.page; } },
+    herbariumDo(a) { if (a.type === 'kind') { herb.kind = a.arg; herb.page = 0; } else if (a.type === 'page') herb.page = Math.max(0, herb.page + (a.arg === 'next' ? 1 : -1)); else if (a.type === 'seed') { pouch.select(+a.arg); say(`Sowing ${SPECIES[+a.arg].name}`, 2); } },
     setFauna(f) { fauna = f; plotsKey = ''; },
     setTop(list) { top = list; },
     removeHand(id) { if (garden.removeHand(id)) dirty = true; },

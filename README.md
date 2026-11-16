@@ -36,6 +36,11 @@ On top of the flying, everyone gardens the desert together.
   every compass: the first to reach it wins a legendary species. The HUD shows who is flying, a radar with other
   players, seed clouds and blooming plots, and the top gardeners.
 
+- **Sandstorm:** every ten minutes a wall of dust crosses the world for four. Groves under its path are parched until
+  someone waters them. It shows on the compass, the radar and the atlas, and is the same storm for every player.
+- **Atlas:** the new Garden tab is your herbarium (every species by kind, found ones in colour, tap one you carry to
+  sow it); the World map has a bloom layer with every blooming plot and the storm.
+
 Checks: `node tests/bloom.mjs` (two browsers sow, see, water and clear) and `node tools/bloom-look.mjs <dir>` for screenshots.
 Flower art from other makers is in `assets/flora` with its licences in `assets/flora/CREDITS.md`.
 

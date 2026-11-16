@@ -37,7 +37,7 @@ export function createGarden(species) {
       const ids = plots.get(key(hand, bit)), kinds = new Set();
       let score = 0, n = 0, bank = 0;
       for (const id of ids ?? []) {
-        const p = byId.get(id), v = vigour(p, now);
+        const p = byId.get(id), v = p.dry !== undefined ? ['fresh', 'dry', 'dead'][p.dry] : vigour(p, now); // the game may know better (a storm)
         n++;
         if (v === 'dead') continue;
         kinds.add(p.sp);
