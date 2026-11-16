@@ -10,6 +10,7 @@ export function journalText({ kind, data }) {
   if (kind === 'sealed') return `Community Hand ${d.no} was sealed`;
   if (kind === 'bloomed') return `A plot of ${d.hand} came into bloom`;
   if (kind === 'golden') return `${d.name} caught the golden seed`;
+  if (kind === 'gnome') return `${d.name} won a gnome over from another gardener`;
   if (kind === 'washed') return `${d.name} washed their hands`;
   return null;
 }

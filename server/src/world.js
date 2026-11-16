@@ -11,6 +11,7 @@ import { handShape } from '../../src/hand/shape.js';
 import { unpackPalm, toB64, fromB64 } from '../../src/hand/dna.js';
 import { cleanName, HANDBIT_FEATURE, SUMMIT_FEATURE } from '../../src/world/names.js';
 import { verifyFacebook } from '../../src/net/facebook.js';
+import { afterQuest, afterAnnoy } from '../../src/gnomes/gnomes.js';
 import { slotFor, isSealed } from '../../src/world/community.js';
 import { toWorld } from '../../src/world/founders.js';
 
@@ -86,6 +87,14 @@ export class World extends DurableObject {
     const plantM = url.pathname.match(/^\/plants(?:\/(\d{1,12})(\/tend)?)?$/);
     if (plantM && req.method !== 'GET') { const out = this.chain.then(() => (!plantM[1] ? this.plant(req) : plantM[2] ? this.tend(+plantM[1], req) : this.uproot(+plantM[1], req))); this.chain = out.catch(() => {}); return out; }
     if (url.pathname === '/golden' && req.method === 'POST') return this.golden(req);
+    // gnomes: whose team each is on (a gnome is the id of the mushroom grove it lives in), and who converted most
+    if (url.pathname === '/gnomes' && req.method === 'GET') {
+      const { results } = await this.env.DB.prepare("select g.id, g.owner_hash, coalesce(p.name, 'A traveller') as name, g.loyalty from gnome g left join player p on p.token_hash = g.owner_hash limit 20000").all();
+      const top = await this.env.DB.prepare("select coalesce(p.name, 'A traveller') as name, s.converted as n from gnome_score s left join player p on p.token_hash = s.token_hash where s.converted > 0 order by s.converted desc limit 5").all();
+      return Response.json({ gnomes: results.map((r) => [r.id, r.owner_hash.slice(0, 12), r.name, r.loyalty]), top: top.results });
+    }
+    const gnomeM = url.pathname.match(/^\/gnomes\/(me|\d{1,12})(?:\/(quest|annoy))?$/);
+    if (gnomeM && req.method === 'POST') { const out = this.chain.then(() => this.gnome(gnomeM[1], gnomeM[2], req)); this.chain = out.catch(() => {}); return out; }
     if ((url.pathname.startsWith('/profile') || url.pathname === '/login/facebook') && req.method === 'POST') return this.profile(url.pathname, req);
     if (url.pathname === '/stats') {
       const now = Date.now();
@@ -285,6 +294,29 @@ export class World extends DurableObject {
     try { await this.event('golden', null, { name }); } catch (e) { console.error('journal', e); }
     this.ctx.waitUntil(this.tell({ golden: { epoch, name } }));
     return Response.json({ won: true, name });
+  }
+
+  // ---- gnome teams (rules in src/gnomes/gnomes.js): a quest done for a gnome, or a gnome annoyed ----
+  async gnome(which, what, req) {
+    const b = await this.body(req);
+    if (!b) return Response.json({ error: 'no token' }, { status: 400 });
+    const me = await sha(b.token), score = async () => (await this.env.DB.prepare('select converted from gnome_score where token_hash = ?').bind(me).first())?.converted ?? 0;
+    const team = async () => (await this.env.DB.prepare('select count(*) as n from gnome where owner_hash = ?').bind(me).first()).n;
+    if (which === 'me') return Response.json({ tag: me.slice(0, 12), converted: await score(), team: await team() });
+    if (!what) return Response.json({ error: 'not found' }, { status: 404 });
+    const id = +which, now = Date.now(), key = `${what}:${me}:${id}`, gap = what === 'quest' ? 60000 : 20000;
+    if (now - ((this.gnomeAt ??= new Map()).get(key) ?? -Infinity) < gap) return Response.json({ error: what === 'quest' ? 'it is still telling everyone about the last one' : 'it is already cross' }, { status: 429 });
+    this.gnomeAt.set(key, now);
+    if (this.gnomeAt.size > 20000) this.gnomeAt.clear();
+    const row = await this.env.DB.prepare('select owner_hash, loyalty from gnome where id = ?').bind(id).first();
+    const next = (what === 'quest' ? afterQuest : afterAnnoy)(row ? { owner: row.owner_hash, loyalty: row.loyalty } : null, me);
+    if (!next.owner) await this.env.DB.prepare('delete from gnome where id = ?').bind(id).run();
+    else await this.env.DB.prepare('insert into gnome (id, owner_hash, loyalty, at) values (?, ?, ?, ?) on conflict (id) do update set owner_hash = excluded.owner_hash, loyalty = excluded.loyalty, at = excluded.at').bind(id, next.owner, next.loyalty, now).run();
+    if (next.event === 'converted') await this.env.DB.prepare('insert into gnome_score (token_hash, converted) values (?, 1) on conflict (token_hash) do update set converted = converted + 1').bind(me).run();
+    const name = next.owner ? (await this.env.DB.prepare('select name from player where token_hash = ?').bind(next.owner).first())?.name ?? 'A traveller' : null;
+    if (next.event === 'converted') { try { await this.event('gnome', null, { name }); } catch (e) { console.error('journal', e); } }
+    this.ctx.waitUntil(this.tell({ gnome: [id, next.owner ? next.owner.slice(0, 12) : null, name, next.loyalty, next.event] }));
+    return Response.json({ event: next.event, tag: next.owner ? next.owner.slice(0, 12) : null, loyalty: next.loyalty, converted: await score(), team: await team() });
   }
 
   // ---- profiles: a gardener's pouch (seeds, herbarium, sowing log) kept on the map ----

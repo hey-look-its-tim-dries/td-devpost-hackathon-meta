@@ -89,3 +89,16 @@ create table if not exists account (
   account text not null,
   at integer not null
 );
+
+-- gnome teams: a gnome is the id of the mushroom grove it lives in; wild gnomes have no row
+create table if not exists gnome (
+  id integer primary key,
+  owner_hash text not null,
+  loyalty integer not null,
+  at integer not null
+);
+-- how many gnomes a gardener won over from other gardeners
+create table if not exists gnome_score (
+  token_hash text primary key,
+  converted integer not null default 0
+);

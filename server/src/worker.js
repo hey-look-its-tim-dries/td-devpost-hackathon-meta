@@ -33,6 +33,7 @@ export default {
     };
     if (/^\/plants(\/\d{1,12}(\/tend)?)?$/.test(path) || (path === '/golden' && req.method === 'POST')) return passWorld(path + (req.method === 'GET' ? url.search : ''));
     if ((/^\/profile(\/get|\/delete)?$/.test(path) || path === '/login/facebook') && req.method === 'POST') return passWorld(path, 32768); // a pouch is up to 24 kB
+    if ((path === '/gnomes' && req.method === 'GET') || (/^\/gnomes\/(me|\d{1,12})(\/(quest|annoy))?$/.test(path) && req.method === 'POST')) return passWorld(path);
     if (path === '/names' && (req.method === 'GET' || req.method === 'POST')) return passWorld('/names');
     if (path === '/community' && (req.method === 'GET' || req.method === 'POST')) return passWorld('/community');
     if ((path === '/events' || path === '/watersheds') && req.method === 'GET') return passWorld(path + new URL(req.url).search);

@@ -382,3 +382,30 @@ test('profiles: a gardener\'s pouch is kept on the map by device, read back, ref
   assert.equal((await post('/profile/delete', { token: tok })).status, 204);
   assert.equal((await (await post('/profile/get', { token: tok })).json()).data, null);
 });
+
+test('gnome teams: a quest wins a wild gnome, another gardener turns it with quests or drives it off by annoying it; converted gnomes are counted', { skip }, async () => {
+  const J = { 'Content-Type': 'application/json' }, a = 'A'.repeat(43), b = 'B'.repeat(43), id = 900000 + Math.floor(Math.random() * 90000);
+  const post = (path, token) => fetch(API + path, { method: 'POST', headers: J, body: JSON.stringify({ token }) }).then(async (r) => ({ status: r.status, body: await r.json().catch(() => null) }));
+  const meA = (await post('/gnomes/me', a)).body, meB = (await post('/gnomes/me', b)).body;
+  assert.ok(meA.tag && meA.tag !== meB.tag && Number.isInteger(meB.converted));
+  const q1 = await post(`/gnomes/${id}/quest`, a);
+  assert.equal(q1.status, 200);
+  assert.equal(q1.body.event, 'joined');
+  assert.equal(q1.body.tag, meA.tag);
+  assert.equal((await post(`/gnomes/${id}/quest`, a)).status, 429, 'not twice in a minute for the same gnome');
+  const row = (await (await fetch(API + '/gnomes')).json()).gnomes.find((g) => g[0] === id);
+  assert.deepEqual(row.slice(0, 2), [id, meA.tag]);
+  assert.equal(row[3], 2, 'loyalty');
+  // B annoys it: it loses heart; again (after the wait) it would desert. B does a quest instead: loyalty 1 is low, so it converts
+  const an = await post(`/gnomes/${id}/annoy`, b);
+  assert.equal(an.body.event, 'grumpy');
+  assert.equal(an.body.loyalty, 1);
+  assert.equal((await post(`/gnomes/${id}/annoy`, b)).status, 429);
+  const q2 = await post(`/gnomes/${id}/quest`, b);
+  assert.equal(q2.body.event, 'converted');
+  assert.equal(q2.body.tag, meB.tag);
+  assert.equal(q2.body.converted, meB.converted + 1, 'B\'s converted gnomes went up by one');
+  assert.ok((await (await fetch(API + '/gnomes')).json()).top.some((t) => t.n >= 1), 'the board of converters');
+  assert.equal((await post('/gnomes/me', b)).body.team >= 1, true);
+  assert.equal((await post(`/gnomes/${id}/quest`, 'short')).status, 400);
+});
