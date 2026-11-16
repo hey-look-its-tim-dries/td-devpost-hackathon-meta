@@ -12,6 +12,7 @@ import { createFlora, TILE } from './flora.js';
 import { toWorld, toHand } from '../world/founders.js';
 import { WORLD } from '../world/units.js';
 import { whereAt } from '../world/where.js';
+import { rng } from '../hand/dna.js';
 
 const PLANT_ALT = 320, WATER_ALT = 140, REACH = 120 / WORLD; // how low you plant and fill; how near a grove you tend (Hand units)
 const GRID = TILE / WORLD; // pixel species snap to this grid (Hand units; 90 m), so their tiles join into mosaics
@@ -39,6 +40,13 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
     const c = Math.cos(p.rot), s = Math.sin(p.rot), half = TILE / 2;
     p.hs = []; // the land at a 3 by 3 grid over its tile (row by row from -z), so the mosaic bends with it
     for (let iz = -1; iz <= 1; iz++) for (let ix = -1; ix <= 1; ix++) p.hs.push(groundAt(wx + (ix * c + iz * s) * half, wz + (iz * c - ix * s) * half));
+    // where its flowers or trees stand, the same for everyone and never in the water: the first is the grove's own spot
+    const onSand = (x, z) => !!whereAt(hands, x, z)?.handbit, r = rng((Math.round(p.x * 10) * 73856093) ^ (Math.round(p.y * 10) * 19349663) ^ (p.sp * 83492791)), spread = SPECIES[p.sp]?.kind === 'tree' ? 75 : 42;
+    p.spots = [];
+    for (let i = 0; i < 30; i++) { const a = r() * Math.PI * 2, d = i ? Math.sqrt(r()) * spread : 0, x = wx + Math.cos(a) * d, z = wz + Math.sin(a) * d, k = 0.75 + 0.5 * r(), turn = r() * Math.PI; if (!i || onSand(x, z)) p.spots.push([x, groundAt(x, z), z, k, turn]); }
+    // the quarters of its mosaic tile that lie on sand (row by row from -z)
+    p.dryQ = [];
+    for (let qz = 0; qz < 2; qz++) for (let qx = 0; qx < 2; qx++) { const lx = (qx - 0.5) * half, lz = (qz - 0.5) * half; p.dryQ.push(onSand(wx + lx * c + lz * s, wz + lz * c - lx * s)); }
     if (p.hab === 'bank') for (let k = 0; k < 8 && !p.water; k++) { const a = k * Math.PI / 4, x = wx + Math.cos(a) * 60, z = wz + Math.sin(a) * 60, w = whereAt(hands, x, z); if (w && !w.handbit) p.water = [x, z]; }
     p.dry = { fresh: 0, dry: 1, dead: 2 }[vigour(p, Date.now())];
     return true;
@@ -84,7 +92,10 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
     const sp = pouch.take();
     if (sp === null) return say('Your pouch is empty: fly through a seed cloud', 3);
     let [x, y] = toHand(place.hand.pose, pos[0], pos[2]);
-    if (flora.styleOf(sp) === 'pixel') { x = Math.round(x / GRID) * GRID; y = Math.round(y / GRID) * GRID; }
+    if (flora.styleOf(sp) === 'pixel') { // onto the mosaic grid, unless that would put it in the water or on another handbit
+      const sx = Math.round(x / GRID) * GRID, sy = Math.round(y / GRID) * GRID, w = whereAt(hands, ...toWorld(place.hand.pose, sx, sy));
+      if (w?.handbit && w.index === place.index) { x = sx; y = sy; }
+    }
     const [wx, wz] = toWorld(place.hand.pose, x, y);
     const nearWater = [0, 1, 2, 3].some((k) => { const w = whereAt(hands, wx + Math.cos(k * 1.57) * 55, wz + Math.sin(k * 1.57) * 55); return w && !w.handbit; });
     const p = { id: tempId--, hand: place.hand.id, bit: place.index, x, y, sp, stage: 0, tended: Date.now(), big: braiding ? 1 : 0, hab: habitatOf(place.handbit.code, nearWater) };

@@ -230,6 +230,7 @@ export function createFlora(species, flora, shared) {
           const rot = p.rot ?? 0, c = Math.cos(rot), s = Math.sin(rot), hs = p.hs; // hs: the land at a 3 by 3 grid over the tile, row by row from -z
           tmp.aPos[3] = TILE / 2; tmp.aFx[2] = rot;
           for (let qz = 0; qz < 2; qz++) for (let qx = 0; qx < 2; qx++) {
+            if (p.dryQ && !p.dryQ[qz * 2 + qx]) continue; // never on the water
             const lx = (qx - 0.5) * TILE / 2, lz = (qz - 0.5) * TILE / 2;
             tmp.aPos[0] = p.wx + lx * c + lz * s; tmp.aPos[1] = p.wy; tmp.aPos[2] = p.wz + lz * c - lx * s;
             tmp.aCell[0] = it.cell[0] + qx * 0.5; tmp.aCell[1] = it.cell[1] + qz * 0.5;
@@ -239,10 +240,10 @@ export function createFlora(species, flora, shared) {
           }
         }
         const b = it.style === 'mesh' ? B[it.mesh] : B[it.style];
-        for (let i = 0; i < n; i++) {
-          const a = r() * Math.PI * 2, d = i ? Math.sqrt(r()) * spread : 0, x = p.wx + Math.cos(a) * d, z = p.wz + Math.sin(a) * d;
-          tmp.aPos[0] = x; tmp.aPos[1] = i && groundAt ? groundAt(x, z) : p.wy; tmp.aPos[2] = z; tmp.aPos[3] = it.h * k * (0.75 + 0.5 * r());
-          tmp.aFx[2] = r() * Math.PI;
+        const spots = p.spots; // from the game: where each one stands (never in water); a look tool may leave them out
+        for (let i = 0, m = spots ? Math.min(n, spots.length) : n; i < m; i++) {
+          if (spots) { const q = spots[i]; tmp.aPos[0] = q[0]; tmp.aPos[1] = q[1]; tmp.aPos[2] = q[2]; tmp.aPos[3] = it.h * k * q[3]; tmp.aFx[2] = q[4]; }
+          else { const a = r() * Math.PI * 2, d = i ? Math.sqrt(r()) * spread : 0, x = p.wx + Math.cos(a) * d, z = p.wz + Math.sin(a) * d; tmp.aPos[0] = x; tmp.aPos[1] = i && groundAt ? groundAt(x, z) : p.wy; tmp.aPos[2] = z; tmp.aPos[3] = it.h * k * (0.75 + 0.5 * r()); tmp.aFx[2] = r() * Math.PI; }
           if (it.style === 'mesh') b.put({ aPos: tmp.aPos, aFx: tmp.aFx, aC0: it.c0, aC1: it.c1, aC2: it.c2 });
           else { tmp.aCell[0] = it.cell[0]; tmp.aCell[1] = it.cell[1]; b.put({ aPos: tmp.aPos, aFx: tmp.aFx, aCell: tmp.aCell }); }
         }
