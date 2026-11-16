@@ -225,7 +225,7 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
       // tend and gather pollen: the grove under you
       if (place && alt < PLANT_ALT) { // over sand or over the water beside it: bank groves are tended from the river too
         const [x, y] = toHand(place.hand.pose, pos[0], pos[2]);
-        const thirsty = pouch.water > 0 && now - lastTend > 500 && garden.nearest(place.hand.id, x, y, REACH, (p) => p.id > 0 && (p.stage < 3 || p.dry > 0) && now - p.tended > 1500);
+        const thirsty = pouch.water > 0 && now - lastTend > 500 && garden.nearest(place.hand.id, x, y, REACH, (p) => p.id > 0 && p.dry !== 2 && (p.stage < 3 || p.dry === 1) && now - p.tended > 1500); // not the dead: they are the mushrooms' and the gnomes' now; a deliberate pour (T) revives them
         if (thirsty) {
           lastTend = now; pouch.pour();
           const was = thirsty.dry;
