@@ -35,9 +35,19 @@ try {
   await until(b, (id) => window.__pwc.bloom.garden.get(id)?.stage >= 1, 'B sees it grow', target.id);
   console.log('watered: stage', await b.evaluate((id) => window.__pwc.bloom.garden.get(id).stage, target.id), 'on B');
   // A clears it
-  const over = () => a.evaluate((q) => { const g = window.__pwc.glide; g.pos[0] = q.x; g.pos[1] = q.y + 90; g.pos[2] = q.z; }, target);
-  for (let i = 0; i < 8 && await a.evaluate((id) => !!window.__pwc.bloom.garden.get(id), target.id); i++) { await over(); await wait(150); await over(); await a.keyboard.press('KeyX'); await wait(500); } // the whorl flies on: hold it over the grove
-  await until(b, (id) => !window.__pwc.bloom.garden.get(id), 'B sees it cleared', target.id);
+  // A clears a grove (the whorl flies on, so whichever grove is nearest when X lands): it must leave B too
+  const had = await mineIds(a);
+  let gone = [];
+  for (let i = 0; i < 10 && !gone.length; i++) {
+    await a.evaluate((q) => { const g = window.__pwc.glide; g.pos[0] = q.x; g.pos[1] = q.y + 90; g.pos[2] = q.z; }, target);
+    await wait(150);
+    await a.keyboard.press('KeyX');
+    await wait(700);
+    const now = await mineIds(a);
+    gone = had.filter((id) => !now.includes(id));
+  }
+  assert.ok(gone.length, 'A cleared a grove');
+  await until(b, (ids) => ids.every((id) => !window.__pwc.bloom.garden.get(id)), 'B sees it cleared', gone);
   console.log('cleared on both');
   // tidy: A takes its test groves off the map
   await a.evaluate(async (keep) => { const p = window.__pwc; for (const g of [...p.bloom.garden.all()]) if (g.id > 0) await p.net.uproot(g.id); }, before);
