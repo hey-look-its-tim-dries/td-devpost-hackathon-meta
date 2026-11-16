@@ -64,6 +64,7 @@ import { googleUrl, idFromFragment, cleanPicture, accountTag } from './net/googl
 import { cleanName } from './world/names.js';
 import { createTouch } from './touch.js';
 import { createInventory } from './inventory.js';
+import { createAtelierRoom } from './atelier/room.js';
 import { createTrail, tingHz } from './garden/trail.js';
 import { look as hudLook } from './ui/themed.js';
 import { createMusic } from './music.js';
@@ -811,6 +812,8 @@ function steering() {
 
 const atelier = createAtelierPanel();
 rig.add(atelier.mesh);
+const atelierRoom = createAtelierRoom(); /* the palm reader's dome: where you read your hand in the headset */
+rig.add(atelierRoom.group);
 const dim = new THREE.Mesh(new THREE.PlaneGeometry(6, 4.5), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.55, depthTest: false, depthWrite: false }));
 dim.position.z = -0.01;
 dim.renderOrder = 24;
@@ -1245,6 +1248,7 @@ function frame() {
   surface.meshes.forEach((m) => (m.visible = !room));
   ink.mesh.visible = streakInk.mesh.visible = !room;
   dim.visible = !inRoom;
+  atelierRoom.update(dt, room || (mode === 'atelier' && renderer.xr.isPresenting), renderer.xr.isPresenting ? renderer.xr.getCamera().position.y : 1.6);
   if (mode === 'merge') {
     ghosts.update(camera.getWorldPosition(tmpChase));
     // by hand: a palm held down holds the ghost it points at; push it 8 cm lower to lay your Hand there
