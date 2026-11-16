@@ -7,7 +7,7 @@ import { fromB64, toB64 } from './hand/dna.js';
 import { encodePose, decodeSnapshot } from './net/wire.js';
 import { cleanName } from './world/names.js';
 
-export const API = 'https://pwc.hey-look-its-tim-dries.workers.dev'; // ?api= overrides (wrangler dev is http://localhost:8787)
+export const API = 'https://pwc.pwc-server.workers.dev'; // ?api= overrides (wrangler dev is http://localhost:8787)
 const TOKEN_KEY = 'pwc.token.v1';
 
 export const rowToHand = (r) => ({ id: r.id, name: cleanName(r.name) ?? 'a Hand', palm: fromB64(r.palm), prints: r.prints.map(fromB64), pose: { x: r.pose.x, z: r.pose.z, rot: r.pose.rot, mirror: false }, founder: !!r.founder, placed_at: r.placed_at ?? null });
