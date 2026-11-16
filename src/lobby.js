@@ -11,6 +11,29 @@ const COUNT_ICONS = { 'FLYING NOW': 'fly', HANDS: 'hand', GROVES: 'sow', AWAY: '
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 // the picture of a signed-in player, as markup, or nothing: pics is { name: address }, and only Google's own picture host passes
 export const face = (name, pics) => { const u = cleanPicture(pics?.[name]); return u ? `<img class="face" src="${esc(u)}" alt="" referrerpolicy="no-referrer" loading="lazy">` : ''; };
+// A player's whorl as a small sign: five strands spiralling out, each shaped by one fingerprint class as the real
+// whorl's strands are (src/creature.js STYLES). Points in a square from -1 to 1. No prints: the plain whorl.
+const SIGN = { arch: [0.45, 0.9, 0, 0], tented: [0.6, 0.9, 0, 1], ulnar: [0.9, 1, -0.22, 0], radial: [0.9, 1, 0.22, 0], whorl: [1.7, 1, 0, 0], pocket: [1.35, 0.72, 0.1, 0.5], double: [-1.3, 1, 0, 0], accidental: [1.15, 0.9, -0.1, 0.7] };
+export function whorlStrands(classes) {
+  return Array.from({ length: 5 }, (_, k) => {
+    const [spin, reach, side, peak] = (classes && SIGN[classes[k % classes.length]]) || [1, 1, 0, 0], pts = [];
+    for (let i = 0; i <= 28; i++) { const s = i / 28, a = k * 1.2566 + spin * s * 5.2, r = Math.min(0.98, (0.08 + 0.84 * s) * reach * (1 + 0.35 * peak * Math.exp(-(((s - 0.4) / 0.14) ** 2)))); pts.push([Math.max(-1, Math.min(1, Math.cos(a) * r + side * s)), Math.sin(a) * r]); }
+    return pts;
+  });
+}
+const signs = new Map(); // drawn once per set of prints
+export function whorlImg(classes) {
+  const key = classes ? classes.join(',') : 'plain';
+  if (!signs.has(key)) {
+    const c = document.createElement('canvas'); c.width = c.height = 96;
+    const g = c.getContext('2d'), light = g.createLinearGradient(0, 0, 96, 96);
+    light.addColorStop(0, '#3ff3ff'); light.addColorStop(1, '#ff4fe0');
+    g.strokeStyle = light; g.lineWidth = 3.2; g.lineCap = 'round'; g.lineJoin = 'round'; g.shadowColor = 'rgba(255,79,224,0.7)'; g.shadowBlur = 6;
+    for (const s of whorlStrands(classes)) { g.beginPath(); s.forEach(([x, y], i) => (i ? g.lineTo(48 + x * 40, 48 + y * 40) : g.moveTo(48 + x * 40, 48 + y * 40))); g.stroke(); }
+    signs.set(key, c.toDataURL());
+  }
+  return `<img class="whorl" src="${signs.get(key)}" alt="">`;
+}
 // in: hands [{ name, founder }], flying [{ name, x, z }] (the others in your room), me (your Hand's name or null),
 // groves, worldFlying (the map's count, all rooms), gardeners / converters [{ name, n }], news [{ when, text }]
 export function lobbyFacts({ hands, flying, me, groves, worldFlying, gardeners, converters, news }) {
@@ -78,13 +101,13 @@ export function createLobby(root) {
       paint(d);
       const html = {
         lobbyCounts: d.counts.map(([n, label]) => `<div>${icon(COUNT_ICONS[label])}<b>${esc(n)}</b><span>${esc(label)}</span></div>`).join(''),
-        lobbyOnline: list(d.online.map((p) => `<li class="${p.you ? 'you' : ''}"><i></i>${p.you ? face('', { '': d.me.pic }) : face(p.name, d.pics)}${esc(p.name)}</li>`), ''),
-        lobbyAway: list(d.away.slice(0, 14).map((n) => `<li>${face(n, d.pics)}${esc(n)}</li>`), 'everyone with a Hand is here'),
-        lobbyGardeners: list(d.gardeners.map((r, i) => `<li><span>${i + 1}. ${face(r.name, d.pics)}${esc(r.name)}</span><b>${esc(Number(r.n).toLocaleString('en'))}</b></li>`), 'nobody has planted yet: be the first'),
+        lobbyOnline: list(d.online.map((p) => `<li class="${p.you ? 'you' : ''}"><i></i>${whorlImg(p.you ? d.me.whorl : d.whorls?.[p.name] ?? null)}${p.you ? face('', { '': d.me.pic }) : face(p.name, d.pics)}${esc(p.name)}</li>`), ''),
+        lobbyAway: list(d.away.slice(0, 14).map((n) => `<li>${whorlImg(d.whorls?.[n] ?? null)}${face(n, d.pics)}${esc(n)}</li>`), 'everyone with a Hand is here'),
+        lobbyGardeners: list(d.gardeners.map((r, i) => `<li><span>${i + 1}. ${d.whorls?.[r.name] ? whorlImg(d.whorls[r.name]) : ''}${face(r.name, d.pics)}${esc(r.name)}</span><b>${esc(Number(r.n).toLocaleString('en'))}</b></li>`), 'nobody has planted yet: be the first'),
         lobbyConverters: list(d.converters.map((r, i) => `<li><span>${i + 1}. ${face(r.name, d.pics)}${esc(r.name)}</span><b>${esc(r.n)}</b></li>`), 'no gnome has changed sides yet'),
         lobbyNews: list(d.news.map((e) => `<li><span>${esc(e.text)}</span><em>${esc(e.when)}</em></li>`), 'the world is quiet: make some news'),
         lobbyCall: esc(d.call),
-        lobbyMe: `${face('', { '': d.me.pic })}<b>${esc(d.me.name)}</b><span>${esc(d.me.status)} · level ${esc(d.me.level)}</span>`,
+        lobbyMe: `${whorlImg(d.me.whorl)}${face('', { '': d.me.pic })}<b>${esc(d.me.name)}</b><span>${esc(d.me.status)} · level ${esc(d.me.level)}</span>`,
       };
       const key = JSON.stringify(html);
       if (key === shown) return;

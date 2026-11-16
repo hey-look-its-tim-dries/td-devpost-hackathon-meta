@@ -41,7 +41,8 @@ import { createGnomeComm } from './gnomecomm.js';
 import { createPassport, profile, STATUS } from './garden/passport.js';
 import { createLobby, lobbyFacts } from './lobby.js';
 import { guideHtml } from './guide.js';
-import { icon } from './ui/icons.js';
+import { icon, FOXFIRE_DEFS } from './ui/icons.js';
+document.body.insertAdjacentHTML('afterbegin', FOXFIRE_DEFS);
 for (const el of document.querySelectorAll('[data-icon]')) el.insertAdjacentHTML('afterbegin', icon(el.dataset.icon)); // the pages' icons (index.html names them)
 import { createTutorialCard } from './tutorialcard.js';
 import { createPins, address } from './world/pins.js';
@@ -1190,8 +1191,8 @@ function lobbyData() {
       hands: hands.filter((h) => h.pose).map((h) => { const [x, z] = toWorld(h.pose, 0, 230); return { name: h.name, x, z, founder: !!h.founder, mine: !!mine && h.id === mine.id, ...lobbyShape(h) }; }),
       blooms: bloom.allPlots(), players: [{ name: 'you', x: glide.pos[0], z: glide.pos[2], you: true }, ...flying.map((p) => ({ ...p, name: p.name ?? 'traveller' }))],
     },
-    pics,
-    me: { pic: myPic, name: mine?.name ?? 'A traveller', status: STATUS[Math.min(STATUS.length - 1, Math.floor((lv - 1) / 2))], level: lv },
+    pics, whorls: Object.fromEntries(hands.filter((h) => h.pose && !h.founder).map((h) => [h.name, classesOf(h)])), // each player's five print classes: their whorl's sign
+    me: { whorl: creature.styled, pic: myPic, name: mine?.name ?? 'A traveller', status: STATUS[Math.min(STATUS.length - 1, Math.floor((lv - 1) / 2))], level: lv },
   };
 }
 function openLobby() {

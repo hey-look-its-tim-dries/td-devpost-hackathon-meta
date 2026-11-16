@@ -1,7 +1,7 @@
 // src/ui/icons.js
-// The game's icons: ink line drawings on a 24 x 24 grid, one stroke weight, round ends, like the whorl itself.
-// The same paths serve the pages (icon(): inline SVG that takes the text's colour) and the canvases of the HUD and
-// the atlas (drawIcon()). Pure but for drawIcon, which needs a browser's Path2D.
+// The game's icons: line drawings on a 24 x 24 grid, one stroke weight, round ends, like the whorl itself, lit
+// like the foxfire: cyan running into magenta, with a glow. The same paths serve the pages (icon(): inline SVG;
+// the page needs FOXFIRE_DEFS once) and the canvases of the HUD and the atlas (drawIcon()). Pure but for drawIcon.
 export const ICONS = {
   fly: 'M12 12c0-2 3-2 3 1s-4 4-6 1-1-8 4-8 8 4 7 9-6 8-11 6', // the whorl
   turn: 'M4 12a8 8 0 0 1 14-5l2-2v6h-6l2-2a5 5 0 0 0-9 3',
@@ -37,12 +37,15 @@ export const ICONS = {
   world: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18',
 };
 // inline SVG for a page: as tall as the text beside it, in the text's colour
-export const icon = (name, size = '1.15em') => (ICONS[name] ? `<svg class="icon" viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${ICONS[name]}"/></svg>` : '');
+// the gradient every icon on a page is stroked with: put this in the page once
+export const FOXFIRE_DEFS = '<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><linearGradient id="foxfire" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3ff3ff"/><stop offset="1" stop-color="#ff4fe0"/></linearGradient></defs></svg>';
+export const icon = (name, size = '1.15em') => (ICONS[name] ? `<svg class="icon" viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="url(#foxfire)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${ICONS[name]}"/></svg>` : '');
 // on a canvas: the icon in a square of `size` whose top left is (x, y)
 export function drawIcon(g, name, x, y, size, colour) {
   if (!ICONS[name] || typeof Path2D === 'undefined') return;
   g.save(); g.translate(x, y); g.scale(size / 24, size / 24);
-  g.strokeStyle = colour; g.lineWidth = 2; g.lineCap = 'round'; g.lineJoin = 'round';
+  const light = g.createLinearGradient(0, 0, 24, 24); light.addColorStop(0, '#12c8e0'); light.addColorStop(1, '#f02fc8'); // the foxfire's light, whatever colour the card asked for
+  g.strokeStyle = light; g.lineWidth = 2.2; g.lineCap = 'round'; g.lineJoin = 'round'; g.shadowColor = 'rgba(240,47,200,0.55)'; g.shadowBlur = 5;
   g.stroke(new Path2D(ICONS[name]));
   g.restore();
 }

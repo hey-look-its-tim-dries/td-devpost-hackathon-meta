@@ -32,3 +32,13 @@ test('names from other players never become markup', () => {
   assert.equal(esc('Tom & "Jo"'), 'Tom &amp; &quot;Jo&quot;');
   assert.equal(esc(null), '');
 });
+
+import { whorlStrands } from '../src/lobby.js';
+test('a player\'s whorl as a small sign beside their name: five strands shaped by their five fingerprints, no two sets alike', () => {
+  const a = whorlStrands(['whorl', 'ulnar', 'ulnar', 'pocket', 'arch']), b = whorlStrands(['arch', 'tented', 'radial', 'double', 'whorl']), plain = whorlStrands(null);
+  assert.equal(a.length, 5);
+  assert.ok(a.every((s) => s.length >= 20 && s.every(([x, y]) => Math.abs(x) <= 1.05 && Math.abs(y) <= 1.05)), 'inside its square');
+  assert.notDeepEqual(a, b);
+  assert.notDeepEqual(a, plain);
+  assert.deepEqual(whorlStrands(['whorl', 'ulnar', 'ulnar', 'pocket', 'arch']), a, 'the same prints, the same sign');
+});

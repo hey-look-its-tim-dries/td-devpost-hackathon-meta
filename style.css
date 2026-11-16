@@ -232,7 +232,11 @@ button:focus-visible {
 .banner-inner, .lobby header, .lobby aside, .lobby footer, .guide-inner, .places { zoom: 1.1; }
 
 /* icons: ink lines, in the colour of the text beside them */
-svg.icon { vertical-align: -0.2em; margin-right: 0.4em; flex: none; }
+svg.icon { vertical-align: -0.2em; margin-right: 0.4em; flex: none; filter: drop-shadow(0 0 3px rgba(255, 79, 224, 0.75)) drop-shadow(0 0 7px rgba(63, 243, 255, 0.45)); }
 .features { list-style: none; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 20px; margin: 14px 0 6px; padding: 0; color: var(--accent); font: 600 14px Inter, system-ui, sans-serif; letter-spacing: 0.08em; text-transform: uppercase; }
 .features svg.icon { width: 1.6em; height: 1.6em; }
 .lobby .counts svg.icon { width: 20px; height: 20px; margin: 0 0 2px; color: var(--muted); display: block; margin-inline: auto; }
+
+/* a player's whorl as a small sign beside their name */
+.lobby img.whorl { width: 26px; height: 26px; vertical-align: middle; margin-right: 6px; }
+.lobby .me img.whorl { width: 46px; height: 46px; float: left; margin-right: 8px; }
