@@ -282,3 +282,58 @@ test('deferred minors: /events?since, a summit cap per player, two donors racing
   assert.deepEqual(st, free === 'P7' && slots.length === 21 ? [200, 200] : [200, 409], st.join(','));
   for (const [k, id] of ids.entries()) await wash(id, toks[k]);
 });
+
+test('the garden: plant, see, water, uproot; a plot fills at 80; a wash takes its groves; the golden seed has one winner', { skip }, async () => {
+  const J = { 'Content-Type': 'application/json' }, tokA = 'G'.repeat(43), tokB = 'H'.repeat(43);
+  const plant = (b) => fetch(API + '/plants', { method: 'POST', headers: J, body: JSON.stringify(b) });
+  const all = async () => (await (await fetch(API + '/plants')).json());
+  for (const h of (await world()).filter((h) => h.name === 'Gardener')) await wash(h.id, tokA.slice(0, 40)); // a previous run
+  for (const p of (await all()).plants.filter((p) => p[1] === 'hand-founder-2')) await fetch(`${API}/plants/${p[0]}`, { method: 'DELETE', headers: J, body: JSON.stringify({ token: tokA }) });
+  const seed = { token: tokA, hand_id: 'hand-founder-2', bit: 4, x: 12.5, y: -40, sp: 7, hab: 'bank', big: 0 };
+  assert.equal((await plant({ ...seed, token: 'short' })).status, 400);
+  assert.equal((await plant({ ...seed, hand_id: 'nope' })).status, 404);
+  assert.equal((await plant({ ...seed, sp: -1 })).status, 400);
+  assert.equal((await plant({ ...seed, x: 1e9 })).status, 400);
+  const r = await plant(seed);
+  assert.equal(r.status, 200);
+  const { id } = await r.json();
+  const row = (await all()).plants.find((p) => p[0] === id);
+  assert.deepEqual(row.slice(1, 7), ['hand-founder-2', 4, 12.5, -40, 7, 0]);
+  assert.equal(row[9], 'bank');
+  // water: a stage up, then not again at once; another player may water it too
+  const tend = (token) => fetch(`${API}/plants/${id}/tend`, { method: 'POST', headers: J, body: JSON.stringify({ token }) });
+  assert.equal((await tend(tokB)).status, 429, 'a grove just planted has had its water');
+  await wait(1100);
+  const t1 = await tend(tokB);
+  assert.equal(t1.status, 200);
+  assert.equal((await t1.json()).stage, 1);
+  assert.equal((await tend(tokA)).status, 429);
+  // uproot: not a stranger's fresh grove; the planter may
+  const up = (token) => fetch(`${API}/plants/${id}`, { method: 'DELETE', headers: J, body: JSON.stringify({ token }) });
+  assert.equal((await up(tokB)).status, 403);
+  assert.equal((await up(tokA)).status, 204);
+  assert.ok(!(await all()).plants.some((p) => p[0] === id));
+  // a plot holds 80
+  const ids = [];
+  for (let i = 0; i < 80; i++) { const q = await plant({ ...seed, bit: 9, x: i }); assert.equal(q.status, 200, `grove ${i}`); ids.push((await q.json()).id); }
+  assert.equal((await plant({ ...seed, bit: 9, x: 99 })).status, 409, 'the plot is full');
+  const st = await (await fetch(API + '/stats')).json();
+  assert.ok(st.plants >= 80);
+  assert.ok((await all()).top.some((t) => t.n >= 80), 'the gardeners board counts them');
+  assert.ok((await (await fetch(API + '/events')).json()).events.some((e) => e.kind === 'bloomed'), 'thirty groves on a plot is news');
+  for (const i of ids) await up2(i);
+  async function up2(i) { await fetch(`${API}/plants/${i}`, { method: 'DELETE', headers: J, body: JSON.stringify({ token: tokA }) }); }
+  // a washed Hand takes its groves
+  const fit = findFits(shapes(await world()), handShape(templatePalm({ seed: 611 })))[0];
+  const mine = await (await post(body(fit.pose, { token: tokA.slice(0, 40), seed: 611, name: 'Gardener' }))).json();
+  const g = await (await plant({ ...seed, hand_id: mine.id })).json();
+  await wash(mine.id, tokA.slice(0, 40));
+  assert.ok(!(await all()).plants.some((p) => p[0] === g.id));
+  // the golden seed: the first to claim this round wins, the next hears who did
+  const epoch = Math.floor(Date.now() / 240000), claim = (token, e = epoch) => fetch(API + '/golden', { method: 'POST', headers: J, body: JSON.stringify({ token, epoch: e }) }).then((q) => q.json());
+  const c1 = await claim(tokA), c2 = await claim(tokB);
+  assert.ok(c1.won === true || typeof c1.name === 'string'); // an earlier run may hold this round
+  assert.equal(c2.won, false);
+  assert.equal(typeof c2.name, 'string');
+  assert.equal((await fetch(API + '/golden', { method: 'POST', headers: J, body: JSON.stringify({ token: tokA, epoch: epoch + 9 }) })).status, 400);
+});

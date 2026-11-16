@@ -12,6 +12,7 @@ const TOKEN_KEY = 'pwc.token.v1';
 
 export const rowToHand = (r) => ({ id: r.id, name: cleanName(r.name) ?? 'a Hand', palm: fromB64(r.palm), prints: r.prints.map(fromB64), pose: { x: r.pose.x, z: r.pose.z, rot: r.pose.rot, mirror: false }, founder: !!r.founder, placed_at: r.placed_at ?? null });
 
+export const rowToGrove = ([id, hand, bit, x, y, sp, stage, tended, big, hab]) => ({ id, hand, bit, x, y, sp, stage, tended, big, hab });
 const makeToken = () => { const b = new Uint8Array(32); crypto.getRandomValues(b); return toB64(b); };
 
 export function createNet({ api = API, storage = null, fetchFn = globalThis.fetch?.bind(globalThis), timeout = 4000 } = {}) {
@@ -136,20 +137,47 @@ export function createNet({ api = API, storage = null, fetchFn = globalThis.fetc
     async washHand(id) {
       try { return (await call(`/hands/${id}`, { method: 'DELETE', body: JSON.stringify({ token }) })).status === 204; } catch { return false; }
     },
+    // ---- the garden: groves on the Hands ----
+    async plants() {
+      try {
+        const { status, body } = await call('/plants');
+        return status === 200 && Array.isArray(body?.plants) ? { plants: body.plants.map(rowToGrove), top: Array.isArray(body.top) ? body.top : [] } : null;
+      } catch { return null; }
+    },
+    async plant({ hand, bit, x, y, sp, hab, big }) {
+      try {
+        const { status, body } = await call('/plants', { method: 'POST', body: JSON.stringify({ token, hand_id: hand, bit, x, y, sp, hab, big: big ? 1 : 0 }) });
+        return status === 200 ? { id: body.id, tended: body.tended } : { error: body?.error ?? String(status) };
+      } catch { return { error: 'offline' }; }
+    },
+    async tend(id) {
+      try {
+        const { status, body } = await call(`/plants/${id}/tend`, { method: 'POST', body: JSON.stringify({ token }) });
+        return status === 200 ? { stage: body.stage, tended: body.tended } : { error: body?.error ?? String(status) };
+      } catch { return { error: 'offline' }; }
+    },
+    async uproot(id) {
+      try { return (await call(`/plants/${id}`, { method: 'DELETE', body: JSON.stringify({ token }) })).status === 204; } catch { return false; }
+    },
+    async claimGolden(epoch) {
+      try { const { status, body } = await call('/golden', { method: 'POST', body: JSON.stringify({ token, epoch }) }); return status === 200 ? body : null; } catch { return null; }
+    },
     // the live room: poses out (at most 5 a second), snapshots and lay events in; reconnects by itself
-    openRoom({ name = null, onHello, onNames, onSnapshot, onLaid, onLeft, onState, onCommunity } = {}) {
+    openRoom({ name = null, deco = null, onHello, onNames, onSnapshot, onLaid, onLeft, onState, onCommunity, onGarden, onDecos } = {}) {
       let ws = null, closed = false, wait = 1000, lastSent = 0, shard = 0, followed = false;
       const retry = () => { if (closed) return; setTimeout(connect, followed ? 0 : wait); wait = Math.min(30000, wait * 2); };
       function connect() {
         if (closed) return;
         try { ws = new WebSocket(api.replace(/^http/, 'ws') + `/room?shard=${shard}`); } catch { return retry(); }
         ws.binaryType = 'arraybuffer';
-        ws.onopen = () => { wait = 1000; followed = false; onState?.('open'); if (name) ws.send(JSON.stringify({ name })); };
+        ws.onopen = () => { wait = 1000; followed = false; onState?.('open'); if (name) ws.send(JSON.stringify({ name })); if (deco?.length) ws.send(JSON.stringify({ deco })); };
         ws.onmessage = (e) => {
           if (typeof e.data !== 'string') return onSnapshot?.(decodeSnapshot(new Uint8Array(e.data)));
           let m;
           try { m = JSON.parse(e.data); } catch { return; }
           if (m.names) onNames?.(m.names);
+          if (m.decos) onDecos?.(m.decos);
+          if (m.planted || m.tended || m.uprooted !== undefined || m.golden || m.bloomed) onGarden?.(m.planted ? { ...m, planted: rowToGrove(m.planted) } : m);
           if (m.hello !== undefined) onHello?.(m.hello);
           else if (m.laid) onLaid?.(rowToHand(m.laid));
           else if (m.left) onLeft?.(m.left);
@@ -161,6 +189,7 @@ export function createNet({ api = API, storage = null, fetchFn = globalThis.fetc
       }
       connect();
       return {
+        deco(list) { deco = list; if (ws?.readyState === 1 && list.length) ws.send(JSON.stringify({ deco: list })); },
         rename(n) { name = n; if (ws?.readyState === 1) ws.send(JSON.stringify({ name })); },
         send(pose) { const now = Date.now(); if (ws?.readyState === 1 && now - lastSent >= 200) { lastSent = now; ws.send(encodePose(pose)); } },
         close() { closed = true; ws?.close(); },

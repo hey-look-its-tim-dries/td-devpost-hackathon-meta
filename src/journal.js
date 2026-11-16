@@ -8,6 +8,8 @@ export function journalText({ kind, data }) {
   if (kind === 'named') return `${d.name} was named on ${d.hand}`;
   if (kind === 'donated') return `${d.name} gave ${d.slot} to Community Hand ${d.no}`;
   if (kind === 'sealed') return `Community Hand ${d.no} was sealed`;
+  if (kind === 'bloomed') return `A plot of ${d.hand} came into bloom`;
+  if (kind === 'golden') return `${d.name} caught the golden seed`;
   if (kind === 'washed') return `${d.name} washed their hands`;
   return null;
 }

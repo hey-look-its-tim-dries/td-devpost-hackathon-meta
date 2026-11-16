@@ -33,7 +33,7 @@ export class Room extends DurableObject {
     this.ctx.waitUntil(this.env.WORLD.get(this.env.WORLD.idFromName('world')).fetch(new Request('https://world/rooms', { method: 'POST', body: name })));
     this.ctx.acceptWebSocket(server);
     server.serializeAttachment({ id, name: null, room: name });
-    server.send(JSON.stringify({ hello: id, names: this.names() }));
+    server.send(JSON.stringify({ hello: id, names: this.names(), decos: this.decos() }));
     return new Response(null, { status: 101, webSocket: client });
   }
 
@@ -46,8 +46,12 @@ export class Room extends DurableObject {
     if (++c.n > FLOOD) { this.live.delete(a.id); this.counts.delete(a.id); return ws.close(1008, 'too fast'); } // poses and names alike (review finding 6)
     if (typeof msg === 'string') { // { name }: once, or when it changes; everyone hears it
       if (msg.length > 200) return;
-      let name = null;
-      try { name = cleanName(JSON.parse(msg).name); } catch {}
+      let name = null, deco = null;
+      try { const m = JSON.parse(msg); name = cleanName(m.name); if (Array.isArray(m.deco)) deco = m.deco.filter((v) => Number.isInteger(v) && v >= 0 && v < 4096).slice(0, 12); } catch {}
+      if (deco) { // what a gardener planted most: it decorates their whorl for everyone
+        ws.serializeAttachment({ ...a, deco });
+        return this.broadcast(JSON.stringify({ decos: { [a.id]: deco } }));
+      }
       if (!name || name === a.name) return;
       ws.serializeAttachment({ ...a, name });
       return this.broadcast(JSON.stringify({ names: { [a.id]: name } }));
@@ -67,6 +71,7 @@ export class Room extends DurableObject {
   }
   webSocketError(ws) { this.webSocketClose(ws); }
 
+  decos() { const out = {}; for (const ws of this.ctx.getWebSockets()) { const a = ws.deserializeAttachment(); if (a?.deco?.length) out[a.id] = a.deco; } return out; }
   names() { const out = {}; for (const ws of this.ctx.getWebSockets()) { const a = ws.deserializeAttachment(); if (a?.name) out[a.id] = a.name; } return out; }
 
   tick() {

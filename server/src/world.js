@@ -5,6 +5,7 @@ import { DurableObject } from 'cloudflare:workers';
 import { checkHand } from '../../src/world/mine.js';
 
 const PAIR_ABC = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789', PAIR_TTL = 10 * 60 * 1000, SUMMITS_EACH = 5;
+const TOKEN = /^[A-Za-z0-9_-]{32,64}$/, HABS = ['dune', 'bank', 'ridge'], PLOT_CAP = 80, TEND_MS = 1000, DEAD_MS = 96 * 3600e3; // ponytail: TEND_MS is short so a garden grows in one sitting; raise it when gardens should take days
 import { overlaps, findFits, confluences } from '../../src/world/fit.js';
 import { handShape } from '../../src/hand/shape.js';
 import { unpackPalm, toB64, fromB64 } from '../../src/hand/dna.js';
@@ -71,12 +72,22 @@ export class World extends DurableObject {
       return Response.json({ names });
     }
     if (url.pathname === '/names' && req.method === 'POST') { const out = this.chain.then(() => this.nameIt(req)); this.chain = out.catch(() => {}); return out; }
+    // the garden (Bloom): groves on the Hands, watered by anyone, and the golden seed
+    if (url.pathname === '/plants' && req.method === 'GET') {
+      const { results } = await this.env.DB.prepare('select id, hand_id, bit, x, y, sp, stage, tended, big, hab from plant order by id limit 60000').all(); // ponytail: the whole garden in one answer; by Hand when it outgrows that
+      const top = await this.env.DB.prepare("select coalesce(p.name, 'A traveller') as name, count(*) as n from plant q left join player p on p.token_hash = q.by_hash group by q.by_hash order by n desc limit 5").all();
+      return Response.json({ plants: results.map((r) => [r.id, r.hand_id, r.bit, r.x, r.y, r.sp, r.stage, r.tended, r.big, r.hab]), top: top.results });
+    }
+    const plantM = url.pathname.match(/^\/plants(?:\/(\d{1,12})(\/tend)?)?$/);
+    if (plantM && req.method !== 'GET') { const out = this.chain.then(() => (!plantM[1] ? this.plant(req) : plantM[2] ? this.tend(+plantM[1], req) : this.uproot(+plantM[1], req))); this.chain = out.catch(() => {}); return out; }
+    if (url.pathname === '/golden' && req.method === 'POST') return this.golden(req);
     if (url.pathname === '/stats') {
       const now = Date.now();
       let flying = 0;
       for (const [k, c] of this.counts) { if (now - c.at > 30000) this.counts.delete(k); else flying += c.n; }
       const hands = this.cache ? this.cache.n : (await this.env.DB.prepare('select count(*) as n from hand where placed_at is not null').first()).n;
-      return Response.json({ hands, flying });
+      const plants = (await this.env.DB.prepare('select count(*) as n from plant').first()).n;
+      return Response.json({ hands, flying, plants });
     }
     if (url.pathname === '/rooms/count' && req.method === 'POST') {
       const { name, n } = await req.json().catch(() => ({}));
@@ -195,6 +206,65 @@ export class World extends DurableObject {
     } else this.ctx.waitUntil(this.tell({ donated: { no, slot, hand_id: me.hid, palette: me.palette } }));
     return Response.json({ no, slot });
   }
+  // ---- the garden ----
+  async body(req) { try { const b = await req.json(); return TOKEN.test(b?.token ?? '') ? b : null; } catch { return null; } }
+  // a grove on a handbit: any device may plant; a plot holds 80; a few a second at most
+  async plant(req) {
+    const b = await this.body(req), num = (v, lim) => typeof v === 'number' && Number.isFinite(v) && Math.abs(v) <= lim;
+    if (!b || !Number.isInteger(b.bit) || b.bit < 0 || b.bit > 33 || !num(b.x, 3000) || !num(b.y, 3000) || !Number.isInteger(b.sp) || b.sp < 0 || b.sp > 4095 || !HABS.includes(b.hab)) return Response.json({ error: 'not a grove' }, { status: 400 });
+    const hand = await this.env.DB.prepare('select p.name from hand h join player p on p.id = h.player_id where h.id = ? and h.placed_at is not null').bind(String(b.hand_id).slice(0, 64)).first();
+    if (!hand) return Response.json({ error: 'no such Hand' }, { status: 404 });
+    const by = await sha(b.token), now = Date.now(), gap = Number(this.env.RATE_MS ?? 60000) === 0 ? 0 : 250;
+    if (now - ((this.plantAt ??= new Map()).get(by) ?? -Infinity) < gap) return Response.json({ error: 'slower' }, { status: 429 });
+    this.plantAt.set(by, now);
+    if (this.plantAt.size > 20000) this.plantAt.clear();
+    const n = (await this.env.DB.prepare('select count(*) as n from plant where hand_id = ? and bit = ?').bind(b.hand_id, b.bit).first()).n;
+    if (n >= PLOT_CAP) return Response.json({ error: 'full' }, { status: 409 });
+    const r = await this.env.DB.prepare('insert into plant (hand_id, bit, x, y, sp, stage, tended, big, hab, by_hash, at) values (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)').bind(b.hand_id, b.bit, b.x, b.y, b.sp, now, b.big ? 1 : 0, b.hab, by, now).run();
+    const id = r.meta.last_row_id;
+    if (n + 1 === 30) { try { await this.event('bloomed', b.hand_id, { hand: hand.name, bit: b.bit }); } catch (e) { console.error('journal', e); } }
+    this.ctx.waitUntil(this.tell({ planted: [id, b.hand_id, b.bit, b.x, b.y, b.sp, 0, now, b.big ? 1 : 0, b.hab], ...(n + 1 === 30 ? { bloomed: { hand: hand.name, hand_id: b.hand_id, bit: b.bit } } : {}) }));
+    return Response.json({ id, tended: now });
+  }
+  // water: anyone, a stage up (to 3) and fresh again; a grove takes water once in a while
+  async tend(id, req) {
+    const b = await this.body(req);
+    if (!b) return Response.json({ error: 'no token' }, { status: 400 });
+    const p = await this.env.DB.prepare('select stage, tended from plant where id = ?').bind(id).first();
+    if (!p) return Response.json({ error: 'gone' }, { status: 404 });
+    const now = Date.now();
+    if (now - p.tended < TEND_MS) return Response.json({ error: 'it has had its water' }, { status: 429 });
+    const stage = Math.min(3, p.stage + 1);
+    await this.env.DB.prepare('update plant set stage = ?, tended = ? where id = ?').bind(stage, now, id).run();
+    this.ctx.waitUntil(this.tell({ tended: [id, stage, now] }));
+    return Response.json({ stage, tended: now });
+  }
+  // uproot: whoever planted it, the owner of the Hand it stands on, or anyone once it is dead
+  async uproot(id, req) {
+    const b = await this.body(req);
+    if (!b) return Response.json({ error: 'no token' }, { status: 400 });
+    const p = await this.env.DB.prepare('select q.by_hash, q.tended, pl.token_hash as owner from plant q left join hand h on h.id = q.hand_id left join player pl on pl.id = h.player_id where q.id = ?').bind(id).first();
+    if (!p) return Response.json({ error: 'gone' }, { status: 404 });
+    const by = await sha(b.token);
+    if (p.by_hash !== by && p.owner !== by && Date.now() - p.tended <= DEAD_MS) return Response.json({ error: 'not yours to clear' }, { status: 403 });
+    await this.env.DB.prepare('delete from plant where id = ?').bind(id).run();
+    this.ctx.waitUntil(this.tell({ uprooted: id }));
+    return new Response(null, { status: 204 });
+  }
+  // the golden seed of this round (drift.js: one every four minutes): the first claim wins it
+  async golden(req) {
+    const b = await this.body(req), epoch = Math.floor(Date.now() / 240000);
+    if (!b || b.epoch !== epoch) return Response.json({ error: 'not this round' }, { status: 400 });
+    const held = (this.gold ??= new Map()).get(epoch);
+    if (held) return Response.json({ won: false, name: held });
+    const name = (await this.env.DB.prepare('select name from player where token_hash = ?').bind(await sha(b.token)).first())?.name ?? 'A traveller';
+    this.gold.set(epoch, name);
+    for (const k of this.gold.keys()) if (k < epoch - 2) this.gold.delete(k);
+    try { await this.event('golden', null, { name }); } catch (e) { console.error('journal', e); }
+    this.ctx.waitUntil(this.tell({ golden: { epoch, name } }));
+    return Response.json({ won: true, name });
+  }
+
   async event(kind, handId, data) { await this.env.DB.prepare('insert into event (at, kind, hand_id, data) values (?, ?, ?, ?)').bind(Date.now(), kind, handId, JSON.stringify(data ?? null)).run(); }
 
   // a name for a place: handbits by the Hand's owner, summits by anyone with a Hand, first come (spec 6.4)
@@ -229,7 +299,7 @@ export class World extends DurableObject {
     if (typeof body?.token !== 'string') return Response.json({ error: 'no token' }, { status: 400 });
     const who = await this.env.DB.prepare('select h.player_id, p.name from hand h join player p on p.id = h.player_id where h.id = ? and h.founder = 0 and p.token_hash = ?').bind(id, await sha(body.token)).first(), pid = who?.player_id;
     if (!pid) return Response.json({ error: 'not yours' }, { status: 404 });
-    await this.env.DB.batch([this.env.DB.prepare('delete from place_name where hand_id = ? or by_player = ?').bind(id, pid), this.env.DB.prepare('delete from community_slot where player_id = ?').bind(pid), this.env.DB.prepare('delete from confluence where hand_a = ? or hand_b = ?').bind(id, id), this.env.DB.prepare('delete from event where hand_id = ? and kind != ?').bind(id, 'sealed'), this.env.DB.prepare('delete from hand where player_id = ?').bind(pid), this.env.DB.prepare('delete from player where id = ?').bind(pid)]);
+    await this.env.DB.batch([this.env.DB.prepare('delete from plant where hand_id = ?').bind(id), this.env.DB.prepare('delete from place_name where hand_id = ? or by_player = ?').bind(id, pid), this.env.DB.prepare('delete from community_slot where player_id = ?').bind(pid), this.env.DB.prepare('delete from confluence where hand_a = ? or hand_b = ?').bind(id, id), this.env.DB.prepare('delete from event where hand_id = ? and kind != ?').bind(id, 'sealed'), this.env.DB.prepare('delete from hand where player_id = ?').bind(pid), this.env.DB.prepare('delete from player where id = ?').bind(pid)]);
     this.cache = null;
     // the journal keeps only that someone left: their name goes from every line that carried it (spec 8.5, review finding 5)
     if (who.name) await this.env.DB.prepare('update event set data = replace(data, ?, ?) where instr(data, ?) > 0').bind(JSON.stringify(who.name), JSON.stringify('a Hand that left'), JSON.stringify(who.name)).run();

@@ -59,3 +59,20 @@ create table if not exists confluence (
   at integer not null,
   primary key (hand_a, hand_b)
 );
+
+-- Bloom: groves planted on the Hands (x, y in the Hand's own metres), watered by anyone
+create table if not exists plant (
+  id integer primary key autoincrement,
+  hand_id text not null,
+  bit integer not null,
+  x real not null,
+  y real not null,
+  sp integer not null,
+  stage integer not null default 0,
+  tended integer not null,
+  big integer not null default 0,
+  hab text not null default 'dune',
+  by_hash text not null,
+  at integer not null
+);
+create index if not exists plant_plot on plant (hand_id, bit);

@@ -27,3 +27,7 @@ test('when: minutes, hours, days ago', () => {
   assert.equal(when(now - 3 * 3600e3, now), '3 h ago');
   assert.equal(when(now - 2 * 86400e3, now), '2 days ago');
 });
+test('the journal tells of blooms and golden seeds', () => {
+  assert.equal(journalText({ kind: 'bloomed', data: { hand: 'Oruvel', bit: 3 } }), 'A plot of Oruvel came into bloom');
+  assert.equal(journalText({ kind: 'golden', data: { name: 'Tilde' } }), 'Tilde caught the golden seed');
+});
