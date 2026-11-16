@@ -33,3 +33,7 @@ export const hyperReady = (hands) => `Hyper sow is ready: ${hands ? 'hold a left
 export const firstHint = (hands) => (hands
   ? 'Point to fly · pinch and hold to sow · sweep an open hand to scatter · left palm up: the atlas, and how to play'
   : 'A D turn · W S climb · hold SPACE to sow · R Z C scatter · T pour · F hyper sow · M: the atlas, and how to play');
+
+// the moment sowing would work: low over a Hand with seeds in the pouch (the bubble-gum cue in main.js; 320 m is
+// the same ceiling the tutorial's coach uses)
+export const sowReady = ({ onHand, alt, seeds }) => !!onHand && alt < 320 && seeds > 0;

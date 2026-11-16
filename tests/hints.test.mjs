@@ -29,3 +29,11 @@ test('the How page lists every move both ways, short enough for its card', () =>
   assert.ok(MOVES.some((m) => m[2] === null), 'some moves are the same with hands and with keys');
   for (const what of ['Fly', 'Sow', 'Scatter', 'Pour', 'Hyper sow', 'Clear a grove', 'Set a gnome down', 'Atlas']) assert.ok(MOVES.some((m) => m[0] === what), what);
 });
+
+test('the sow cue: it shines exactly when sowing would work (low over a Hand, seeds in the pouch)', async () => {
+  const { sowReady } = await import('../src/garden/hints.js');
+  assert.equal(sowReady({ onHand: true, alt: 120, seeds: 5 }), true);
+  assert.equal(sowReady({ onHand: false, alt: 120, seeds: 5 }), false, 'the wilderness or a river is not sand');
+  assert.equal(sowReady({ onHand: true, alt: 400, seeds: 5 }), false, 'too high: the seed would drift away');
+  assert.equal(sowReady({ onHand: true, alt: 120, seeds: 0 }), false, 'nothing to sow');
+});

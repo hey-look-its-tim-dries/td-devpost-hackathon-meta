@@ -364,3 +364,17 @@ button:focus-visible, input:focus-visible { outline: 2px solid #3ff3ff; outline-
 .title-video { position: static; border: 0; filter: drop-shadow(0 0 3px #fff) drop-shadow(0 0 18px rgba(255, 79, 224, 0.75)) drop-shadow(0 0 44px rgba(63, 243, 255, 0.55)); --unused: 0 0 0 6px rgba(255, 79, 224, 0.35), 0 0 60px rgba(63, 243, 255, 0.55), 0 18px 60px rgba(0, 0, 0, 0.5); animation: titleFloat 6s ease-in-out infinite; }
 @keyframes titleFloat { 50% { transform: translateY(-8px) scale(1.015); } }
 @media (max-height: 520px) { .title-video { display: none; } }
+
+/* SOW MODE: the bubble-gum cue. You are low over sand with seeds: go on, sow */
+.sow-cue { position: fixed; left: 50%; bottom: 34%; transform: translateX(-50%); z-index: 5; padding: 9px 26px 11px; border-radius: 999px; text-align: center; pointer-events: none; color: #fff; background: linear-gradient(135deg, #ff9ad5, #ff4fe0 55%, #c86bff); border: 2px solid #ffffff; box-shadow: 0 0 0 4px rgba(255, 154, 213, 0.35), 0 0 26px rgba(255, 79, 224, 0.8), 0 6px 18px rgba(0, 0, 0, 0.35); animation: sowBob 1.1s ease-in-out infinite; }
+.sow-cue b { display: block; font: 900 17px Inter, system-ui, sans-serif; letter-spacing: 0.14em; text-shadow: 0 1px 0 rgba(0, 0, 0, 0.25); }
+.sow-cue span { display: block; font: 700 12px Inter, system-ui, sans-serif; letter-spacing: 0.06em; opacity: 0.95; }
+.sow-cue i { position: absolute; font-style: normal; color: #fff; text-shadow: 0 0 8px #fff, 0 0 16px #ff9ad5; animation: sowTwinkle 1.3s ease-in-out infinite; pointer-events: none; }
+.sow-cue i:nth-child(1) { left: -18px; top: -10px; font-size: 20px; }
+.sow-cue i:nth-child(2) { right: -14px; top: -14px; font-size: 14px; animation-delay: 0.3s; }
+.sow-cue i:nth-child(3) { right: -24px; bottom: -8px; font-size: 22px; animation-delay: 0.65s; }
+.sow-cue i:nth-child(4) { left: -10px; bottom: -14px; font-size: 13px; animation-delay: 0.95s; }
+@keyframes sowBob { 50% { transform: translateX(-50%) translateY(-5px) scale(1.03); } }
+@keyframes sowTwinkle { 0%, 100% { opacity: 0.25; transform: scale(0.6) rotate(0deg); } 50% { opacity: 1; transform: scale(1.25) rotate(28deg); } }
+.sow-cue.go { background: linear-gradient(135deg, #7dffb0, #3ff3ff 55%, #ff9ad5); animation: sowBob 0.55s ease-in-out infinite; }
+@media (max-height: 520px) { .sow-cue { bottom: 40%; padding: 5px 16px 7px; } .sow-cue b { font-size: 13px; } }

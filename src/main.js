@@ -32,7 +32,7 @@ import { createHud } from './hud.js';
 import { addProps } from './world/props.js';
 import { createAtlas } from './atlas/card.js';
 import { createPalmUp, createPush, createFling, createPull } from './gesture.js';
-import { firstHint } from './garden/hints.js';
+import { sowReady, firstHint } from './garden/hints.js';
 import { createTutorial, coach } from './garden/tutorial.js';
 import { createFirsts } from './garden/firsts.js';
 import { LINES, MUSINGS, pickLine, relDir, createSpeaker } from './garden/voice.js';
@@ -273,7 +273,7 @@ const braid = createBraid({ radius: 450, hold: 2 }), braidList = [], CALM = para
 const trail = createTrail(); /* the foxfire's rows of seeds: fly the line, ting ting ting (src/garden/trail.js) */
 let trailAt = -99, trailSp = 0, trailN = 0;
 const flybys = []; /* what others just sowed, drifting past you: { sp, t0, seed, dir } */
-let metAt = -99, livePill = '', missionKey = '', invTick = 0, worldTick = 3, readWorld = false;
+let metAt = -99, livePill = '', missionKey = '', invTick = 0, worldTick = 3, readWorld = false, sowCueWas = '';
 const inventory = createInventory(document.getElementById('inventory'), { onPick: (id) => { bloom.pouch.select(id); invTick = 0; sfx('seed'); } }); /* the right side of a screen: all you carry and know */
 let braiding = null; // { id, k } while two swarms braid
 let braidN = 0;
@@ -1034,7 +1034,20 @@ function frame() {
   const steeringNow = !!best?.q.engaged;
   // shown while hands can steer (webcam or headset), even before a hand is seen
   card.update(dt, started && mode !== 'atelier' && mode !== 'atlas' && (webcam || renderer.xr.isPresenting) ? { checks: best?.c ?? null, progress: best?.q.hold.progress ?? 0, steering: steeringNow, turn: steer.turn, climb: steer.climb } : null);
-  const sow = started && mode === 'fly' && (sowing || keys.has(' '));
+  const sow = started && mode === 'fly' && (sowing || keys.has(' ') || keys.has('enter')); /* Enter sows too */
+  { /* SOW MODE: a bubble-gum cue whenever sowing would work right now (never in the headset: its own cards hint there) */
+    const fwd = glide.forward(); /* the seed lands 230 m ahead: the cue lights for sand under you or there */
+    const can = started && mode === 'fly' && !renderer.xr.isPresenting && sowReady({ onHand: !!(place?.handbit || whereAt(hands, glide.pos[0] - 230 * Math.sin(glide.yaw), glide.pos[2] - 230 * Math.cos(glide.yaw))?.handbit), alt: glide.pos[1] - groundAt(glide.pos[0], glide.pos[2]), seeds: bloom.pouch.total });
+    const state = !can ? '' : sow ? 'go' : touch.on ? 'hold SOW to sow now' : 'hold SPACE to sow now';
+    if (state !== sowCueWas) {
+      sowCueWas = state;
+      const el = document.getElementById('sowCue');
+      el.classList.toggle('hidden', !state);
+      el.classList.toggle('go', state === 'go');
+      el.querySelector('b').textContent = state === 'go' ? 'SOWING!' : 'SOW MODE';
+      el.querySelector('span').textContent = state === 'go' ? 'seeds are flying' : state;
+    }
+  }
   steer.brake = sow ? 0.1 : 0; // sowing barely slows you: seed flies out ahead and a row of groves comes up along your flight
   if (mode !== 'atelier' && mode !== 'atlas') glide.update(dt, steer, groundAt); // the world waits while you read your hand or your atlas
   if (sow) gardenAct('plant');
