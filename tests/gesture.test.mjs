@@ -208,3 +208,18 @@ test('push: a hand dropping to your lap palm down never lays (it must be raised,
   for (let i = 0; i < 90; i++) if (p.update(at(-0.3 - i * 0.006), 1 / 60, -0.6) === 'push') pushed = true; // from -0.3 down to -0.84
   assert.equal(pushed, false);
 });
+
+import { createFling } from '../src/gesture.js';
+test('sowing by hand: an open hand swept fast to a side scatters that way, thrown forward it casts ahead; once per sweep', () => {
+  const frame = (x, y, z, extension = 1) => ({ center: [x, y, z], normal: [0, -1, 0], extension });
+  const sweep = (f, step, n = 12, ext = 1) => { const out = []; let p = [0, 1.2, -0.3]; for (let i = 0; i < n; i++) { p = p.map((v, k) => v + step[k]); const r = f.update(frame(...p, ext), 1 / 60); if (r) out.push(r); } return out; };
+  assert.deepEqual(sweep(createFling(), [0.04, 0, 0]), ['right'], '2.4 m/s to the right, one scatter');
+  assert.deepEqual(sweep(createFling(), [-0.04, 0, 0]), ['left']);
+  assert.deepEqual(sweep(createFling(), [0, 0.005, -0.04]), ['forward']);
+  assert.deepEqual(sweep(createFling(), [0.008, 0, 0]), [], 'a slow hand sows nothing');
+  assert.deepEqual(sweep(createFling(), [0.04, 0, 0], 12, 0.1), [], 'a fist sows nothing');
+  assert.deepEqual(sweep(createFling(), [0, -0.04, 0]), [], 'a hand dropping to your lap sows nothing');
+  const f = createFling();
+  sweep(f, [0.04, 0, 0]);
+  assert.deepEqual(sweep(f, [-0.04, 0, 0], 12), [], 'the swing back right after does not sow again');
+});

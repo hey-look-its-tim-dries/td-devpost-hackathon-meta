@@ -31,7 +31,7 @@ import { createStamp } from './stamp.js';
 import { createHud } from './hud.js';
 import { addProps } from './world/props.js';
 import { createAtlas } from './atlas/card.js';
-import { createPalmUp, createPush } from './gesture.js';
+import { createPalmUp, createPush, createFling } from './gesture.js';
 import { createPins, address } from './world/pins.js';
 import { placeName } from './world/names.js';
 import { createCommunityArt } from './community-art.js';
@@ -45,6 +45,7 @@ import { createOthers } from './others.js';
 import { createBloom } from './garden/game.js';
 import { createFauna } from './garden/fauna.js';
 import { bouquet, fromSignature } from './garden/bouquet.js';
+import { drawGarland } from './garden/garland.js';
 
 // Palm Whorl Cities, first milestone: the First Ten. Ten founding hands lie in a ring around the
 // Source. Their lines are rivers, their fingertips are print lands, and black-ink scribbles knot
@@ -302,6 +303,8 @@ const bloom = createBloom({ scene, shared: world.shared, storage, net, hands, gr
 const fauna = createFauna(bloom.species);
 scene.add(fauna.group);
 bloom.setFauna(fauna);
+drawGarland(document.getElementById('garland'), bloom.species); // the opening screen's wreath
+addEventListener('resize', () => drawGarland(document.getElementById('garland'), bloom.species));
 fauna.setLand((x, z) => !!whereAt(hands, x, z)?.handbit); // herds keep out of the rivers
 const goldBeam = new THREE.Mesh(new THREE.CylinderGeometry(7, 7, 2400, 8, 1, true), new THREE.MeshBasicMaterial({ color: 0xe9c46a, transparent: true, opacity: 0.55, depthWrite: false, fog: false }));
 goldBeam.visible = false;
@@ -313,8 +316,8 @@ dust.add(dustCap); dust.visible = false;
 scene.add(dust); // the sandstorm: a wall of dust that crosses the world (src/garden/drift.js)
 let invite = null; // when to offer a new player a Hand of their own
 let sowing = false; // the plant key or a right-hand pinch is held
-const bloomCtx = { pos: glide.pos, place: null, flying: false, braiding: null, burst: () => creature.burst(), near: (x, z, r) => Math.hypot(x - glide.pos[0], z - glide.pos[2]) < r };
-const gardenAct = (what) => { if (started && mode === 'fly') { bloomCtx.place = place; bloomCtx.braiding = braiding; bloom.act(what, bloomCtx); if (what === 'plant') creature.burst(); } };
+const bloomCtx = { pos: glide.pos, forward: [0, 0, -1], place: null, flying: false, braiding: null, burst: () => creature.burst(), near: (x, z, r) => Math.hypot(x - glide.pos[0], z - glide.pos[2]) < r };
+const gardenAct = (what) => { if (started && mode === 'fly') { bloomCtx.place = place; bloomCtx.braiding = braiding; bloomCtx.forward = glide.forward(); bloom.act(what, bloomCtx); if (what === 'plant') creature.burst(); } };
 addEventListener('keydown', (e) => {
   if (e.key === ' ' && mode === 'fly' && started) e.preventDefault(); // the plant key never scrolls or presses a button
   if (e.repeat || mode !== 'fly' || !started) return;
@@ -322,6 +325,10 @@ addEventListener('keydown', (e) => {
   else if (e.key === 'q' || e.key === 'Q') gardenAct('prev');
   else if (e.key === 'x' || e.key === 'X') gardenAct('uproot');
   else if (e.key === 'f' || e.key === 'F') gardenAct('hyper');
+  else if (e.key === 'r' || e.key === 'R') gardenAct('scatter:forward'); // cast seed ahead
+  else if (e.key === 'z' || e.key === 'Z') gardenAct('scatter:left');
+  else if (e.key === 'c' || e.key === 'C') gardenAct('scatter:right');
+  else if (e.key === 't' || e.key === 'T') gardenAct('pour');
 });
 [0, 1].forEach((i) => { // in the headset: hold a right-hand pinch to sow, a left-hand pinch picks the next seed
   const c = renderer.xr.getController(i);
@@ -752,6 +759,13 @@ function frame() {
   steer.brake = sow ? 1 : 0; // you slow down to sow
   if (mode !== 'atelier' && mode !== 'atlas') glide.update(dt, steer, groundAt); // the world waits while you read your hand or your atlas
   if (sow) gardenAct('plant');
+  // sowing by hand (in the headset): sweep an open hand to scatter seed that way, throw it forward to cast far
+  // ahead, press a flat palm down to pour water. The hand that steers does none of these.
+  if (renderer.xr.isPresenting && started && mode === 'fly') for (const h of xrHands) {
+    const swept = (h.fling ??= createFling()).update(h.engaged ? null : h.frame, dt);
+    if (swept) gardenAct(`scatter:${swept}`);
+    if ((h.pour ??= createPush()).update(h.engaged ? null : h.frame, dt, handFloor()) === 'push') gardenAct('pour');
+  }
   bloomCtx.place = place; bloomCtx.braiding = braiding; bloomCtx.flying = started && mode === 'fly';
   bloom.frame(dt, bloomCtx);
   if (invite && mode === 'fly' && (t > invite.at || bloom.pouch.plantedTotal >= invite.planted)) { invite = null; openAtelier(); }
@@ -891,7 +905,7 @@ function start() {
   banner.classList.add('hidden');
   panel.say('Palm Whorl Cities', 4);
   // fly and garden first; the invitation to lay a Hand of your own comes once you have planted a little (or after a while)
-  setTimeout(() => panel.say(renderer.xr.isPresenting ? 'Point where you want to fly · hold a pinch over a Hand to sow' : 'A D turn · W S climb · hold SPACE over a Hand to sow · Q E choose a seed', 8), 4200);
+  setTimeout(() => panel.say(renderer.xr.isPresenting ? 'Point to fly · pinch and hold to sow · sweep an open hand to scatter · press a palm down to pour' : 'A D turn · W S climb · hold SPACE to sow · R Z C scatter · T pour · F hyper sow', 8), 4200);
   invite = mine || params.has('noatelier') ? null : { at: t + (params.has('atelier') ? 4.2 : 90), planted: bloom.pouch.plantedTotal + 6 }; // ?atelier: at once (the tests)
 }
 async function enterHeadset() {

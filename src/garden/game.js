@@ -132,6 +132,35 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
       else { worldPlants--; pouch.giveBack(sp); if (r.error === 'full') say('That plot is full', 3); }
     });
   }
+  // Scatter: the sowing sweep. Five groves at once, fanned to the side you swept, or cast far ahead when you
+  // threw forward. A seed each; they go to the map as one batch.
+  function scatter(ctx, dir) {
+    const { pos, forward: f } = ctx, side = dir === 'left' ? -1 : 1, sent = [];
+    if (pos[1] - groundAt(pos[0], pos[2]) > PLANT_ALT) return say('Fly lower to sow', 2.5);
+    for (let i = 0; i < 5; i++) {
+      const along = dir === 'forward' ? 160 + i * 110 : 60 + i * 25, across = dir === 'forward' ? (i - 2) * 45 : side * (90 + i * 70);
+      const wx = pos[0] + f[0] * along - f[2] * across, wz = pos[2] + f[2] * along + f[0] * across, w = whereAt(hands, wx, wz);
+      if (!w?.handbit || garden.full(w.hand.id, w.index)) continue;
+      const sp = pouch.take();
+      if (sp === null) break;
+      const [x, y] = toHand(w.hand.pose, wx, wz), p = { id: tempId--, hand: w.hand.id, bit: w.index, x, y, sp, stage: 0, tended: Date.now(), big: 0, hab: habitatOf(w.handbit.code, false) };
+      if (!add(p, true)) { pouch.giveBack(sp); continue; }
+      pouch.planted(sp); pouch.credit('plant'); fill(0.03); worldPlants++; sent.push(p);
+    }
+    if (!sent.length) return say(pouch.total ? 'Nothing but water and wilderness there: scatter over a Hand' : 'Your pouch is empty: fly through a seed cloud', 3);
+    ctx.burst?.();
+    onDeco?.(pouch.signature());
+    if (online()) net.plantMany(sent).then((r) => sent.forEach((p, i) => { remove(p.id); const id = r.ids?.[i]; if (id && !garden.get(id)) { add({ ...p, id, tended: r.tended }); const q = garden.get(id); if (q) q.pop = p.pop; } else { worldPlants--; if (!id) pouch.giveBack(p.sp); } }));
+  }
+  // Pour: a palm pressed down empties water over the groves around you (up to three), like a watering can
+  function pour(ctx) {
+    const { pos, place } = ctx, now = Date.now();
+    if (!place || !pouch.water) return say(place ? 'No water: skim a river first' : 'Pour over a Hand', 2.5);
+    const [x, y] = toHand(place.hand.pose, pos[0], pos[2]), near = [...garden.all()].filter((p) => p.hand === place.hand.id && p.id > 0 && (p.stage < 3 || p.dry > 0) && now - p.tended > 1500 && Math.hypot(p.x - x, p.y - y) < REACH * 2).sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y)).slice(0, 3);
+    if (!near.length) return say('Nothing thirsty here', 2);
+    for (const p of near) { if (!pouch.pour()) break; (online() ? net.tend(p.id) : Promise.resolve({ stage: Math.min(3, p.stage + 1), tended: now })).then((r) => { if (!r.error) { grown(p.id, r.stage, r.tended); pouch.credit('tend'); fill(0.1); } }); }
+    say(`Poured over ${near.length} grove${near.length > 1 ? 's' : ''}`, 2);
+  }
   function uproot(ctx) {
     const { place, pos } = ctx;
     if (!place) return;
@@ -272,6 +301,8 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
       if (what === 'plant') { const now = performance.now(); if (now - lastPlant < 450) return; lastPlant = now; plant(ctx); }
       else if (what === 'next' || what === 'prev') { const id = pouch.next(what === 'next' ? 1 : -1); if (id !== null) say(`${SPECIES[id].name} · ${pouch.has(id)} seeds`, 2); }
       else if (what === 'uproot') uproot(ctx);
+      else if (what.startsWith('scatter:')) scatter(ctx, what.slice(8));
+      else if (what === 'pour') pour(ctx);
       else if (what === 'hyper') {
         if (performance.now() < hyperUntil) return;
         if (charge < 1) return say(`Hyper sow is ${Math.round(charge * 100)}% charged: water groves and catch seed clouds`, 3);

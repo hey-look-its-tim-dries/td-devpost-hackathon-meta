@@ -151,3 +151,10 @@ button:focus-visible {
 .banner .live:empty {
   display: none;
 }
+
+/* the opening screen's wreath of flowers, behind the words (src/garden/garland.js) */
+#garland { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.banner-inner { position: relative; }
+.eyebrow { color: #b8442e; }
+
+.banner a { color: inherit; }
