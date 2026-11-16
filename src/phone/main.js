@@ -3,7 +3,7 @@
 // retrace them), five fingertip close-ups read into patterns (you confirm or change them), then the
 // shuffled DNA goes to your headset through the pairing code. Photos are read in this page and never
 // sent anywhere; nothing is stored on the phone either.
-import { createNet, API } from '../net.js';
+import { createNet, API, apiFrom } from '../net.js';
 import { packPalm, rng, synthPrint, packPrint } from '../hand/dna.js';
 import { templatePalm } from '../hand/shape.js';
 import { glyph } from '../atelier/glyphs.js';
@@ -11,7 +11,7 @@ import { readPalmLines, frameFromKnuckles } from './palm-lines.js';
 import { classifyPrint, toPrintDNA } from './print-class.js';
 
 const app = document.getElementById('app'), params = new URLSearchParams(location.search);
-const net = createNet({ api: params.get('api') ?? API, storage: null }); // no token kept: the phone only relays DNA
+const net = createNet({ api: apiFrom(params), storage: null }); // no token kept: the phone only relays DNA
 const FINGERS = ['thumb', 'index finger', 'middle finger', 'ring finger', 'little finger'];
 const CLASSES = ['arch', 'tented', 'ulnar', 'radial', 'whorl', 'pocket', 'double'];
 const LABEL = { arch: 'arch', tented: 'tented arch', ulnar: 'loop (to the little finger)', radial: 'loop (to the thumb)', whorl: 'whorl', pocket: 'pocket loop', double: 'double loop' };

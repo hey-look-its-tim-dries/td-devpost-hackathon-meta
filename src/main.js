@@ -22,7 +22,7 @@ import { createFlow } from './atelier/flow.js';
 import { findFits } from './world/fit.js';
 import { createGhosts } from './world/ghosts.js';
 import { loadHand, saveHand, forgetHand } from './world/mine.js';
-import { createNet, settleLay, API } from './net.js';
+import { createNet, settleLay, API, apiFrom } from './net.js';
 import { createLabel } from './labels.js';
 import { createBraid } from './braid.js';
 import { createChart } from './world/chart.js';
@@ -163,7 +163,7 @@ try {
 let userName = null;
 try { userName = cleanName(storage?.getItem('pwc.name.v1')); } catch {}
 const myName = () => userName ?? mine?.name ?? null;
-const net = createNet({ api: params.get('api') ?? API, storage }); // ?api=http://localhost:8787 for wrangler dev
+const net = createNet({ api: apiFrom(params), storage }); // ?api=http://localhost:8787 for wrangler dev
 let mine = loadHand(storage); // your Hand on this device ({ id, palm, prints, pose, name, pending }), or null
 let rising = null; // { id, t } while a laid Hand rises
 const hands = []; // every Hand in the world: { id, name, palm, prints, pose, founder, layer, data, rise }

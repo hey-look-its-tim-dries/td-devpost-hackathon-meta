@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
     <title>Palm Whorl Cities</title>
     <meta name="description" content="Sow a desert made of hands into bloom, together. A shared flying garden for Meta Quest, the browser and your phone." />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-Zl07O3vczhjNH+CWaeBxzVqTaBrRsWs0z6LAHYUFc6s=' https://cdn.jsdelivr.net https://esm.sh 'wasm-unsafe-eval'; connect-src 'self' https://pwc.pwc-server.workers.dev wss://pwc.pwc-server.workers.dev https://cdn.jsdelivr.net https://esm.sh https://unpkg.com https://storage.googleapis.com http://localhost:8787 ws://localhost:8787 http://127.0.0.1:8787 ws://127.0.0.1:8787; img-src 'self' data: blob: https://lh3.googleusercontent.com https://lh4.googleusercontent.com https://lh5.googleusercontent.com https://lh6.googleusercontent.com; media-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
     <meta name="theme-color" content="#14052b" />
     <meta property="og:title" content="Palm Whorl Cities" />
     <meta property="og:description" content="Sow a desert made of hands into bloom, together." />
@@ -74,12 +76,7 @@
       </div>
       <footer><button id="diveButton" data-icon="dive">Dive in</button><button id="lobbyXr" class="quiet hidden" data-icon="headset">Enter in headset</button><button id="lobbyExplain" class="quiet" data-icon="explain">Explain this game to me</button><button id="lobbyBack" class="quiet" data-icon="back">Back</button></footer>
     </div>
-    <script>
-      // the buttons wait for the world; if the game cannot load (offline, a blocked CDN, a crash), say so
-      addEventListener('error', () => {
-        if (document.getElementById('banner').classList.contains('loading')) document.getElementById('status').textContent = 'The world could not load. Check your connection and reload.';
-      }, true);
-    </script>
+    <script src="./src/boot.js"></script>
     <script type="module" src="./src/main.js"></script>
   </body>
 </html>

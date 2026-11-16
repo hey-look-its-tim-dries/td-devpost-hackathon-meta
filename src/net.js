@@ -7,7 +7,16 @@ import { fromB64, toB64 } from './hand/dna.js';
 import { encodePose, decodeSnapshot } from './net/wire.js';
 import { cleanName } from './world/names.js';
 
-export const API = 'https://pwc.pwc-server.workers.dev'; // ?api= overrides (wrangler dev is http://localhost:8787)
+export const API = 'https://pwc.pwc-server.workers.dev';
+// ?api= points the game at another map server, but only for a developer: on localhost, at a server on localhost
+// (wrangler dev). On the live site a link with ?api= is ignored, so nobody can send a player's token, pouch or
+// Google sign-in to a server of their own by sharing a crafted link.
+const LOCAL = /^(localhost|127\.0\.0\.1|\[::1\])$/;
+export function apiFrom(params, host = globalThis.location?.hostname ?? '') {
+  const a = params.get('api');
+  if (!a || !LOCAL.test(host)) return API;
+  try { const u = new URL(a); return /^https?:$/.test(u.protocol) && LOCAL.test(u.hostname) ? u.origin : API; } catch { return API; }
+}
 const TOKEN_KEY = 'pwc.token.v1';
 
 export const rowToHand = (r) => ({ id: r.id, name: cleanName(r.name) ?? 'a Hand', palm: fromB64(r.palm), prints: r.prints.map(fromB64), pose: { x: r.pose.x, z: r.pose.z, rot: r.pose.rot, mirror: false }, founder: !!r.founder, placed_at: r.placed_at ?? null });

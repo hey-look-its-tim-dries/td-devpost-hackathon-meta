@@ -57,6 +57,8 @@ export default {
     }
     if (path === '/room') {
       if (req.headers.get('Upgrade') !== 'websocket') return json(req, env, { error: 'websocket only' }, 426);
+      const from = req.headers.get('Origin'), allowed = (env.ORIGINS ?? '').split(',').filter(Boolean);
+      if (from && allowed.length && !allowed.includes(from)) return json(req, env, { error: 'not from the game' }, 403); // another site cannot open rooms in a visitor's browser
       const asked = url.searchParams.get('region'), continent = String(req.cf?.continent ?? '').toLowerCase();
       const region = REGIONS.includes(asked) ? asked : REGIONS.includes(continent) ? continent : regionOf(req.headers.get('CF-IPCountry'));
       const shard = Math.max(0, Math.min(999, +(url.searchParams.get('shard') ?? 0) | 0)), name = `${region}-${shard}`;

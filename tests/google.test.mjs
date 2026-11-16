@@ -45,3 +45,15 @@ test('accountTag: one tag per Google account, the same every time, null for rubb
   assert.equal(accountTag('nonsense'), null);
   assert.equal(accountTag(tok('not-a-number')), null);
 });
+
+test('a link cannot point the game at another map server: ?api= counts only on your own machine, and only for a local server', async () => {
+  const { apiFrom, API } = await import('../src/net.js');
+  const on = (host, api) => apiFrom(new URLSearchParams(api ? `api=${encodeURIComponent(api)}` : ''), host);
+  assert.equal(on('hey-look-its-tim-dries.github.io', 'https://evil.example'), API, 'the live site ignores it');
+  assert.equal(on('hey-look-its-tim-dries.github.io', 'http://localhost:8787'), API);
+  assert.equal(on('localhost', 'http://localhost:8787'), 'http://localhost:8787', 'a developer on localhost may use wrangler dev');
+  assert.equal(on('127.0.0.1', 'http://127.0.0.1:8787'), 'http://127.0.0.1:8787');
+  assert.equal(on('localhost', 'https://evil.example'), API, 'even locally, only a local server');
+  assert.equal(on('localhost', 'http://localhost.evil.example'), API);
+  assert.equal(on('localhost', null), API);
+});
