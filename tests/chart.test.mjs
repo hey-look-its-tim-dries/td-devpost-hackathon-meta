@@ -38,3 +38,11 @@ test('handbit indices up to 31 fit the mask', () => {
   c.visit('h', 30, 31);
   assert.equal(c.mask('h'), 2 ** 30);
 });
+
+test('a Hand with more than 31 handbits can still be sealed (deferred minor)', () => {
+  const c = createChart(null);
+  let last = null;
+  for (let i = 0; i <= 30; i++) last = c.visit('big', i, 34);
+  assert.equal(last, 'sealed');
+  assert.ok(c.sealed('big'));
+});

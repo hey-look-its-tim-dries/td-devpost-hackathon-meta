@@ -25,3 +25,9 @@ test('place names: the same seed gives the same name; summits get a landform wor
   assert.match(placeName(7, 'summit:1'), / (Fell|Crown|Peak|Knoll|Cairn|Spire)$/);
   for (let s = 1; s < 30; s++) assert.equal(cleanName(placeName(s, 'P2')), placeName(s, 'P2'));
 });
+
+test('cleanName never splits an emoji in two (deferred minor)', () => {
+  const n = cleanName('a'.repeat(23) + '🌊🌊');
+  assert.equal(n, 'a'.repeat(23) + '🌊');
+  assert.ok(!/[\ud800-\udbff]$/.test(n));
+});

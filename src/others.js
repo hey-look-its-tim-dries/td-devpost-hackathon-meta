@@ -22,7 +22,9 @@ export function createOthers({ max = 60 } = {}) {
         e.pitch = pose.pitch;
         e.missed = 0;
       }
-      for (const [id, e] of live) if (!seen.has(id) && ++e.missed >= 2) { live.delete(id); names.delete(id); }
+      for (const [id, e] of live) if (!seen.has(id) && ++e.missed >= 2) live.delete(id);
+      // a name goes only with a player gone from the whole room, not one beyond the nearest `max`: the room says it once
+      if (names.size > live.size) { const inRoom = new Set(snapshot.map((p) => p.id)); for (const id of names.keys()) if (!inRoom.has(id) && !live.has(id)) names.delete(id); }
     },
     update(dt) {
       for (const e of live.values()) {

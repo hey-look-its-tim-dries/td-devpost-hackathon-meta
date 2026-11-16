@@ -13,6 +13,7 @@ export function createChart(storage) {
     // you flew over handbit `index` of a Hand with `total` handbits: 'new', 'sealed' (the last one), or null
     visit(handId, index, total) {
       if (index < 0 || index > 30) return null;
+      total = Math.min(total, 31); // ponytail: a 32-bit mask holds 31 handbits; a bigger Hand seals on its first 31
       const e = (seen[handId] ??= { m: 0, n: total });
       e.n = total;
       if (e.m & (1 << index)) return null;

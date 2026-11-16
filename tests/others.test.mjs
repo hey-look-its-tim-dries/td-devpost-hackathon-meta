@@ -48,3 +48,14 @@ test('names: kept for players in the room, dropped when they leave', () => {
   assert.equal(o.nameOf(3), null, 'gone after two snapshots without them');
   assert.equal(o.nameOf(4), 'Cadio');
 });
+
+test('a player who drops out of the nearest and comes back keeps their name (deferred minor)', () => {
+  const o = createOthers({ max: 1 });
+  o.setNames({ 7: 'Yanida' });
+  const p = (id, x) => ({ id, pose: { x, y: 0, z: 0, pitch: 0 } });
+  o.apply([p(7, 1)], 0); // 7 is live
+  o.apply([p(7, 10), p(8, 1)], 0); o.apply([p(7, 10), p(8, 1)], 0); // now 7 is farther: freed after two snapshots
+  assert.equal(o.count, 1);
+  o.apply([p(7, 1)], 0);
+  assert.equal(o.nameOf(7), 'Yanida');
+});

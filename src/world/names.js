@@ -20,9 +20,10 @@ export function nameFor(seed) {
 const BLOCK = ['hitler', 'nazi', 'nigger', 'faggot']; // ponytail: a short blocklist; reports and owner review if names spread further
 export function cleanName(s) {
   if (typeof s !== 'string') return null;
-  const t = s.replace(/[\u0000-\u001f\u007f-\u009f​-‏‪-‮⁦-⁩]/g, '').trim().slice(0, 24).trim();
-  if (!t || BLOCK.some((w) => t.toLowerCase().includes(w))) return null;
-  return t;
+  const t = s.replace(/[\u0000-\u001f\u007f-\u009f​-‏‪-‮⁦-⁩]/g, '').trim();
+  const t24 = Array.from(t).slice(0, 24).join('').trim(); // by code point: an emoji is never cut in half
+  if (!t24 || BLOCK.some((w) => t24.toLowerCase().includes(w))) return null;
+  return t24;
 }
 
 // a name for a place, from a seed and what it is: summits get a landform word ("Oru Fell")
