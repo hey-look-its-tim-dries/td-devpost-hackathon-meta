@@ -277,7 +277,7 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
     if ((slow += dt) >= 2) {
       slow = 0;
       for (let i = waiting.length - 1; i >= 0; i--) if (handOf(waiting[i].hand)) add(waiting.splice(i, 1)[0]); // Hands that have risen since
-      if (ready && now - topAt > 30000) { topAt = now; refreshTop(); }
+      if (ready && now - topAt > 120000) { topAt = now; refreshTop(); } // the board and the world's count, every two minutes (a crowd asking every 30 s was most of the map's traffic)
       if (ready && online() && now - syncAt > 20000 && mark() !== synced) { syncAt = now; const m = mark(); net.profilePut(pouch.dump()).then((ok) => { if (ok) synced = m; }); }
       if (ready && online()) for (const h of hands) { if (!h.pose || !h.data?.cells || (h.rise ?? 1) < 1) continue; const [hx, hz] = toWorld(h.pose, 0, 230); if (Math.hypot(hx - pos[0], hz - pos[2]) < 9000 && now - (loaded.get(h.id) ?? 0) > 300000) readHand(h); }
       const anchors = hands.filter((h) => h.pose).map((h) => { const [x, z] = toWorld(h.pose, 0, 230); return { id: h.id, x, z }; });
