@@ -88,7 +88,7 @@ export function createAtlas() {
       for (const [dir, label, y] of [['in', '+', MAP.y + 90], ['out', '−', MAP.y + 172]]) { g.fillStyle = PAPER; g.strokeStyle = INK; g.lineWidth = 3; g.beginPath(); g.roundRect(MAP.x + MAP.w - 90, y, 72, 72, 36); g.fill(); g.stroke(); text(label, MAP.x + MAP.w - 54, y + 50, { font: `700 44px ${SANS}`, align: 'center' }); }
       if (s.inspect) inspector(s.inspect);
       if (s.timeline) timeline(s.timeline);
-    } else if (tab === 'hand') myHand(s);
+    } else if (tab === 'hand') me(s);
     else if (tab === 'community') s.community ? s.community.paint(g, regions, { button, text }) : text('The Community Hand needs the shared map.', 60, 200, { font: `italic 400 34px ${SERIF}` });
     else if (tab === 'journal') journal(s);
     else if (tab === 'garden') s.garden?.paint(g, regions, { button, text });
@@ -129,6 +129,31 @@ export function createAtlas() {
     g.fillStyle = SEAL; g.beginPath(); g.arc(x + k * w, y + 30, 14, 0, Math.PI * 2); g.fill();
     text(t.label, x, y + 4, { font: `600 22px ${SANS}` });
     regions.push({ id: 'timeline', x, y, w, h: 60 });
+  }
+  // The Me page: who you are in this world. Your name and standing, your whorl as you have sown it, your numbers,
+  // the players and gnomes you know, your Hand. (s.profile: src/garden/passport.js)
+  let places = false;
+  function me(s) {
+    const p = s.profile;
+    if (!p) return myHand(s);
+    if (places) { myHand(s); button('places', 840, 464, 320, 72, 'Back to me'); return; }
+    text(p.name, 60, 168, { font: `600 64px ${SERIF}`, max: 700 });
+    text(`${p.status.toUpperCase()} · LEVEL ${p.level} · ${p.xp} XP`, 60, 212, { font: `700 24px ${SANS}`, color: SEAL });
+    // your whorl: ink strands in a spiral, wearing what you sowed, most sown largest and nearest the heart
+    const cx = 215, cy = 400;
+    g.strokeStyle = INK; g.lineWidth = 2.5;
+    for (let k = 0; k < 5; k++) { g.beginPath(); for (let i = 0; i <= 60; i++) { const a = i * 0.21 + k * 1.2566, r = 12 + i * 2.2 + 6 * Math.sin(i * 0.5 + k); const x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r * 0.92; if (i) g.lineTo(x, y); else g.moveTo(x, y); } g.stroke(); }
+    const most = p.sown[0]?.n ?? 1;
+    p.sown.forEach((o, i) => { const ic = s.icon?.(o.sp); if (!ic) return; const a = i * 2.39996, r = 30 + 27 * Math.sqrt(i), size = 46 + 52 * Math.sqrt(o.n / most); g.imageSmoothingEnabled = s.style?.(o.sp) !== 'pixel'; g.drawImage(ic.canvas, ic.x, ic.y, ic.s, ic.s, cx + Math.cos(a) * r - size / 2, cy + Math.sin(a) * r - size / 2, size, size); });
+    g.imageSmoothingEnabled = true;
+    if (!p.sown.length) text('sow, and your whorl wears it', cx, cy + 190, { font: `italic 400 24px ${SERIF}`, color: 'rgba(22,16,14,0.6)', align: 'center' });
+    text(s.mine ? `Your Hand: ${s.mine.handbits.length} places` : 'No Hand of your own yet', 60, 620, { font: `400 24px ${SANS}`, color: 'rgba(22,16,14,0.7)', max: 320 });
+    if (s.mine) { button('places', 60, 646, 320, 62, 'Name my places'); button('postcard', 60, 722, 320, 62, 'Postcard'); button('export', 60, 798, 320, 62, 'Export my data'); }
+    p.rows.forEach(([label, v], i) => { const y = 268 + i * 45; text(label, 430, y, { font: `400 25px ${SANS}`, color: 'rgba(22,16,14,0.7)', max: 280 }); text(String(v), 800, y, { font: `700 27px ${SANS}`, align: 'right' }); });
+    const list = (title, rows, y, none) => { text(title, 850, y, { font: `700 20px ${SANS}`, color: SEAL, max: 320 }); if (!rows.length) text(none, 850, y + 36, { font: `italic 400 22px ${SERIF}`, color: 'rgba(22,16,14,0.55)', max: 320 }); rows.forEach(([name, n], i) => { text(name, 850, y + 38 + i * 34, { font: `400 25px ${SERIF}`, max: 250 }); text(`×${n}`, 1160, y + 38 + i * 34, { font: `700 22px ${SANS}`, align: 'right' }); }); };
+    list('FRIENDS · WHORLS YOU BRAIDED WITH', p.friends, 262, 'meet a player: your whorls braid');
+    list('RIVALS · THEY WON YOUR GNOMES', p.rivals, 490, 'nobody has, yet');
+    list('GNOMES · THEY RODE WITH YOU', p.gnomes, 680, 'fly low over a mushroom');
   }
   function myHand(s) {
     const m = s.mine;
@@ -190,6 +215,7 @@ export function createAtlas() {
     close() { mesh.visible = false; drag = null; },
     paint,
     setTab(t) { if (TABS.includes(t)) tab = t; },
+    places() { places = !places; }, // on the Me tab: your profile, or the list of your Hand's places
     fit(hands) { view = mapView(hands, MAP.w, MAP.h); },
     toggle(layer) { layers[layer] = !layers[layer]; },
     // a press: on the map it may become a drag (pan) or a tap; elsewhere it is the region's action

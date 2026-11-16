@@ -9,7 +9,7 @@ import { createGnomeRenderer } from './render.js';
 
 const SIZE = 20, RIDER = 17, CAP = 27; // metres per gnome unit at home and on a whorl (big enough to see on another player's whorl); how high a mushroom's cap sits
 
-export function createGnomes({ scene, bloom, net, say, stamp, groundAt, creature, others, fauna, online, makeLabel, hands, onRiders, ridersOf, quest = null }) { // quest: a kind to ask for (?quest=, for the film and the checks)
+export function createGnomes({ scene, bloom, net, say, stamp, groundAt, creature, others, fauna, online, makeLabel, hands, onRiders, ridersOf, quest = null, onMet = null, onRival = null }) { // quest: a kind to ask for (?quest=, for the film and the checks)
   const draw = createGnomeRenderer();
   scene.add(draw.group);
   const records = new Map(); // gnome id -> { tag, owner, loyalty }: whose team it is on (wild gnomes have none)
@@ -38,7 +38,7 @@ export function createGnomes({ scene, bloom, net, say, stamp, groundAt, creature
   }
   const onGnome = (row) => { // the room: a gnome changed teams somewhere
     const [id, tag, owner, loyalty, event] = row, was = records.get(id), lost = lostGnome(was, me.tag, row), won = gainedGnome(was, me.tag, row);
-    if (lost) { me.team = Math.max(0, me.team - 1); said.delete(id); say(lost, 6); } // one of yours went
+    if (lost) { me.team = Math.max(0, me.team - 1); said.delete(id); say(lost, 6); if (event === 'converted' && owner) onRival?.(owner); } // one of yours went
     if (won) { // one came over, and the map's own answer has not said so (yet): count it
       me.team++; if (won === 'converted') me.converted++;
       const gn = riders.find((r) => r.gn.id === id)?.gn ?? homes.find((h) => h.gn.id === id)?.gn;
@@ -94,6 +94,7 @@ export function createGnomes({ scene, bloom, net, say, stamp, groundAt, creature
         const day = Math.floor(now / 86400000), world = { from: { x: h.x, z: h.z }, hands: hands(), homes: homes.map((q) => ({ id: q.gn.id, name: q.gn.name, x: q.x, z: q.z })), kind: quest };
         riders.push({ gn, quest: questFor(gn, day, world), since: now, doneAt: 0, grabbed: t });
         away.add(id);
+        onMet?.(gn.name);
         ctx.burst?.();
         say(`${gn.name} (${whose(id)}) grabbed on: “${shout('grab', gn.seed, m.n++)}” ${riders.at(-1).quest.text}`, 9);
         continue;

@@ -2,7 +2,7 @@
 // Where things sit on the atlas card (1200 x 900 canvas pixels) and what a tap there means. Pure.
 export const W = 1200, H = 900;
 export const TABS = ['world', 'hand', 'garden', 'community', 'journal', 'how'];
-export const TAB_LABELS = { world: 'World', hand: 'My Hand', garden: 'Garden', community: 'Community', journal: 'Journal', how: 'How' };
+export const TAB_LABELS = { world: 'World', hand: 'Me', garden: 'Garden', community: 'Community', journal: 'Journal', how: 'How' };
 export const TAB = { x: 24, step: 178, w: 168 }; // six tabs in a row, left of the close button
 export const MAP = { x: 24, y: 104, w: 1152, h: 772 }; // the map area on the World tab
 export const LAYERS = ['rivers', 'owners', 'classes', 'players', 'charted', 'watersheds', 'bloom'];

@@ -44,6 +44,12 @@ On top of the flying, everyone gardens the desert together.
   to tail; what you sowed most has more and larger flowers; a day's plantings share strands. Others see it too.
 - **Sandstorm:** every ten minutes a turning column of dust crosses the world for four. Groves under its path are parched until
   someone waters them. It shows on the compass, the radar and the atlas, and is the same storm for every player.
+- **Tutorial:** a new player is taught one move at a time (turn, climb and dive, sow, choose a seed, scatter, fetch
+  water, pour, hyper sow, the atlas). Each step stays on a card until it is done, and the card says what is missing
+  (not over a Hand, too high). Esc skips it; the How tab replays it. `?notutorial` leaves it out.
+- **Me:** the atlas's Me tab is your profile: your standing, your whorl as you have sown it, your numbers, the
+  players your whorl braided with, the rivals who won your gnomes, the gnomes that rode with you, your Hand. A
+  returning player comes in on it.
 - **How to play:** the atlas's How tab lists every move both ways, hand movements and keys. In the headset every hint
   on screen speaks of hands; no key is ever named there.
 - **Atlas:** the new Garden tab is your herbarium (every species by kind, found ones in colour, tap one you carry to

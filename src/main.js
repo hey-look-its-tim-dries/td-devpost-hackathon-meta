@@ -34,6 +34,7 @@ import { createAtlas } from './atlas/card.js';
 import { createPalmUp, createPush, createFling, createPull } from './gesture.js';
 import { firstHint } from './garden/hints.js';
 import { createTutorial, coach } from './garden/tutorial.js';
+import { createPassport, profile } from './garden/passport.js';
 import { createTutorialCard } from './tutorialcard.js';
 import { createPins, address } from './world/pins.js';
 import { placeName } from './world/names.js';
@@ -354,7 +355,7 @@ const gnomes = createGnomes({
   scene, bloom, net, groundAt, creature, others, fauna, makeLabel: createLabel,
   say: (text, s) => panel.say(text, s), stamp: (a, b, k) => stamp(a, b, k), online: () => online,
   hands: () => hands.filter((h) => h.pose).map((h) => { const [x, z] = toWorld(h.pose, 0, 230); return { name: h.name, x, z }; }),
-  onRiders: (on) => { myGnomes = on; sendDeco(bloom.pouch.signature()); }, ridersOf: (id) => theirGnomes.get(id) ?? NO_GNOMES, quest: params.get('quest'),
+  onRiders: (on) => { myGnomes = on; sendDeco(bloom.pouch.signature()); }, ridersOf: (id) => theirGnomes.get(id) ?? NO_GNOMES, quest: params.get('quest'), onMet: (name) => passport.note('gnome', name), onRival: (name) => passport.note('rival', name),
 });
 const gnomeCtx = { pos: glide.pos, yaw: 0, speed: 0, alt: 0, flying: false, wet: false, place: null, eye: eyeW, burst: () => creature.burst() };
 addEventListener('keydown', (e) => { if ((e.key === 'g' || e.key === 'G') && mode === 'fly' && started && !e.repeat) { gnomeCtx.place = place; gnomes.act('drop', gnomeCtx); } });
@@ -446,6 +447,7 @@ const card = createGestureCard(); // what your hand is commanding, fixed at the 
 camera.add(card.mesh);
 // the tutorial (src/garden/tutorial.js): for whoever has not done it, one move at a time on a card until it is done.
 // ?notutorial: never; ?atelier (the hand card at once: the checks) leaves it out too
+const passport = createPassport(storage); // who you met and what you did (src/garden/passport.js): the Me page of the atlas
 const tutorial = createTutorial({ done: params.has('notutorial') || params.has('atelier') || storage?.getItem('pwc.tutorial.v1') === '1' });
 const lesson = createTutorialCard(), acts = { next: 0, scatter: 0, pour: 0, hyper: 0 }; // acts: what you asked the garden for, counted for the tutorial
 const endTutorial = (done) => { tutorial.stop(); try { storage?.setItem('pwc.tutorial.v1', '1'); } catch {} if (done) stamp('You can fly and garden', 'mushrooms and gnomes are yours to find', 'TUTORIAL DONE'); else panel.say('Tutorial skipped: the atlas has a How page', 4); };
@@ -486,7 +488,8 @@ function atlasState() {
   others.each((c, id, pos) => list.push({ pos, name: others.nameOf(id) }));
   const mineHand = mine && hands.find((h) => h.id === mine.id);
   return { hands, chart, me: { pos: glide.pos, yaw: glide.yaw }, others: list, pins: pins.list(), selected: selected?.id ?? null, inspect: selected && inspectOf(selected), mine: mine && { name: mine.name, handbits: mineHand?.data.handbits ?? [] }, names: mine ? placeNames[mine.id] ?? {} : {}, pickName,
-    garden: bloom.herbarium, blooms: bloom.allPlots(), storm: bloom.storm(), byHand: renderer.xr.isPresenting, tutorial: tutorial.active, muted: music.muted,
+    garden: bloom.herbarium, blooms: bloom.allPlots(), storm: bloom.storm(), byHand: renderer.xr.isPresenting, tutorial: tutorial.active, muted: music.muted, icon: bloom.flora.icon, style: bloom.flora.styleOf,
+    profile: profile({ pass: passport.data, species: bloom.species, found: bloom.pouch.found, level: bloom.pouch.level, xp: bloom.pouch.xp, planted: bloom.pouch.dump().planted ?? {}, seeds: bloom.pouch.total, charted: hands.reduce((n, h) => n + chart.count(h.id), 0), sealed: chart.sealedCount(), ...(({ team, converted }) => ({ team, converted }))(gnomes.hud()), hand: mine && { name: mine.name } }),
     journal: events && events.map((e) => ({ when: when(e.at), text: journalText(e) })).filter((e) => e.text),
     timeline: timelineOf(), until: timelineAt,
     waters: atlas.layers.watersheds ? Object.fromEntries(Object.entries(sheds).map(([id, n]) => [id, SHED_COLOURS[n % SHED_COLOURS.length]])) : null, community: communityOn ? { paint: (g, regions, tools) => community.paintTab(g, regions, tools) } : null };
@@ -540,6 +543,7 @@ function atlasDo(a) {
     });
   }
   else if (a.type === 'postcard') postcard();
+  else if (a.type === 'places') atlas.places();
   else if (a.type === 'tutorial') { if (tutorial.active) endTutorial(false); else tutorial.start(); closeAtlas(); }
   else if (a.type === 'music') music.toggle();
   else if (a.type === 'export') exportMine();
@@ -875,6 +879,7 @@ function frame() {
   gnomeCtx.flying = started && mode === 'fly'; gnomeCtx.place = place; gnomeCtx.wet = !!place && !place.handbit && gnomeCtx.alt < 140;
   gnomes.frame(dt, gnomeCtx);
   // the tutorial: fed with what you are doing; the hand card waits until it is over
+  passport.sync(bloom.counts);
   if (tutorial.active && started && (mode === 'fly' || mode === 'atlas')) {
     const r = tutorial.update({ turn: steer.turn, climb: steer.climb, sown: bloom.counts.sown, water: bloom.pouch.water, atlas: mode === 'atlas', acts }, dt);
     if (r) creature.burst();
@@ -903,6 +908,7 @@ function frame() {
   braidList.length = braidN;
   const b = started && mode === 'fly' ? braid.update(dt, glide.pos, braidList) : null;
   if (b && b.id !== braiding?.id) panel.say(`You met ${others.nameOf(b.id) ?? 'a traveller'}`, 4);
+  if (b && b.id !== braiding?.id) passport.note('friend', others.nameOf(b.id) ?? 'A traveller'); // a greeting: one more for your passport
   braiding = b;
   const other = b && braidList.find((o) => o.id === b.id);
   creature.pull(other && !CALM ? other.pos : null, b ? b.k * 0.6 : 0);
@@ -1028,6 +1034,8 @@ function start() {
   banner.classList.add('hidden');
   panel.say('Palm Whorl Cities', 4);
   // fly and garden first; the invitation to lay a Hand of your own comes once you have planted a little (or after a while)
+  // someone who has played before comes in on their own page: the atlas, open at Me (?play, the checks' way in, skips it)
+  if (!params.has('play') && !tutorial.active && (mine || bloom.pouch.xp > 0)) setTimeout(() => { if (mode === 'fly') { atlas.setTab('hand'); openAtlas(false); } }, 1800);
   if (!tutorial.active) setTimeout(() => panel.say(firstHint(renderer.xr.isPresenting), 8), 4200); // (the tutorial teaches the rest)
   invite = mine || params.has('noatelier') ? null : { at: t + (params.has('atelier') ? 4.2 : 90), planted: bloom.pouch.plantedTotal + 6 }; // ?atelier: at once (the tests)
 }
