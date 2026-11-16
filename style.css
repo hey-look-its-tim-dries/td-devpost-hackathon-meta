@@ -227,3 +227,6 @@ button:focus-visible {
 /* faces: the pictures of signed-in players */
 .lobby img.face { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; vertical-align: middle; margin-right: 7px; border: 1px solid rgba(246, 232, 216, 0.5); }
 .lobby .me img.face { width: 46px; height: 46px; float: left; margin-right: 12px; }
+
+/* the menus' text a tenth larger (the title, the lobby, the guide, the place chooser) */
+.banner-inner, .lobby header, .lobby aside, .lobby footer, .guide-inner, .places { zoom: 1.1; }

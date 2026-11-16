@@ -47,6 +47,16 @@ On top of the flying, everyone gardens the desert together.
 - **Tutorial:** a new player is taught one move at a time (turn, climb and dive, sow, choose a seed, scatter, fetch
   water, pour, hyper sow, the atlas). Each step stays on a card until it is done, and the card says what is missing
   (not over a Hand, too high). Esc skips it; the How tab replays it. `?notutorial` leaves it out.
+- **Grandfather Tuft:** an old gnome talks you through the game. He calls in with his face and his words in a window on
+  your HUD and says them aloud: every tutorial step, what each thing is the first time you meet it, what is missing when
+  you are stuck, which way the nearest Hand lies when you drift over the wilderness, and a word at the big moments.
+  His 57 lines are in `src/garden/voice.js`; `node tools/voice.mjs` makes the clips in `assets/voice` (espeak-ng and
+  ffmpeg). `?notuft` leaves him out; N mutes him with the rest.
+- **What is what:** the first time you meet each thing (a Hand, a river, a seed cloud, a mushroom, a gnome, another
+  player, the storm, the golden seed) it is explained once, and never again.
+- **Lobby and guide:** the start button opens the lobby (the world right now: numbers, a live map with the players
+  moving, who is flying and who is away, the boards, the news). "Explain this game to me" is the whole game in fifteen
+  short chapters.
 - **Me:** the atlas's Me tab is your profile: your standing, your whorl as you have sown it, your numbers, the
   players your whorl braided with, the rivals who won your gnomes, the gnomes that rode with you, your Hand. A
   returning player comes in on it.

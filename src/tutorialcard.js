@@ -7,7 +7,7 @@ import { themed, look } from './ui/themed.js';
 import { STEPS } from './garden/tutorial.js';
 
 const W = 1024, H = 300, INK = '#16100e', SEAL = '#b8442e';
-export function createTutorialCard(y = 0.125) { // y: how high in your view (the tutorial under the compass, the what-is-what notes under that)
+export function createTutorialCard(y = 0.125) { // y: how high in your view
   const canvas = Object.assign(document.createElement('canvas'), { width: W, height: H });
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;

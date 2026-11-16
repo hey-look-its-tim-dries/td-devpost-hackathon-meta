@@ -35,6 +35,9 @@ import { createPalmUp, createPush, createFling, createPull } from './gesture.js'
 import { firstHint } from './garden/hints.js';
 import { createTutorial, coach } from './garden/tutorial.js';
 import { createFirsts } from './garden/firsts.js';
+import { LINES, relDir, createSpeaker } from './garden/voice.js';
+import { createVoicePlayer } from './voiceplay.js';
+import { createGnomeComm } from './gnomecomm.js';
 import { createPassport, profile, STATUS } from './garden/passport.js';
 import { createLobby, lobbyFacts } from './lobby.js';
 import { guideHtml } from './guide.js';
@@ -222,7 +225,8 @@ const others = createOthers({ max: 60 }); // the other players in your room, as 
 // handbit of a Hand and it is sealed
 const chart = createChart(storage), CHART_ALT = 400, seal = createStamp();
 const sound = createSound({ storage }); // a breeze that swells with your speed, and a sound for everything you do (src/sound.js)
-const sfx = (name, gap) => sound.play(name, gap);
+const SAYS = { level: 'level', mushroom: 'foxfire', grab: 'grab', quest: 'quest', team: 'team', cross: 'cross', greet: 'greet', bloom: 'bloomed', golden: 'golden', storm: 'storm' }; // what Grandfather Tuft says when it happens
+const sfx = (name, gap) => { sound.play(name, gap); if (SAYS[name]) setTimeout(() => tuft(SAYS[name], 90), 900); };
 const stamp = (title, sub, kicker) => { sfx('stamp'); seal.show(title, sub, kicker); };
 let place = null; // what lies under you: { hand, handbit, index } or null
 function charting() {
@@ -321,7 +325,8 @@ const creature = createCreature({ strands: 24, points: 70, spacing: 2, radius: 1
 // the Hand that bears their name. Lay a Hand, or read your prints again, and it grows into the new shape.
 const classesOf = (hand) => { try { return hand?.prints?.length ? hand.prints.map(unpackPrint).map((p) => p.cls) : null; } catch { return null; } };
 const WORDS = { arch: 'arch', tented: 'tented arch', ulnar: 'loop', radial: 'loop', whorl: 'whorl', pocket: 'pocket loop', double: 'double loop', accidental: 'accidental' };
-const whorlFrom = (hand, tell) => { const cls = classesOf(hand); creature.style(cls); if (cls && tell) stamp('Your whorl takes its shape', cls.map((c) => WORDS[c] ?? c).join(' · '), 'FROM YOUR FINGERPRINTS'); };
+const whorlFrom = (hand, tell) => { const cls = classesOf(hand); creature.style(cls); if (cls && tell) setTimeout(() => tuft('own-hand', 1), 2500);
+  if (cls && tell) stamp('Your whorl takes its shape', cls.map((c) => WORDS[c] ?? c).join(' · '), 'FROM YOUR FINGERPRINTS'); };
 if (mine) whorlFrom(mine, false);
 setInterval(() => others.each((c, id) => { if (c.styled) return; const name = others.nameOf(id), h = name && hands.find((q) => q.name === name && q.prints); if (h) c.style(classesOf(h)); }), 2000); // other players' whorls, from their Hands
 const CHASE = { back: 190, up: 40 }; // further back than the creature is long, so all of it is in front of you
@@ -391,7 +396,7 @@ const NIGHT = { fog: C('#14052b'), ink: C('#eaffff'), streak: C('#3fd8ff'), hand
 let trip = 0, tripWas = -1, composer = null, bloomPass = null;
 // the foxfire has music (openly licensed synthwave, assets/music/CREDITS.md); the calm world stays silent. N mutes it.
 const music = createMusic({ storage, onPlay: (tr) => panel.say(`♪ ${tr.title} · ${tr.artist}${tr.licence ? ` · ${tr.licence}` : ''}`, 6) });
-addEventListener('keydown', (e) => { if ((e.key === 'n' || e.key === 'N') && mode === 'fly' && !e.repeat) { const off = music.toggle(); sound.set(off); panel.say(off ? 'Sound off' : 'Sound on', 2); } });
+addEventListener('keydown', (e) => { if ((e.key === 'n' || e.key === 'N') && mode === 'fly' && !e.repeat) { const off = music.toggle(); sound.set(off); tuftVoice.set(off); panel.say(off ? 'Sound off' : 'Sound on', 2); } });
 function foxfire(dt) {
   trip = FOX ?? bloom.foxfire.level(Date.now());
   music.update(trip, dt);
@@ -483,8 +488,20 @@ const hud = createHud();
 camera.add(hud.group);
 hud.group.add(lesson.mesh); // the tutorial's card, with the HUD: on a screen it grows with it
 // "what is what" (src/garden/firsts.js): the first time you meet each thing, a note says what it is; each once, then never again
-const firsts = createFirsts(storage, { off: params.has('notutorial') || params.has('atelier') }), noteCard = createTutorialCard(0.03), meet = { cloud: false, mushroom: false, gnome: false, at: 0 };
-hud.group.add(noteCard.mesh);
+const firsts = createFirsts(storage, { off: params.has('notutorial') || params.has('atelier') }), meet = { cloud: false, mushroom: false, gnome: false, at: 0 };
+// Grandfather Tuft, the old gnome who talks you through it (src/garden/voice.js): he calls in with his face and his
+// words in a window on your HUD and says them aloud (clips in assets/voice). One line at a time, none too often.
+const tuftVoice = createVoicePlayer(), tuftCard = createGnomeComm(), speaker = createSpeaker(), TUFT_OFF = params.has('notuft') || params.has('atelier') || params.has('notutorial');
+hud.group.add(tuftCard.mesh);
+let tuftLine = null, tuftStep = null, tuftNote = null, missFor = 0, wildFor = 0;
+function tuft(ids, again = 45, anyway = false) { // anyway: if he is busy, show the words without the voice (a note that must not be lost)
+  if (TUFT_OFF || !started) return false;
+  const list = [].concat(ids), dur = tuftVoice.length(list), ok = speaker.may(t, list, dur + 0.6, again);
+  if (!ok && !anyway) return false;
+  if (ok) tuftVoice.say(list);
+  tuftLine = { text: list.map((id) => LINES[id]).join(' '), until: t + Math.max(dur, 4) + 1.5 };
+  return ok;
+}
 const pins = createPins(storage); // up to five pinned places, on the compass
 let flyTo = null; // { x, z, label } while Fly here steers you
 const community = createCommunityArt(); // lies on the Source lake, once the map has answered
@@ -575,7 +592,7 @@ function atlasDo(a) {
   else if (a.type === 'postcard') postcard();
   else if (a.type === 'places') atlas.places();
   else if (a.type === 'tutorial') { if (tutorial.active) endTutorial(false); else tutorial.start(); closeAtlas(); }
-  else if (a.type === 'music') sound.set(music.toggle());
+  else if (a.type === 'music') { const off = music.toggle(); sound.set(off); tuftVoice.set(off); }
   else if (a.type === 'export') exportMine();
   else if (a.type === 'pin' && selected) { const hb = inspectAt?.handbit; pins.add({ handId: selected.id, code: hb?.code ?? null, ...placeOf(selected, hb), label: hb ? `${selected.name} ${hb.code}` : selected.name }); }
   else if (a.type === 'fly' && selected) { const hb = inspectAt?.handbit; flyTo = { ...placeOf(selected, hb), label: hb ? `${selected.name} ${hb.code}` : selected.name }; closeAtlas(); panel.say(`Flying to ${flyTo.label}: steer to take over`, 4); return; }
@@ -939,17 +956,24 @@ function frame() {
     let player = false;
     others.each((c, id, pos) => { if (Math.hypot(pos[0] - glide.pos[0], pos[2] - glide.pos[2]) < 2500) player = true; });
     const sand = bloom.storm(), g = bloom.hud(place);
-    noteCard.update(dt, (() => { const n = firsts.update({ onHand: !!place?.handbit, onWater: !!place && !place.handbit, cloud: meet.cloud, mushroom: meet.mushroom, gnome: meet.gnome, player, storm: !!sand && Math.hypot(sand.x - glide.pos[0], sand.z - glide.pos[2]) < 5000, gold: !!bloom.gold(), bloom: g.plot?.level ?? 0 }, dt); return n && { note: n, progress: n.progress, hands: renderer.xr.isPresenting }; })());
-  } else noteCard.update(dt, null);
+    { const n = firsts.update({ onHand: !!place?.handbit, onWater: !!place && !place.handbit, cloud: meet.cloud, mushroom: meet.mushroom, gnome: meet.gnome, player, storm: !!sand && Math.hypot(sand.x - glide.pos[0], sand.z - glide.pos[2]) < 5000, gold: !!bloom.gold(), bloom: g.plot?.level ?? 0 }, dt); if (n && n.id !== tuftNote) { tuftNote = n.id; tuft(`what-${n.id}`, 1, true); } } // each thing you meet for the first time: he says what it is
+  }
+  // lost over the wilderness for a while: he says which way the nearest Hand lies
+  wildFor = started && mode === 'fly' && !place ? wildFor + dt : 0;
+  if (wildFor > 12) { let best = null, bd = Infinity; for (const h of hands) { if (!h.pose) continue; const [x, z] = toWorld(h.pose, 0, 230), d = Math.hypot(x - glide.pos[0], z - glide.pos[2]); if (d < bd) { bd = d; best = [x, z]; } } if (best && tuft(['over-wild', 'nearest-hand', relDir(glide.pos[0], glide.pos[2], glide.yaw, best[0], best[1])], 30)) wildFor = 0; }
+  tuftCard.update(dt, tuftLine && t < tuftLine.until ? { text: tuftLine.text, talking: tuftVoice.talking } : null);
   placesEl.classList.toggle('hidden', mode !== 'merge' || renderer.xr.isPresenting); // the chooser, on a screen only
   if (tutorial.active && started && (mode === 'fly' || mode === 'atlas')) {
     const r = tutorial.update({ turn: steer.turn, climb: steer.climb, sown: bloom.counts.sown, water: bloom.pouch.water, atlas: mode === 'atlas', acts }, dt);
     if (r) { creature.burst(); sfx('step'); }
-    if (r === 'done') endTutorial(true);
+    if (r === 'done') { endTutorial(true); tuft('tut-done', 1); }
+    else if (tutorial.step && tutorial.step.id !== tuftStep && tuft(`tut-${tutorial.step.id}`, 1)) tuftStep = tutorial.step.id; // he says each step once, as soon as he is free
     if (invite) invite.at = Math.max(invite.at, t + 20);
   }
   if (tutorial.active && started && mode === 'fly') {
     const here = { onHand: !!place?.handbit, onWater: !!place && !place.handbit, alt: glide.pos[1] - groundAt(glide.pos[0], glide.pos[2]), limit: 320 }, miss = coach(tutorial.step.id, here);
+    missFor = miss ? missFor + dt : 0;
+    if (missFor > 5) tuft(/river/.test(miss) && tutorial.step.id !== 'water' ? 'need-sand' : /Too high|Lower/.test(miss) ? 'need-low' : /Hand/.test(miss) ? 'need-hand' : 'need-water', 18); // stuck for a while: he says what is missing
     lesson.update(dt, { index: tutorial.index, step: tutorial.step, progress: tutorial.progress, hands: renderer.xr.isPresenting, coach: miss, ready: !miss && ['sow', 'scatter', 'pour', 'hyper', 'water'].includes(tutorial.step.id) });
   } else lesson.update(dt, null);
   if (invite && mode === 'fly' && !tutorial.active && (t > invite.at || bloom.pouch.plantedTotal >= invite.planted)) { invite = null; openAtelier(); }
@@ -1102,7 +1126,8 @@ function start() {
   }
   document.activeElement?.blur?.(); // the start button keeps the focus otherwise, and the space bar would press it again
   started = true;
-  music.arm(); sound.arm(); // sound may only begin after a press: this is it
+  music.arm(); sound.arm(); tuftVoice.arm(); tuftVoice.set(music.muted); // sound may only begin after a press: this is it
+  setTimeout(() => tuft(mine || bloom.pouch.xp > 0 ? 'back' : 'welcome', 1), 0); // his greeting comes first; the tutorial's first line waits for it
   if (music.muted) setTimeout(() => panel.say('Sound is off: press N, or the atlas, How, Sound', 6), 1200);
   banner.classList.add('hidden');
   panel.say('Palm Whorl Cities', 4);
