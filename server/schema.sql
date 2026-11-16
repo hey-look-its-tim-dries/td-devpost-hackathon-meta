@@ -76,6 +76,7 @@ create table if not exists plant (
   at integer not null
 );
 create index if not exists plant_plot on plant (hand_id, bit);
+create index if not exists plant_by on plant (by_hash); -- the top-gardeners board counts by who planted
 
 -- profiles: a gardener's pouch by device ('dev:<token hash>') or by account ('fb:<hash of the app-scoped user id>')
 create table if not exists profile (

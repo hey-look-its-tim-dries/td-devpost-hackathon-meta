@@ -30,6 +30,7 @@ export class World extends DurableObject {
     super(ctx, env);
     this.lastByIp = new Map();
     this.cache = null; // { etag, body }
+    this.memos = new Map(); // key -> { at, v }: boards and counts every player asks for, computed once a little while, not once a call
     this.rooms = new Set();
     this.counts = new Map(); // room name -> { n, at }: how many fly there, as the Room last said
     this.pairs = new Map(); // code -> { at, dna }: the pairing relay, in memory only, ten minutes (spec 10)
@@ -82,7 +83,7 @@ export class World extends DurableObject {
       const one = url.searchParams.get('hand'), cols = 'select id, hand_id, bit, x, y, sp, stage, tended, big, hab from plant';
       const { results } = url.searchParams.has('top') ? { results: [] } : one ? await this.env.DB.prepare(`${cols} where hand_id = ? order by id`).bind(one.slice(0, 64)).all() : await this.env.DB.prepare(`${cols} order by id limit 60000`).all();
       if (one) return Response.json({ plants: results.map((r) => [r.id, r.hand_id, r.bit, r.x, r.y, r.sp, r.stage, r.tended, r.big, r.hab]) });
-      const top = await this.env.DB.prepare("select coalesce(p.name, 'A traveller') as name, count(*) as n from plant q left join player p on p.token_hash = q.by_hash group by q.by_hash order by n desc limit 5").all();
+      const top = await this.memo('top-gardeners', 20000, () => this.env.DB.prepare("select coalesce(p.name, 'A traveller') as name, count(*) as n from plant q left join player p on p.token_hash = q.by_hash group by q.by_hash order by n desc limit 5").all());
       return Response.json({ plants: results.map((r) => [r.id, r.hand_id, r.bit, r.x, r.y, r.sp, r.stage, r.tended, r.big, r.hab]), top: top.results });
     }
     const plantM = url.pathname.match(/^\/plants(?:\/(\d{1,12})(\/tend)?)?$/);
@@ -91,14 +92,14 @@ export class World extends DurableObject {
     // gnomes: whose team each is on (a gnome is the id of the mushroom grove it lives in), and who converted most
     if (url.pathname === '/gnomes' && req.method === 'GET') {
       const { results } = await this.env.DB.prepare("select g.id, g.owner_hash, coalesce(p.name, 'A traveller') as name, g.loyalty from gnome g left join player p on p.token_hash = g.owner_hash limit 20000").all();
-      const top = await this.env.DB.prepare("select coalesce(p.name, 'A traveller') as name, s.converted as n from gnome_score s left join player p on p.token_hash = s.token_hash where s.converted > 0 order by s.converted desc limit 5").all();
+      const top = await this.memo('top-converters', 10000, () => this.env.DB.prepare("select coalesce(p.name, 'A traveller') as name, s.converted as n from gnome_score s left join player p on p.token_hash = s.token_hash where s.converted > 0 order by s.converted desc limit 5").all());
       return Response.json({ gnomes: results.map((r) => [r.id, r.owner_hash.slice(0, 12), r.name, r.loyalty]), top: top.results });
     }
     const gnomeM = url.pathname.match(/^\/gnomes\/(me|\d{1,12})(?:\/(quest|annoy))?$/);
     if (gnomeM && req.method === 'POST') { const out = this.chain.then(() => this.gnome(gnomeM[1], gnomeM[2], req)); this.chain = out.catch(() => {}); return out; }
     if ((url.pathname.startsWith('/profile') || url.pathname === '/login/facebook' || url.pathname === '/login/google') && req.method === 'POST') return this.profile(url.pathname, req);
     if (url.pathname === '/avatars' && req.method === 'GET') { // the pictures of signed-in players who have a name (a Hand), by that name
-      const { results } = await this.env.DB.prepare('select p.name as name, a.url as url from avatar a join player p on p.token_hash = a.token_hash where p.name is not null order by a.at desc limit 500').all();
+      const { results } = await this.memo('avatars', 30000, () => this.env.DB.prepare('select p.name as name, a.url as url from avatar a join player p on p.token_hash = a.token_hash where p.name is not null order by a.at desc limit 500').all());
       return Response.json({ avatars: results.map((r) => [r.name, r.url]) });
     }
     if (url.pathname === '/stats') {
@@ -106,7 +107,7 @@ export class World extends DurableObject {
       let flying = 0;
       for (const [k, c] of this.counts) { if (now - c.at > 30000) this.counts.delete(k); else flying += c.n; }
       const hands = this.cache ? this.cache.n : (await this.env.DB.prepare('select count(*) as n from hand where placed_at is not null').first()).n;
-      const plants = (await this.env.DB.prepare('select count(*) as n from plant').first()).n;
+      const plants = (await this.memo('plant-count', 10000, () => this.env.DB.prepare('select count(*) as n from plant').first())).n;
       return Response.json({ hands, flying, plants });
     }
     if (url.pathname === '/rooms/count' && req.method === 'POST') {
@@ -322,6 +323,16 @@ export class World extends DurableObject {
     if (next.event === 'converted') { try { await this.event('gnome', null, { name }); } catch (e) { console.error('journal', e); } }
     this.ctx.waitUntil(this.tell({ gnome: [id, next.owner ? next.owner.slice(0, 12) : null, name, next.loyalty, next.event] }));
     return Response.json({ event: next.event, tag: next.owner ? next.owner.slice(0, 12) : null, loyalty: next.loyalty, converted: await score(), team: await team() });
+  }
+
+  // the same answer for `ttl` ms: the leaderboards, the avatars and the planted count are asked for by every player
+  // every couple of minutes, and each is a scan of a table that only grows
+  async memo(key, ttl, fn) {
+    const hit = this.memos.get(key), now = Date.now();
+    if (hit && now - hit.at < ttl) return hit.v;
+    const v = await fn();
+    this.memos.set(key, { at: now, v });
+    return v;
   }
 
   // ---- profiles: a gardener's pouch (seeds, herbarium, sowing log) kept on the map ----
