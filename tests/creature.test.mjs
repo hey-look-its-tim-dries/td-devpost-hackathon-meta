@@ -122,3 +122,29 @@ test('the whorl splits in two at full speed and merges again; a burst flares it'
   fly(60, 70);
   assert.ok(c.flare < 0.05);
 });
+
+import { STYLES } from '../src/creature.js';
+const flown = (c, seconds = 3) => { for (let i = 0; i < seconds * 30; i++) c.update(1 / 30, [0, 300, -i * 6], { speed: 180 }); return Array.from(c.strand(1).xyz.slice(0, 60)).map((v) => Math.round(v * 10)); };
+test('a whorl takes its shape from its player\'s five fingerprints: every class its own strand, no two sets alike', () => {
+  for (const cls of ['arch', 'tented', 'ulnar', 'radial', 'whorl', 'pocket', 'double']) assert.ok(STYLES[cls], cls);
+  const plain = createCreature(), a = createCreature(), b = createCreature(), a2 = createCreature();
+  a.style(['whorl', 'ulnar', 'ulnar', 'pocket', 'arch']); a2.style(['whorl', 'ulnar', 'ulnar', 'pocket', 'arch']); b.style(['arch', 'tented', 'radial', 'double', 'whorl']);
+  const P = flown(plain), A = flown(a), B = flown(b);
+  assert.notDeepEqual(A, P, 'prints change the shape');
+  assert.notDeepEqual(A, B, 'other prints, another shape');
+  assert.deepEqual(flown(a2), A, 'the same prints, the same whorl, on every screen');
+  assert.ok([...A, ...B].every(Number.isFinite));
+  assert.deepEqual(a.styled, ['whorl', 'ulnar', 'ulnar', 'pocket', 'arch']);
+});
+test('a whorl can change: new prints are grown into, not snapped to; unknown or no prints leave the plain whorl', () => {
+  const c = createCreature(), plain = createCreature();
+  flown(c, 1); flown(plain, 1);
+  c.style(['whorl', 'whorl', 'whorl', 'whorl', 'whorl']);
+  c.update(1 / 30, [0, 300, -186], { speed: 180 }); plain.update(1 / 30, [0, 300, -186], { speed: 180 });
+  const gap = () => { const x = Array.from(c.strand(1).xyz.slice(30, 60)), y = Array.from(plain.strand(1).xyz.slice(30, 60)); return Math.max(...x.map((v, i) => Math.abs(v - y[i]))); };
+  const just = gap();
+  for (let i = 0; i < 120; i++) { c.update(1 / 30, [0, 300, -192 - i * 6], { speed: 180 }); plain.update(1 / 30, [0, 300, -192 - i * 6], { speed: 180 }); }
+  assert.ok(just < 0.35 * gap(), `a thirtieth of a second in it has barely begun (${just.toFixed(1)} m of ${gap().toFixed(1)} m)`);
+  const q = createCreature(); q.style(['nonsense', null]); q.style(null);
+  assert.deepEqual(flown(q), flown(createCreature()));
+});

@@ -20,9 +20,10 @@ test('every action has a sound of its own: notes you can hear, short, never the 
 });
 test('the breeze: a whisper at a sower\'s pace, soft at cruise, a rush flat out, and brighter the faster', () => {
   const slow = breeze(85), cruise = breeze(340), fast = breeze(1100);
-  assert.ok(slow.gain > 0 && slow.gain < 0.06);
-  assert.ok(cruise.gain > slow.gain && cruise.gain < 0.2);
-  assert.ok(fast.gain > 0.3 && fast.gain <= 0.4);
+  assert.ok(slow.gain > 0 && slow.gain < 0.03);
+  assert.ok(cruise.gain > slow.gain && cruise.gain < 0.07);
+  assert.ok(fast.gain > 0.1 && fast.gain <= 0.13);
+  assert.ok(fast.hz <= 900, 'low: wind, not hiss');
   assert.ok(slow.hz < cruise.hz && cruise.hz < fast.hz);
   assert.deepEqual(breeze(5000), breeze(1100), 'never louder than flat out');
 });

@@ -147,6 +147,7 @@ export function createAtlas() {
     p.sown.forEach((o, i) => { const ic = s.icon?.(o.sp); if (!ic) return; const a = i * 2.39996, r = 30 + 27 * Math.sqrt(i), size = 46 + 52 * Math.sqrt(o.n / most); g.imageSmoothingEnabled = s.style?.(o.sp) !== 'pixel'; g.drawImage(ic.canvas, ic.x, ic.y, ic.s, ic.s, cx + Math.cos(a) * r - size / 2, cy + Math.sin(a) * r - size / 2, size, size); });
     g.imageSmoothingEnabled = true;
     if (!p.sown.length) text('sow, and your whorl wears it', cx, cy + 190, { font: `italic 400 24px ${SERIF}`, color: 'rgba(22,16,14,0.6)', align: 'center' });
+    text(s.whorl ? `Your whorl: ${s.whorl}` : 'A plain whorl: lay your Hand and it takes its shape from your fingerprints', 60, 590, { font: `italic 400 21px ${SERIF}`, color: 'rgba(22,16,14,0.7)', max: 340 });
     text(s.mine ? `Your Hand: ${s.mine.handbits.length} places` : 'No Hand of your own yet', 60, 620, { font: `400 24px ${SANS}`, color: 'rgba(22,16,14,0.7)', max: 320 });
     if (s.mine) { button('places', 60, 646, 320, 62, 'Name my places'); button('postcard', 60, 722, 320, 62, 'Postcard'); button('export', 60, 798, 320, 62, 'Export my data'); }
     p.rows.forEach(([label, v], i) => { const y = 268 + i * 45; text(label, 430, y, { font: `400 25px ${SANS}`, color: 'rgba(22,16,14,0.7)', max: 280 }); text(String(v), 800, y, { font: `700 27px ${SANS}`, align: 'right' }); });

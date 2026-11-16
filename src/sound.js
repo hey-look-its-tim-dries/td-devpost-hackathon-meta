@@ -42,7 +42,7 @@ export const recipe = (name, k = 0) => SOUNDS[name]?.(k) ?? [];
 // the breeze at this speed (m/s): how loud (0..1) and how bright (the filter's Hz). Soft at a sower's pace, a rush flat out
 export function breeze(speed) {
   const k = Math.max(0, Math.min(1, (speed - 60) / 1040));
-  return { gain: 0.035 + 0.3 * k ** 0.8, hz: 280 + 2600 * k };
+  return { gain: 0.012 + 0.11 * k ** 0.8, hz: 150 + 750 * k }; // low and soft: wind, not hiss
 }
 
 export function createSound({ storage = null } = {}) {
@@ -59,9 +59,9 @@ export function createSound({ storage = null } = {}) {
     out.connect(echo); echo.connect(back); back.connect(echo); echo.connect(wet); wet.connect(ctx.destination);
     const buf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate), d = buf.getChannelData(0); // the breeze: two seconds of noise, round and round
     let b = 0;
-    for (let i = 0; i < d.length; i++) { b = 0.97 * b + 0.03 * (Math.random() * 2 - 1); d[i] = b * 6; }
+    for (let i = 0; i < d.length; i++) { b = 0.985 * b + 0.015 * (Math.random() * 2 - 1); d[i] = b * 9; } // brown noise: the low rush of air
     const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
-    windFilter = ctx.createBiquadFilter(); windFilter.type = 'lowpass'; windFilter.frequency.value = 300; windFilter.Q.value = 0.6;
+    windFilter = ctx.createBiquadFilter(); windFilter.type = 'lowpass'; windFilter.frequency.value = 200; windFilter.Q.value = 0.3;
     windGain = ctx.createGain(); windGain.gain.value = 0;
     src.connect(windFilter); windFilter.connect(windGain); windGain.connect(ctx.destination);
     src.start();
@@ -75,7 +75,8 @@ export function createSound({ storage = null } = {}) {
       if (!ctx || !windGain) return;
       const w = breeze(speed), want = muted ? 0 : quiet ? 0.02 : w.gain;
       level += (want - level) * Math.min(1, dt * 2.5);
-      windGain.gain.value = level;
+      const gust = 1 + 0.35 * Math.sin(ctx.currentTime * 0.9) * Math.sin(ctx.currentTime * 0.23 + 1) + 0.15 * Math.sin(ctx.currentTime * 2.3); // it comes and goes in gusts
+      windGain.gain.value = level * gust;
       windFilter.frequency.value += (w.hz - windFilter.frequency.value) * Math.min(1, dt * 2.5);
     },
     // a sound by name; `gap` seconds at least between two of the same (a held key must not machine-gun)

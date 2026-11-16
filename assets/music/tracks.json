@@ -31,7 +31,7 @@
     "title": "Future Travel",
     "artist": "Zodik",
     "licence": "CC-BY 3.0",
-    "seconds": 170,
+    "seconds": 188,
     "bpm": 93,
     "startAt": 0
   },
@@ -40,8 +40,98 @@
     "title": "Midnight Drive",
     "artist": "congusbongus",
     "licence": "CC0",
-    "seconds": 176,
+    "seconds": 204,
     "bpm": 160,
     "startAt": 26
+  },
+  {
+    "file": "assets/music/touch-the-sky.ogg",
+    "title": "Touch The Sky",
+    "artist": "Zodik",
+    "licence": "CC-BY 3.0",
+    "seconds": 163,
+    "bpm": 100,
+    "startAt": 9
+  },
+  {
+    "file": "assets/music/neon-owl.ogg",
+    "title": "Neon Owl",
+    "artist": "Zodik",
+    "licence": "CC-BY 3.0",
+    "seconds": 127,
+    "bpm": 128,
+    "startAt": 14
+  },
+  {
+    "file": "assets/music/cyborg-destiny.ogg",
+    "title": "Cyborg Destiny",
+    "artist": "Zodik",
+    "licence": "CC-BY 3.0",
+    "seconds": 276,
+    "bpm": 100,
+    "startAt": 19
+  },
+  {
+    "file": "assets/music/path-zion.ogg",
+    "title": "Path Zion",
+    "artist": "Zodik",
+    "licence": "CC-BY 3.0",
+    "seconds": 183,
+    "bpm": 160,
+    "startAt": 23
+  },
+  {
+    "file": "assets/music/mist-city.ogg",
+    "title": "Mist City",
+    "artist": "Section7",
+    "licence": "CC-BY 4.0",
+    "seconds": 175,
+    "bpm": 130,
+    "startAt": 14
+  },
+  {
+    "file": "assets/music/retroracing-nightlife.mp3",
+    "title": "Retroracing Nightlife",
+    "artist": "Bogart VGM",
+    "licence": "CC-BY 4.0",
+    "seconds": 162,
+    "bpm": 136,
+    "startAt": 6
+  },
+  {
+    "file": "assets/music/one-more-round.mp3",
+    "title": "Retroracing One More Round",
+    "artist": "Bogart VGM",
+    "licence": "CC-BY 4.0",
+    "seconds": 129,
+    "bpm": 112,
+    "startAt": 17
+  },
+  {
+    "file": "assets/music/vice-police.mp3",
+    "title": "Vice Police",
+    "artist": "Tausdei",
+    "licence": "CC-BY 3.0",
+    "seconds": 156,
+    "bpm": 100,
+    "startAt": 0
+  },
+  {
+    "file": "assets/music/voltaic.mp3",
+    "title": "Voltaic",
+    "artist": "Kevin MacLeod",
+    "licence": "CC-BY 4.0",
+    "seconds": 180,
+    "bpm": 120,
+    "startAt": 16
+  },
+  {
+    "file": "assets/music/space-city.ogg",
+    "title": "Space City",
+    "artist": "MintoDog",
+    "licence": "CC0",
+    "seconds": 117,
+    "bpm": 115,
+    "startAt": 0
   }
 ]

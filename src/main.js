@@ -313,6 +313,13 @@ const glide = createGlide({ pos: params.get('at')?.split(',').map(Number) ?? [0,
 const rush = () => Math.max(0, Math.min(1, (glide.speed - CRUISE) / (TERMINAL - CRUISE))); // 0 level .. 1 flat out // ?at=x,y,z to start elsewhere
 // you: the Whorl, ink strands winding round your own flight path; the camera chases it
 const creature = createCreature({ strands: 24, points: 70, spacing: 2, radius: 13 }); // five strands young, all 24 as a master gardener
+// Your whorl is shaped by your own five fingerprints (src/creature.js STYLES), and so is every other player's, from
+// the Hand that bears their name. Lay a Hand, or read your prints again, and it grows into the new shape.
+const classesOf = (hand) => { try { return hand?.prints?.length ? hand.prints.map(unpackPrint).map((p) => p.cls) : null; } catch { return null; } };
+const WORDS = { arch: 'arch', tented: 'tented arch', ulnar: 'loop', radial: 'loop', whorl: 'whorl', pocket: 'pocket loop', double: 'double loop', accidental: 'accidental' };
+const whorlFrom = (hand, tell) => { const cls = classesOf(hand); creature.style(cls); if (cls && tell) stamp('Your whorl takes its shape', cls.map((c) => WORDS[c] ?? c).join(' · '), 'FROM YOUR FINGERPRINTS'); };
+if (mine) whorlFrom(mine, false);
+setInterval(() => others.each((c, id) => { if (c.styled) return; const name = others.nameOf(id), h = name && hands.find((q) => q.name === name && q.prints); if (h) c.style(classesOf(h)); }), 2000); // other players' whorls, from their Hands
 const CHASE = { back: 190, up: 40 }; // further back than the creature is long, so all of it is in front of you
 const chase = { pos: new THREE.Vector3(glide.pos[0], glide.pos[1] + CHASE.up, glide.pos[2] + CHASE.back), yaw: glide.yaw };
 const ink = createInk(MAX_LAYERS * 5 * (LINE.points + 1) + creature.strands * 71 + 60 * 5 * 41, { width: 1.1, color: '#16100e' }); // every Hand's five, you, and up to 60 others
@@ -493,7 +500,7 @@ function atlasState() {
   others.each((c, id, pos) => list.push({ pos, name: others.nameOf(id) }));
   const mineHand = mine && hands.find((h) => h.id === mine.id);
   return { hands, chart, me: { pos: glide.pos, yaw: glide.yaw }, others: list, pins: pins.list(), selected: selected?.id ?? null, inspect: selected && inspectOf(selected), mine: mine && { name: mine.name, handbits: mineHand?.data.handbits ?? [] }, names: mine ? placeNames[mine.id] ?? {} : {}, pickName,
-    garden: bloom.herbarium, blooms: bloom.allPlots(), storm: bloom.storm(), byHand: renderer.xr.isPresenting, tutorial: tutorial.active, muted: music.muted, icon: bloom.flora.icon, style: bloom.flora.styleOf,
+    garden: bloom.herbarium, blooms: bloom.allPlots(), storm: bloom.storm(), byHand: renderer.xr.isPresenting, tutorial: tutorial.active, muted: music.muted, icon: bloom.flora.icon, style: bloom.flora.styleOf, whorl: creature.styled?.map((c) => WORDS[c] ?? c).join(' · ') ?? null,
     profile: profile({ pass: passport.data, species: bloom.species, found: bloom.pouch.found, level: bloom.pouch.level, xp: bloom.pouch.xp, planted: bloom.pouch.dump().planted ?? {}, seeds: bloom.pouch.total, charted: hands.reduce((n, h) => n + chart.count(h.id), 0), sealed: chart.sealedCount(), ...(({ team, converted }) => ({ team, converted }))(gnomes.hud()), hand: mine && { name: mine.name } }),
     journal: events && events.map((e) => ({ when: when(e.at), text: journalText(e) })).filter((e) => e.text),
     timeline: timelineOf(), until: timelineAt,
@@ -764,6 +771,7 @@ async function choose(i) { // a ghost chosen once is picked, chosen again is lai
   rising = { id: mine.id, t: 0 };
   mode = 'rise';
   bake(mine);
+  whorlFrom(mine, true);
   panel.say(r.error ? `${mine.name} is laid here for now: the shared map will get it later` : fit.rivers ? `${mine.name} joins the world · ${fit.rivers} river${fit.rivers > 1 ? 's' : ''} join` : `${mine.name} joins the world`, 7);
 }
 // the ray from the mouse, or from your eyes along your gaze (world space)
@@ -1037,6 +1045,7 @@ function start() {
   document.activeElement?.blur?.(); // the start button keeps the focus otherwise, and the space bar would press it again
   started = true;
   music.arm(); sound.arm(); // sound may only begin after a press: this is it
+  if (music.muted) setTimeout(() => panel.say('Sound is off: press N, or the atlas, How, Sound', 6), 1200);
   banner.classList.add('hidden');
   panel.say('Palm Whorl Cities', 4);
   // fly and garden first; the invitation to lay a Hand of your own comes once you have planted a little (or after a while)

@@ -7,16 +7,32 @@
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
 const clamp1 = (v) => Math.max(-1, Math.min(1, v));
 
+// What each fingerprint class gives the strands of its finger (thumb to little finger, strand k takes finger k % 5):
+// spin: how tightly, and which way, it winds; reach: how far out; side: how far it leans to one side of the spine;
+// peak: a swelling a third of the way down. Plain (no prints, or a class nobody knows): { 1, 1, 0, 0 }.
+export const STYLES = {
+  arch: { spin: 0.35, reach: 0.85, side: 0, peak: 0 }, // long open waves
+  tented: { spin: 0.5, reach: 0.9, side: 0, peak: 1 }, // a tent: one sharp swelling
+  ulnar: { spin: 0.9, reach: 1, side: -0.8, peak: 0 }, // a loop: swept to one side
+  radial: { spin: 0.9, reach: 1, side: 0.8, peak: 0 }, // a loop the other way
+  whorl: { spin: 2, reach: 1.05, side: 0, peak: 0 }, // a tight spiral
+  pocket: { spin: 1.5, reach: 0.7, side: 0.3, peak: 0.5 }, // a small spiral in a loop
+  double: { spin: -1.4, reach: 1.1, side: 0, peak: 0 }, // two spirals: this strand winds against the others
+  accidental: { spin: 1.2, reach: 0.9, side: -0.3, peak: 0.7 },
+};
+const PLAIN = { spin: 1, reach: 1, side: 0, peak: 0 };
+
 export function createCreature({ strands = 5, points = 40, spacing = 5, radius = 18 } = {}) {
   const trail = new Float32Array(points * 3), spine = new Float32Array((points + 1) * 3);
   const lines = Array.from({ length: strands }, () => new Float32Array((points + 1) * 3));
   const shape = { spread: 1, fan: 0, twist: 1.2, lean: 0, split: 0, size: 1 }; // eased towards what the flying asks for
+  let styled = null; // the print classes it is shaped by
   let growth = 0, flare = 0; // how far the whorl has grown (0 young .. 1 full), and the flare of a burst
   // each strand its own character: how far out it winds, how fast it twists, how heavy its line is
   const golden = 0.618034;
   const kind = Array.from({ length: strands }, (_, k) => {
     const h = (k * golden) % 1, bold = k % 3 === 0;
-    return { reach: bold ? 0.9 + 0.3 * h : 0.25 + 0.45 * h, twist: 0.7 + 0.8 * ((k * 0.381966) % 1), weight: bold ? 1 : 0.28 + 0.2 * h, phase: k * 2.399963 };
+    return { reach: bold ? 0.9 + 0.3 * h : 0.25 + 0.45 * h, twist: 0.7 + 0.8 * ((k * 0.381966) % 1), weight: bold ? 1 : 0.28 + 0.2 * h, phase: k * 2.399963, now: { ...PLAIN }, want: PLAIN }; // now: its print's style as it is this moment, growing towards want
   });
   let newest = -1, filled = 0, count = 0, t = 0;
   let pullTo = null, pullK = 0; // the greeting: strands reach toward another player
@@ -54,15 +70,16 @@ export function createCreature({ strands = 5, points = 40, spacing = 5, radius =
       const sway = radius * 0.6 * e * Math.sin(t * 2.1 - s * 9), bob = radius * 0.25 * e * Math.sin(t * 1.7 - s * 7 + 1);
       for (let k = 0; k < K; k++) {
         const c = kind[k];
-        const th = c.phase + shape.twist * c.twist * 2 * Math.PI * s + t * (0.6 + 0.5 * c.twist) + 0.6 * Math.sin(t * 0.37 + k);
-        const r = radius * shape.size * (1 + 0.9 * flare) * c.reach * shape.spread * e * (1 + 1.6 * shape.fan * s) * (1 + 0.22 * Math.sin(t * 1.3 + k * 2.1 + s * 7));
+        const y = c.now, th = c.phase + shape.twist * c.twist * y.spin * 2 * Math.PI * s + t * (0.6 + 0.5 * c.twist) * Math.sign(y.spin || 1) + 0.6 * Math.sin(t * 0.37 + k);
+        const swell = 1 + 1.3 * y.peak * Math.exp(-(((s - 0.33) / 0.12) ** 2)), lean = y.side * radius * shape.size * 0.7 * e; // the print's swelling and its lean
+        const r = radius * shape.size * (1 + 0.9 * flare) * c.reach * y.reach * swell * shape.spread * e * (1 + 1.6 * shape.fan * s) * (1 + 0.22 * Math.sin(t * 1.3 + k * 2.1 + s * 7));
         const apart = (k % 2 ? 1 : -1) * radius * shape.size * 1.7 * shape.split * e; // flat out, the whorl flies as two bodies side by side
         const u = Math.cos(th) * wide, v = Math.sin(th) * flat; // wider than tall: wings
         const p = u * cl - v * sl, q = u * sl + v * cl; // leaning into the turn
         const o = lines[k], m = i * 3;
-        o[m] = spine[m] + r * (p * bx + q * nx) + (sway + apart) * bx + bob * nx;
-        o[m + 1] = spine[m + 1] + r * (p * by + q * ny) + (sway + apart) * by + bob * ny;
-        o[m + 2] = spine[m + 2] + r * (p * bz + q * nz) + (sway + apart) * bz + bob * nz;
+        o[m] = spine[m] + r * (p * bx + q * nx) + (sway + apart + lean) * bx + bob * nx;
+        o[m + 1] = spine[m + 1] + r * (p * by + q * ny) + (sway + apart + lean) * by + bob * ny;
+        o[m + 2] = spine[m + 2] + r * (p * bz + q * nz) + (sway + apart + lean) * bz + bob * nz;
         if (pullK > 0) { const w = pullK * e * (c.weight > 0.9 ? 0.55 : 0.25); o[m] += (pullTo[0] - o[m]) * w; o[m + 1] += (pullTo[1] - o[m + 1]) * w; o[m + 2] += (pullTo[2] - o[m + 2]) * w; } // bold strands reach furthest
       }
     }
@@ -76,6 +93,9 @@ export function createCreature({ strands = 5, points = 40, spacing = 5, radius =
     get flare() { return flare; },
     grow(k) { growth = clamp01(k); },
     burst() { flare = 1; }, // a moment of joy: seeds gathered, a grove planted
+    // the player's five print classes (thumb to little finger), or null for the plain whorl: the strands grow into them
+    style(classes) { styled = Array.isArray(classes) && classes.some((c) => STYLES[c]) ? classes.slice(0, 5) : null; kind.forEach((c, k) => { c.want = (styled && STYLES[styled[k % styled.length]]) || PLAIN; }); },
+    get styled() { return styled; },
     // pos: where the head is now; speed (m/s), pitch (rad, + climbing) and turn (-1..1) shape it
     update(dt, pos, { speed = 70, pitch = 0, turn = 0 } = {}) {
       t += dt;
@@ -97,6 +117,8 @@ export function createCreature({ strands = 5, points = 40, spacing = 5, radius =
       flare *= Math.exp(-dt * 2.5);
       const k = 1 - Math.exp(-dt * 3);
       for (const key in want) shape[key] += (want[key] - shape[key]) * k;
+      const grow = 1 - Math.exp(-dt * 1.6); // a new style is grown into over a second or two
+      for (const c of kind) for (const key in PLAIN) c.now[key] += (c.want[key] - c.now[key]) * grow;
       build();
     },
     spine() { return { xyz: spine, count }; },
