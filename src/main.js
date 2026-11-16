@@ -53,6 +53,7 @@ import { drawGarland } from './garden/garland.js';
 import { FB_APP_ID } from './config.js';
 import { look as hudLook } from './ui/themed.js';
 import { createMusic } from './music.js';
+import { createSound } from './sound.js';
 import { createGnomes } from './gnomes/game.js';
 import { createSandstorm } from './garden/sandstorm.js';
 import { STORM } from './garden/drift.js';
@@ -216,7 +217,9 @@ const others = createOthers({ max: 60 }); // the other players in your room, as 
 // charting (spec 6.4): fly over a handbit lower than 400 m and it is inked into your atlas; chart every
 // handbit of a Hand and it is sealed
 const chart = createChart(storage), CHART_ALT = 400, seal = createStamp();
-const stamp = (title, sub, kicker) => seal.show(title, sub, kicker);
+const sound = createSound({ storage }); // a breeze that swells with your speed, and a sound for everything you do (src/sound.js)
+const sfx = (name, gap) => sound.play(name, gap);
+const stamp = (title, sub, kicker) => { sfx('stamp'); seal.show(title, sub, kicker); };
 let place = null; // what lies under you: { hand, handbit, index } or null
 function charting() {
   place = whereAt(hands, glide.pos[0], glide.pos[2]);
@@ -227,7 +230,7 @@ function charting() {
   surface.setCharted(hand.layer, chart.mask(hand.id));
   surface.reveal(hand.layer, index);
   if (r === 'sealed') stamp(`${hand.name} sealed`, `every handbit charted · ${chart.sealedCount()} sealed`);
-  else panel.say(`Charted: ${handbit.name} · ${hand.name} (${chart.count(hand.id)} of ${total})`, 3.5);
+  else sfx('chart'), panel.say(`Charted: ${handbit.name} · ${hand.name} (${chart.count(hand.id)} of ${total})`, 3.5);
 }
 const braid = createBraid({ radius: 450 }), braidList = [], CALM = params.has('calm'); // the greeting, within 450 m (at this speed you turn in a 340 m circle: any closer and you could not circle a friend); ?calm: reduced motion, no braiding
 let braiding = null; // { id, k } while two swarms braid
@@ -324,7 +327,7 @@ const bouquets = new Map(); // room id -> that player's bouquet, from the signat
 const theirGnomes = new Map(); // room id -> the gnomes on that player's whorl: [{ hat, id (the mushroom it left) }]
 let myGnomes = []; // the gnomes on yours
 const sendDeco = (sig) => roomLink?.deco(withRiders(sig, myGnomes)); // your bouquet and your gnomes, in one signature
-const bloom = createBloom({ scene, shared: world.shared, storage, net, hands, groundAt, say: (text, s) => panel.say(text, s), stamp: (a, b, k) => stamp(a, b, k), online: () => online, onDeco: (d) => sendDeco(d), byHand: () => renderer.xr.isPresenting });
+const bloom = createBloom({ scene, shared: world.shared, storage, net, hands, groundAt, say: (text, s) => panel.say(text, s), stamp: (a, b, k) => stamp(a, b, k), online: () => online, onDeco: (d) => sendDeco(d), byHand: () => renderer.xr.isPresenting, sfx });
 const fauna = createFauna(bloom.species);
 scene.add(fauna.group);
 bloom.setFauna(fauna);
@@ -355,7 +358,7 @@ const gnomes = createGnomes({
   scene, bloom, net, groundAt, creature, others, fauna, makeLabel: createLabel,
   say: (text, s) => panel.say(text, s), stamp: (a, b, k) => stamp(a, b, k), online: () => online,
   hands: () => hands.filter((h) => h.pose).map((h) => { const [x, z] = toWorld(h.pose, 0, 230); return { name: h.name, x, z }; }),
-  onRiders: (on) => { myGnomes = on; sendDeco(bloom.pouch.signature()); }, ridersOf: (id) => theirGnomes.get(id) ?? NO_GNOMES, quest: params.get('quest'), onMet: (name) => passport.note('gnome', name), onRival: (name) => passport.note('rival', name),
+  onRiders: (on) => { myGnomes = on; sendDeco(bloom.pouch.signature()); }, ridersOf: (id) => theirGnomes.get(id) ?? NO_GNOMES, quest: params.get('quest'), sfx, onMet: (name) => passport.note('gnome', name), onRival: (name) => passport.note('rival', name),
 });
 const gnomeCtx = { pos: glide.pos, yaw: 0, speed: 0, alt: 0, flying: false, wet: false, place: null, eye: eyeW, burst: () => creature.burst() };
 addEventListener('keydown', (e) => { if ((e.key === 'g' || e.key === 'G') && mode === 'fly' && started && !e.repeat) { gnomeCtx.place = place; gnomes.act('drop', gnomeCtx); } });
@@ -370,10 +373,11 @@ const NIGHT = { fog: C('#14052b'), ink: C('#eaffff'), streak: C('#3fd8ff'), hand
 let trip = 0, tripWas = -1, composer = null, bloomPass = null;
 // the foxfire has music (openly licensed synthwave, assets/music/CREDITS.md); the calm world stays silent. N mutes it.
 const music = createMusic({ storage, onPlay: (tr) => panel.say(`♪ ${tr.title} · ${tr.artist}${tr.licence ? ` · ${tr.licence}` : ''}`, 6) });
-addEventListener('keydown', (e) => { if ((e.key === 'n' || e.key === 'N') && mode === 'fly' && !e.repeat) panel.say(music.toggle() ? 'Music off' : 'Music on', 2); });
+addEventListener('keydown', (e) => { if ((e.key === 'n' || e.key === 'N') && mode === 'fly' && !e.repeat) { const off = music.toggle(); sound.set(off); panel.say(off ? 'Sound off' : 'Sound on', 2); } });
 function foxfire(dt) {
   trip = FOX ?? bloom.foxfire.level(Date.now());
   music.update(trip, dt);
+  sound.wind(glide.speed, dt, mode === 'atlas' || mode === 'atelier' || !started);
   if (trip > 0 && mode === 'fly' && glide.speed < CRUISE * 1.35) glide.speed += 110 * dt * trip; // it carries you a third faster than cruise
   if (trip === tripWas) return;
   tripWas = trip;
@@ -474,6 +478,7 @@ const palmUp = createPalmUp(), push = createPush();
 let atlasPress = false, atlasByPalm = false, atlasPaint = 0, selected = null, inspectAt = null;
 const atlasUV = () => (atlas.isOpen ? raycaster.intersectObject(atlas.mesh, false)[0]?.uv ?? null : null);
 function openAtlas(byPalm) {
+  sfx('atlas');
   if (mode !== 'fly' || !started) return;
   mode = 'atlas';
   atlasByPalm = byPalm;
@@ -481,7 +486,7 @@ function openAtlas(byPalm) {
   atlas.open(headLocal, headQuat, !renderer.xr.isPresenting);
   atlasPaint = 0;
 }
-function closeAtlas() { if (mode !== 'atlas') return; atlas.close(); mode = 'fly'; selected = null; }
+function closeAtlas() { if (mode !== 'atlas') return; sfx('atlas'); atlas.close(); mode = 'fly'; selected = null; }
 // what the atlas shows right now
 function atlasState() {
   const list = [];
@@ -545,7 +550,7 @@ function atlasDo(a) {
   else if (a.type === 'postcard') postcard();
   else if (a.type === 'places') atlas.places();
   else if (a.type === 'tutorial') { if (tutorial.active) endTutorial(false); else tutorial.start(); closeAtlas(); }
-  else if (a.type === 'music') music.toggle();
+  else if (a.type === 'music') sound.set(music.toggle());
   else if (a.type === 'export') exportMine();
   else if (a.type === 'pin' && selected) { const hb = inspectAt?.handbit; pins.add({ handId: selected.id, code: hb?.code ?? null, ...placeOf(selected, hb), label: hb ? `${selected.name} ${hb.code}` : selected.name }); }
   else if (a.type === 'fly' && selected) { const hb = inspectAt?.handbit; flyTo = { ...placeOf(selected, hb), label: hb ? `${selected.name} ${hb.code}` : selected.name }; closeAtlas(); panel.say(`Flying to ${flyTo.label}: steer to take over`, 4); return; }
@@ -882,7 +887,7 @@ function frame() {
   passport.sync(bloom.counts);
   if (tutorial.active && started && (mode === 'fly' || mode === 'atlas')) {
     const r = tutorial.update({ turn: steer.turn, climb: steer.climb, sown: bloom.counts.sown, water: bloom.pouch.water, atlas: mode === 'atlas', acts }, dt);
-    if (r) creature.burst();
+    if (r) { creature.burst(); sfx('step'); }
     if (r === 'done') endTutorial(true);
     if (invite) invite.at = Math.max(invite.at, t + 20);
   }
@@ -908,6 +913,7 @@ function frame() {
   braidList.length = braidN;
   const b = started && mode === 'fly' ? braid.update(dt, glide.pos, braidList) : null;
   if (b && b.id !== braiding?.id) panel.say(`You met ${others.nameOf(b.id) ?? 'a traveller'}`, 4);
+  if (b && b.id !== braiding?.id) sfx('greet');
   if (b && b.id !== braiding?.id) passport.note('friend', others.nameOf(b.id) ?? 'A traveller'); // a greeting: one more for your passport
   braiding = b;
   const other = b && braidList.find((o) => o.id === b.id);
@@ -1030,7 +1036,7 @@ const banner = document.getElementById('banner');
 function start() {
   document.activeElement?.blur?.(); // the start button keeps the focus otherwise, and the space bar would press it again
   started = true;
-  music.arm(); // sound may only begin after a press: this is it
+  music.arm(); sound.arm(); // sound may only begin after a press: this is it
   banner.classList.add('hidden');
   panel.say('Palm Whorl Cities', 4);
   // fly and garden first; the invitation to lay a Hand of your own comes once you have planted a little (or after a while)

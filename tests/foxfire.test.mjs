@@ -47,3 +47,16 @@ test('a mushroom you ate needs time to fruit again for you', () => {
   assert.equal(f.canEat(6, 60000), true);
   assert.equal(f.canEat(5, FOXFIRE.regrow + 1), true);
 });
+
+import { wildRings, WILD_BASE } from '../src/garden/foxfire.js';
+test('every Hand has wild mushrooms from the first day: three, on its own plots, the same for every player, never on the map', () => {
+  const hand = { id: 'hand-founder-3', data: { handbits: Array.from({ length: 20 }, (_, i) => ({ cx: i * 10, cy: i * 5 })) } };
+  const a = wildRings(hand, 400), b = wildRings(hand, 400);
+  assert.deepEqual(a, b);
+  assert.equal(a.length, 3);
+  assert.equal(new Set(a.map((g) => g.id)).size, 3);
+  assert.equal(new Set(a.map((g) => g.bit)).size, 3, 'on three different plots');
+  for (const g of a) { assert.ok(g.id >= WILD_BASE && g.id < 16777216, 'an id no planted grove has, small enough for the room'); assert.equal(g.wild, true); assert.equal(g.hand, hand.id); assert.equal(g.tended, 0, 'long dead: mushrooms grow on it'); assert.ok(Math.hypot(g.x - hand.data.handbits[g.bit].cx, g.y - hand.data.handbits[g.bit].cy) < 6); }
+  assert.notDeepEqual(wildRings({ ...hand, id: 'hand-founder-4' }, 400).map((g) => g.id), a.map((g) => g.id));
+  assert.deepEqual(wildRings({ id: 'x', data: { handbits: [] } }, 400), []);
+});

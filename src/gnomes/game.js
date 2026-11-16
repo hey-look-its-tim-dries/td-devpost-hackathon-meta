@@ -9,7 +9,7 @@ import { createGnomeRenderer } from './render.js';
 
 const SIZE = 20, RIDER = 17, CAP = 27; // metres per gnome unit at home and on a whorl (big enough to see on another player's whorl); how high a mushroom's cap sits
 
-export function createGnomes({ scene, bloom, net, say, stamp, groundAt, creature, others, fauna, online, makeLabel, hands, onRiders, ridersOf, quest = null, onMet = null, onRival = null }) { // quest: a kind to ask for (?quest=, for the film and the checks)
+export function createGnomes({ scene, bloom, net, say, stamp, groundAt, creature, others, fauna, online, makeLabel, hands, onRiders, ridersOf, quest = null, onMet = null, onRival = null, sfx = () => {} }) { // quest: a kind to ask for (?quest=, for the film and the checks)
   const draw = createGnomeRenderer();
   scene.add(draw.group);
   const records = new Map(); // gnome id -> { tag, owner, loyalty }: whose team it is on (wild gnomes have none)
@@ -32,7 +32,7 @@ export function createGnomes({ scene, bloom, net, say, stamp, groundAt, creature
   const said = new Map();
   function welcome(gn, event) {
     if (said.get(gn.id) === event) return;
-    said.set(gn.id, event);
+    said.set(gn.id, event); sfx('team');
     if (event === 'joined') stamp(`${gn.name} joined your team`, `${me.team} gnome${me.team === 1 ? '' : 's'} on your team · “${shout('joined', gn.seed)}”`, 'GNOME');
     else if (event === 'converted') stamp(`${gn.name} converted to your team`, `${me.converted} converted · “${shout('converted', gn.seed)}”`, 'GNOME');
   }
@@ -58,7 +58,7 @@ export function createGnomes({ scene, bloom, net, say, stamp, groundAt, creature
     else if (r.event === 'wavering') say(`${gn.name} is wavering: one more quest and it is yours`, 5);
     else if (r.event === 'deserted') say(`${gn.name} deserted its team: “${shout('deserted', gn.seed)}”`, 5);
   }
-  const drop = (i, line) => { const [r] = riders.splice(i, 1); away.delete(r.gn.id); moodOf(r.gn.id).dropped = t; if (line) say(`${r.gn.name}: “${shout(line, r.gn.seed, t | 0)}”`, 4); };
+  const drop = (i, line) => { sfx('drop'); const [r] = riders.splice(i, 1); away.delete(r.gn.id); moodOf(r.gn.id).dropped = t; if (line) say(`${r.gn.name}: “${shout(line, r.gn.seed, t | 0)}”`, 4); };
 
   function frame(dt, ctx) {
     t += dt;
@@ -87,14 +87,14 @@ export function createGnomes({ scene, bloom, net, say, stamp, groundAt, creature
         if (d < 300 && t - m.greet > 25) { m.greet = t; speak(`${gn.name}: ${shout('greet', gn.seed, m.n++)}`, x, y + size * 1.5, z); }
       } else if (near && clip === 'ride' && t - m.greet > 25) { m.greet = t; speak(`${gn.name}: ${shout('ride', gn.seed, m.n++)}`, x, y + size * 1.5, z); }
       if (flying && alt < 260 && d < GNOME.buzz.r && speed >= GNOME.buzz.speed && t - m.buzz > 20) { // you roared past: it is cross
-        m.buzz = t; m.angry = t + 5;
+        m.buzz = t; m.angry = t + 5; sfx('cross');
         speak(`${gn.name}: ${shout('buzz', gn.seed, m.n++)}`, x, y + size * 1.5, z);
         if (online()) net.gnomeDo(id, 'annoy').then((r) => settled(gn, r));
       } else if (flying && alt < GNOME.pickup.alt && d < GNOME.pickup.r && speed < GNOME.pickup.speed && riders.length < GNOME.max && m.angry <= t && t - m.dropped > 15) { // low and gentle: it jumps and grabs on
         const day = Math.floor(now / 86400000), world = { from: { x: h.x, z: h.z }, hands: hands(), homes: homes.map((q) => ({ id: q.gn.id, name: q.gn.name, x: q.x, z: q.z })), kind: quest };
         riders.push({ gn, quest: questFor(gn, day, world), since: now, doneAt: 0, grabbed: t });
         away.add(id);
-        onMet?.(gn.name);
+        onMet?.(gn.name); sfx('grab');
         ctx.burst?.();
         say(`${gn.name} (${whose(id)}) grabbed on: “${shout('grab', gn.seed, m.n++)}” ${riders.at(-1).quest.text}`, 9);
         continue;
@@ -109,7 +109,7 @@ export function createGnomes({ scene, bloom, net, say, stamp, groundAt, creature
       if (!r.doneAt) {
         if (r.grabbed < t) for (const e of ev) r.quest = advance(r.quest, e); // (not what happened in the very frame it grabbed on)
         if (r.quest.done) { // done: cheers, a gift, and the map hears of it
-          r.doneAt = t;
+          r.doneAt = t; sfx('quest');
           const gift = bloom.gift();
           say(`${r.gn.name}: “${shout('done', r.gn.seed, t | 0)}” It gives you three ${gift.name} seeds`, 6);
           ctx.burst?.();

@@ -117,7 +117,7 @@ export function createAtlas() {
       const y = 262 + i * 51;
       text(what, 60, y, { font: `700 26px ${SANS}`, color: SEAL, max: 250 });
       text(s.byHand ? hand : screen ?? hand, 320, y, { font: `400 28px ${SERIF}`, max: 540 });
-      if (i === 0) { button('tutorial', 700, 112, 250, 56, s.tutorial ? 'Skip the tutorial' : 'Play the tutorial'); button('music', 965, 112, 200, 56, s.muted ? 'Music: off' : 'Music: on'); }
+      if (i === 0) { button('tutorial', 700, 112, 250, 56, s.tutorial ? 'Skip the tutorial' : 'Play the tutorial'); button('music', 965, 112, 200, 56, s.muted ? 'Sound: off' : 'Sound: on'); }
       if (screen) text(s.byHand ? screen : hand, 880, y, { font: `400 21px ${SANS}`, color: 'rgba(22,16,14,0.6)', max: 290 }); // (nothing to add where it is the same either way)
     });
   }

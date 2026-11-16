@@ -30,3 +30,18 @@ export function createFoxfire() {
     ate(id, now) { eaten.set(id, now); if (eaten.size > 2000) eaten.clear(); },
   };
 }
+
+// Wild mushrooms that stand on every Hand from its first day, so the foxfire (and its music, and the gnomes) can be
+// found before any grove has had time to die. Three long-dead groves per Hand, each near the middle of a plot of
+// its own, the same for every player (from the Hand's id), and never written to the map: their ids start at
+// WILD_BASE, above any planted grove's and still small enough for the room to pass on (24 bits).
+export const WILD_BASE = 16000000;
+const hashOf = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619); return h >>> 0; };
+export function wildRings(hand, species) {
+  const bits = hand.data?.handbits ?? [], h = hashOf(hand.id), out = [], n = Math.min(3, bits.length);
+  for (let k = 0; k < n; k++) {
+    const bit = (h + k * Math.max(1, Math.floor(bits.length / 3))) % bits.length, a = ((h >>> (k * 5)) % 628) / 100;
+    out.push({ id: WILD_BASE + (h % 19000) * 40 + k, hand: hand.id, bit, x: bits[bit].cx + Math.cos(a) * 4, y: bits[bit].cy + Math.sin(a) * 4, sp: (h + k * 97) % species, stage: 2, tended: 0, big: 0, hab: 'dune', wild: true });
+  }
+  return out;
+}
