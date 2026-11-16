@@ -1019,7 +1019,9 @@ function viewFrustum() {
   return frustum.setFromProjectionMatrix(projView.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
 }
 const steer = { turn: 0, climb: 0 }; // eased, so a jittery hand still flies smoothly
+let idleHalf = false;
 function frame() {
+  if (!started && !renderer.xr.isPresenting && (idleHalf = !idleHalf)) return; /* behind the title: half the frames, half the heat and battery */
   const dt = Math.min(clock.getDelta(), 0.05);
   t += dt;
   fps += (1 / Math.max(dt, 1e-3) - fps) * 0.05;
