@@ -34,7 +34,9 @@ import { createAtlas } from './atlas/card.js';
 import { createPalmUp, createPush, createFling, createPull } from './gesture.js';
 import { firstHint } from './garden/hints.js';
 import { createTutorial, coach } from './garden/tutorial.js';
-import { createPassport, profile } from './garden/passport.js';
+import { createPassport, profile, STATUS } from './garden/passport.js';
+import { createLobby, lobbyFacts } from './lobby.js';
+import { guideHtml } from './guide.js';
 import { createTutorialCard } from './tutorialcard.js';
 import { createPins, address } from './world/pins.js';
 import { placeName } from './world/names.js';
@@ -745,8 +747,23 @@ function merge() {
   laying = { ...dna, name: flow.name };
   ghosts.show(fits);
   mode = 'merge';
-  panel.say('Three places fit your Hand: choose one', 8);
+  showPlaces(fits);
+  panel.say(renderer.xr.isPresenting ? 'Three places fit your Hand: look at one and pinch, then pinch again to lay it' : 'Three places fit your Hand: pick one below', 8);
 }
+// On a screen nobody can "look at" a place: the three fits are buttons. One picked is outlined and the whorl flies
+// there by itself so you see it; "Lay my Hand here" lays it. (1 2 3 and Enter do the same; in the headset you look and pinch.)
+const placesEl = document.getElementById('places'), placeList = document.getElementById('placeList'), placeLay = document.getElementById('placeLay');
+function showPlaces(fits) {
+  placeList.replaceChildren(...fits.map((f, i) => {
+    const b = document.createElement('button');
+    b.className = 'quiet';
+    b.textContent = `${i + 1}. Beside ${f.names?.length ? f.names.slice(0, 2).join(' and ') : 'the open coast'}${f.rivers ? ` · ${f.rivers} river${f.rivers > 1 ? 's join' : ' joins'}` : ''}`;
+    b.addEventListener('click', () => { if (mode !== 'merge') return; ghosts.select(i); flyTo = { x: f.pose.x, z: f.pose.z, label: 'the place you picked' }; for (const q of placeList.children) q.classList.toggle('on', q === b); placeLay.disabled = false; });
+    return b;
+  }));
+  placeLay.disabled = true;
+}
+placeLay.addEventListener('click', () => { if (mode === 'merge' && ghosts.selected >= 0) choose(ghosts.selected); });
 async function choose(i) { // a ghost chosen once is picked, chosen again is laid
   if (mode !== 'merge' || i < 0 || laying.busy) return;
   if (i !== ghosts.selected) return ghosts.select(i);
@@ -757,6 +774,7 @@ async function choose(i) { // a ghost chosen once is picked, chosen again is lai
   if (r.conflict) { // someone laid a Hand there a moment ago: fresh places, no penalty (spec 6.3)
     if (!r.fits?.length) { ghosts.hide(); mode = 'fly'; return panel.say('No room on the coast right now', 5); }
     ghosts.show(r.fits);
+    showPlaces(r.fits);
     return panel.say('Someone just laid a Hand there: three new places', 7);
   }
   ghosts.hide();
@@ -901,6 +919,7 @@ function frame() {
   gnomes.frame(dt, gnomeCtx);
   // the tutorial: fed with what you are doing; the hand card waits until it is over
   passport.sync(bloom.counts);
+  placesEl.classList.toggle('hidden', mode !== 'merge' || renderer.xr.isPresenting); // the chooser, on a screen only
   if (tutorial.active && started && (mode === 'fly' || mode === 'atlas')) {
     const r = tutorial.update({ turn: steer.turn, climb: steer.climb, sown: bloom.counts.sown, water: bloom.pouch.water, atlas: mode === 'atlas', acts }, dt);
     if (r) { creature.burst(); sfx('step'); }
@@ -1050,6 +1069,15 @@ function frame() {
 
 const banner = document.getElementById('banner');
 function start() {
+  if (!params.has('at')) { // you begin low over a Hand (your own, or the nearest), flying in from its outer side: sand under you from the first second
+    let h = (mine && hands.find((q) => q.id === mine.id && q.pose)) ?? null, bd = Infinity;
+    if (!h) for (const q of hands) { if (!q.pose) continue; const [x, z] = toWorld(q.pose, 0, 230), d = Math.hypot(x - glide.pos[0], z - glide.pos[2]); if (d < bd) { bd = d; h = q; } }
+    if (h) {
+      const [cx, cz] = toWorld(h.pose, 0, 230), l = Math.hypot(cx, cz) || 1, dx = cx / l, dz = cz / l;
+      glide.pos[0] = cx + dx * 1300; glide.pos[2] = cz + dz * 1300; glide.pos[1] = groundAt(glide.pos[0], glide.pos[2]) + 150;
+      glide.yaw = Math.atan2(dx, dz); glide.pitch = 0; glide.speed = CRUISE;
+    }
+  }
   document.activeElement?.blur?.(); // the start button keeps the focus otherwise, and the space bar would press it again
   started = true;
   music.arm(); sound.arm(); // sound may only begin after a press: this is it
@@ -1080,7 +1108,43 @@ async function enterHeadset() {
 }
 const xrButton = document.getElementById('xrButton');
 xrButton.addEventListener('click', () => enterHeadset().catch((e) => console.error(e)));
-document.getElementById('previewButton').addEventListener('click', start);
+// ---------- the lobby: between the title and the game, the world as it is right now (src/lobby.js) ----------
+const lobby = createLobby(document.getElementById('lobby'));
+let lobbyTimer = null, worldFlying = 0;
+function lobbyData() {
+  const flying = [];
+  others.each((c, id, pos) => flying.push({ name: others.nameOf(id), x: pos[0], z: pos[2] }));
+  const g = bloom.hud(null), lv = bloom.pouch.level;
+  return {
+    ...lobbyFacts({ hands: hands.filter((h) => h.pose).map((h) => ({ name: h.name, founder: !!h.founder })), flying, me: mine?.name ?? null, groves: g.plants, worldFlying, gardeners: g.top ?? [], converters: gnomes.hud().top ?? [], news: (events ?? []).map((e) => ({ when: when(e.at), text: journalText(e) })).filter((e) => e.text) }),
+    map: {
+      hands: hands.filter((h) => h.pose).map((h) => { const [x, z] = toWorld(h.pose, 0, 230); return { name: h.name, x, z, rot: h.pose.rot, founder: !!h.founder, mine: !!mine && h.id === mine.id }; }),
+      blooms: bloom.allPlots(), players: [{ name: 'you', x: glide.pos[0], z: glide.pos[2], you: true }, ...flying.map((p) => ({ ...p, name: p.name ?? 'traveller' }))],
+    },
+    me: { name: mine?.name ?? 'A traveller', status: STATUS[Math.min(STATUS.length - 1, Math.floor((lv - 1) / 2))], level: lv },
+  };
+}
+function openLobby() {
+  banner.classList.add('hidden');
+  document.getElementById('lobbyXr').classList.toggle('hidden', document.getElementById('xrButton').classList.contains('hidden'));
+  lobby.show();
+  const ask = () => { refreshNames(); bloom.refreshTop(); net.stats().then((s) => { if (s) worldFlying = s.flying; }); }; // the news, the boards, how many fly in all rooms
+  ask();
+  let n = 0;
+  clearInterval(lobbyTimer);
+  lobbyTimer = setInterval(() => { if (!lobby.open) return clearInterval(lobbyTimer); if (++n % 25 === 0) ask(); lobby.update(lobbyData()); }, 400);
+  lobby.update(lobbyData());
+}
+document.getElementById('previewButton').addEventListener('click', openLobby);
+// "Explain this game to me": the whole game from A to Z, from the title and from the lobby (src/guide.js)
+const guideEl = document.getElementById('guide');
+const openGuide = () => { document.getElementById('guideBody').innerHTML = guideHtml(!document.getElementById('xrButton').classList.contains('hidden')); guideEl.classList.remove('hidden'); guideEl.scrollTop = 0; };
+document.getElementById('explainButton').addEventListener('click', openGuide);
+document.getElementById('lobbyExplain').addEventListener('click', openGuide);
+document.getElementById('guideClose').addEventListener('click', () => guideEl.classList.add('hidden'));
+document.getElementById('diveButton').addEventListener('click', () => { lobby.hide(); start(); });
+document.getElementById('lobbyBack').addEventListener('click', () => { lobby.hide(); banner.classList.remove('hidden'); });
+document.getElementById('lobbyXr').addEventListener('click', () => { lobby.hide(); document.getElementById('xrButton').click(); });
 document.getElementById('webcamButton').addEventListener('click', () => { start(); useWebcam(); });
 navigator.xr?.isSessionSupported('immersive-vr').then((ok) => ok && xrButton.classList.remove('hidden')).catch(() => {});
 addEventListener('resize', () => {

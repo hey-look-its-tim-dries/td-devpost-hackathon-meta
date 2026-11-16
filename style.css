@@ -162,3 +162,64 @@ button:focus-visible {
 .banner a { color: inherit; }
 
 .banner .small, .banner .live { text-shadow: 0 1px 6px rgba(20, 10, 6, 0.9), 0 0 2px rgba(20, 10, 6, 0.9); } /* legible over the wreath */
+
+/* the lobby: the world right now, between the title and the game */
+.lobby { position: fixed; inset: 0; z-index: 6; display: flex; flex-direction: column; gap: 14px; padding: 22px 28px; box-sizing: border-box; color: var(--text); background: radial-gradient(120% 90% at 30% 20%, rgba(60, 34, 26, 0.82), rgba(16, 10, 9, 0.93)); backdrop-filter: blur(6px); overflow: auto; }
+.lobby.hidden { display: none; }
+.lobby header { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; flex-wrap: wrap; }
+.lobby .eyebrow { margin: 0; color: var(--accent); font: 600 13px Inter, system-ui, sans-serif; letter-spacing: 0.22em; text-transform: uppercase; }
+.lobby h2 { margin: 2px 0 0; font: 600 clamp(28px, 4vw, 48px) Georgia, serif; }
+.lobby .counts { display: flex; gap: 26px; }
+.lobby .counts div { text-align: center; }
+.lobby .counts b { display: block; font: 700 clamp(26px, 3.4vw, 44px) Inter, system-ui, sans-serif; color: var(--accent); }
+.lobby .counts span { font: 500 12px Inter, system-ui, sans-serif; letter-spacing: 0.14em; color: var(--muted); }
+.lobby-main { flex: 1; display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(250px, 1fr); gap: 22px; min-height: 0; }
+.lobby-map { position: relative; min-height: 300px; border: 1px solid rgba(246, 232, 216, 0.22); border-radius: 18px; background: rgba(0, 0, 0, 0.22); overflow: hidden; }
+.lobby-map canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.lobby .call { position: absolute; left: 16px; right: 16px; bottom: 12px; margin: 0; text-align: center; font: italic 400 clamp(15px, 1.6vw, 20px) Georgia, serif; color: var(--text); text-shadow: 0 1px 6px #000; }
+.lobby aside { overflow: auto; padding-right: 6px; }
+.lobby h3 { margin: 16px 0 6px; font: 700 12px Inter, system-ui, sans-serif; letter-spacing: 0.16em; text-transform: uppercase; color: var(--accent); }
+.lobby ul { list-style: none; margin: 0; padding: 0; font: 400 16px Georgia, serif; }
+.lobby li { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; }
+.lobby li.none { color: var(--muted); font-style: italic; }
+.lobby .online li { justify-content: flex-start; align-items: center; font-weight: 600; }
+.lobby .online i { width: 9px; height: 9px; border-radius: 50%; background: #78dcff; box-shadow: 0 0 0 0 rgba(120, 220, 255, 0.7); animation: lobby-pulse 1.6s infinite; }
+.lobby .online li.you i { background: #ff965a; }
+.lobby .away { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--muted); font-size: 14px; }
+.lobby .away li { padding: 0; }
+.lobby .board b { font: 700 15px Inter, system-ui, sans-serif; }
+.lobby .news li { font-size: 14px; }
+.lobby .news em { color: var(--muted); font: 400 12px Inter, system-ui, sans-serif; white-space: nowrap; }
+.lobby .me { padding: 10px 14px; border-radius: 12px; background: rgba(246, 232, 216, 0.1); }
+.lobby .me b { display: block; font: 600 22px Georgia, serif; }
+.lobby .me span { font: 500 13px Inter, system-ui, sans-serif; color: var(--muted); }
+.lobby footer { display: flex; gap: 12px; align-items: center; }
+.lobby footer button { margin: 0; }
+.lobby #diveButton { font-size: 20px; padding: 14px 44px; }
+.lobby #lobbyXr.hidden { display: none; }
+@keyframes lobby-pulse { 70% { box-shadow: 0 0 0 9px rgba(120, 220, 255, 0); } 100% { box-shadow: 0 0 0 0 rgba(120, 220, 255, 0); } }
+@media (max-width: 760px) { .lobby-main { grid-template-columns: 1fr; } .lobby .counts { gap: 14px; } }
+
+/* choosing where your Hand goes, on a screen */
+.places { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 5; width: min(880px, calc(100vw - 32px)); padding: 14px 18px; box-sizing: border-box; border-radius: 16px; background: rgba(22, 16, 14, 0.82); color: var(--text); text-align: center; }
+.places.hidden { display: none; }
+.places p { margin: 0 0 10px; font: 600 17px Georgia, serif; }
+.places #placeList { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-bottom: 10px; }
+.places button { margin: 0; }
+.places #placeList button { flex: 1 1 220px; font-size: 14px; text-transform: none; letter-spacing: 0; }
+.places #placeList button.on { outline: 3px solid var(--accent); }
+.places button:disabled { opacity: 0.45; }
+
+/* "Explain this game to me" */
+.guide { position: fixed; inset: 0; z-index: 8; overflow: auto; padding: 28px 18px; box-sizing: border-box; background: rgba(16, 10, 9, 0.94); color: var(--text); }
+.guide.hidden { display: none; }
+.guide-inner { max-width: 760px; margin: 0 auto; }
+.guide #guideClose { position: sticky; top: 0; float: right; margin: 0; }
+.guide .eyebrow { margin: 0; color: var(--accent); font: 600 13px Inter, system-ui, sans-serif; letter-spacing: 0.22em; text-transform: uppercase; }
+.guide h2 { margin: 4px 0 18px; font: 600 clamp(30px, 5vw, 46px) Georgia, serif; }
+.guide h3 { margin: 26px 0 6px; font: 600 24px Georgia, serif; color: var(--accent); }
+.guide h3 span { display: inline-block; width: 1.7em; font: 700 15px Inter, system-ui, sans-serif; color: var(--muted); }
+.guide p { margin: 0 0 10px; font: 400 18px/1.55 Georgia, serif; }
+.guide table { width: 100%; border-collapse: collapse; font: 400 16px Inter, system-ui, sans-serif; }
+.guide th { text-align: left; width: 34%; padding: 7px 10px 7px 0; color: var(--accent); vertical-align: top; }
+.guide td { padding: 7px 0; border-bottom: 1px solid rgba(246, 232, 216, 0.14); }
