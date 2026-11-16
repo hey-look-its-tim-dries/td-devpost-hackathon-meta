@@ -28,7 +28,7 @@ Changes made to the originals are stated per pack (background made transparent, 
 - Source: https://josepvalls.itch.io/flowers-spritesheet
 - Licence: CC0 (the page says: "The current version (v0) of this asset pack is provided free of charge as CC0. Donation and credit are appreciated but not required.")
 - Fetched: 2026-11-16, downloaded by hand by the project owner
-- Changes: `flowers-1536.png` is the pack's 8192 x 8192 sheet (`spritesheet-v1.png`, 32 x 32 flowers) scaled down to 1536 x 1536 (48 px a flower). The original is not included.
+- Changes: `flowers-1536.png` is the pack's 8192 x 8192 sheet (`spritesheet-v1.png`, 32 x 32 flowers) scaled down to 1536 x 1536 (48 px a flower). `wreath-64.png` is 64 of its flowers (every fourth, staggered) at 160 px, for the opening screen. The original is not included.
 
 ### spiderdave-flowers
 

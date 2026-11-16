@@ -46,6 +46,16 @@ export function createPouch(storage, species, starters) {
     deco: (n = 12) => Object.keys(s.planted).map(Number).filter((id) => species[id]).sort((a, b) => s.planted[b] - s.planted[a] || a - b).slice(0, n),
     fill() { s.water = 5; save(); },
     pour() { if (s.water <= 0) return false; s.water--; save(); return true; },
+    // the whole pouch, to keep on the map; and taking one in from the map, when it holds more than this one
+    dump: () => ({ ...s, found: [...found] }),
+    adopt(d) {
+      if (!d || typeof d !== 'object' || typeof d.seeds !== 'object' || !d.seeds || !Array.isArray(d.found) || !Array.isArray(d.log) || !(d.xp > s.xp)) return false;
+      s = { seeds: d.seeds, sel: d.sel, water: Math.max(0, Math.min(5, d.water | 0)), xp: d.xp, planted: d.planted ?? {}, found: d.found, log: d.log };
+      found.clear();
+      for (const id of d.found) if (species[id]) found.add(id);
+      save();
+      return true;
+    },
     credit(what) { const before = this.level; s.xp += XP[what] ?? 0; save(); return this.level > before; }, // true on a new level
   };
 }

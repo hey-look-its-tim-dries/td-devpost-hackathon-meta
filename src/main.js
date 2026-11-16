@@ -303,8 +303,8 @@ const bloom = createBloom({ scene, shared: world.shared, storage, net, hands, gr
 const fauna = createFauna(bloom.species);
 scene.add(fauna.group);
 bloom.setFauna(fauna);
-drawGarland(document.getElementById('garland'), bloom.species); // the opening screen's wreath
-addEventListener('resize', () => drawGarland(document.getElementById('garland'), bloom.species));
+drawGarland(document.getElementById('garland')); // the opening screen's wreath
+addEventListener('resize', () => drawGarland(document.getElementById('garland')));
 fauna.setLand((x, z) => !!whereAt(hands, x, z)?.handbit); // herds keep out of the rivers
 const goldBeam = new THREE.Mesh(new THREE.CylinderGeometry(7, 7, 2400, 8, 1, true), new THREE.MeshBasicMaterial({ color: 0xe9c46a, transparent: true, opacity: 0.55, depthWrite: false, fog: false }));
 goldBeam.visible = false;
