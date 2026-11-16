@@ -42,7 +42,7 @@ On top of the flying, everyone gardens the desert together.
   press a flat palm down to pour water over the groves around you. On keys: **Z C** scatter, **R** cast, **T** pour.
 - **I am what I have sown:** your whorl wears your whole sowing history as a bouquet, in order from head (first sown)
   to tail; what you sowed most has more and larger flowers; a day's plantings share strands. Others see it too.
-- **Sandstorm:** every ten minutes a wall of dust crosses the world for four. Groves under its path are parched until
+- **Sandstorm:** every ten minutes a turning column of dust crosses the world for four. Groves under its path are parched until
   someone waters them. It shows on the compass, the radar and the atlas, and is the same storm for every player.
 - **Atlas:** the new Garden tab is your herbarium (every species by kind, found ones in colour, tap one you carry to
   sow it); the World map has a bloom layer with every blooming plot and the storm.
@@ -65,14 +65,16 @@ Who lives where, its name, its hat and what it is doing right now come from the 
 every player sees the same gnome asleep on the same cap, pottering about, or out riding the animals.
 
 - Fly over one low and it **waves and shouts**. Dive past at full speed and it shakes its fists: you annoyed it.
-- Pass low at ordinary speed and it **jumps and grabs your whorl** (three at most). Other players see your
-  gnomes hanging on, and you see theirs.
+- Pass low at anything short of a roar and it **jumps and grabs your whorl** (three at most). Other players see
+  your gnomes hanging on and their mushrooms empty, and you see theirs.
 - A gnome on board has a **side quest** (ten kinds: take it to the Source, to a far Hand or a distant cousin,
   eat a mushroom with it, sow, water, go faster, go higher, catch a seed cloud, skim a river). Three minutes.
-- Do it and the gnome **joins your team** and gives you seeds. Another gardener's gnome first wavers, then
-  **converts**; annoy another gardener's gnome often enough and it deserts them. The HUD counts your team
-  and your converted gnomes; the map keeps the teams.
-- **G** sets down the gnome that grabbed on last. Over water it gets a ducking and is cross with you.
+- Do it and the gnome **joins your team** and gives you seeds. Another gardener's fresh recruit **converts**
+  at once, a loyal one wavers first; annoy another gardener's gnome often enough and it deserts them. You are
+  told when one of yours is converted. The HUD counts your team and your converted gnomes, and its board takes
+  turns between the top gardeners and the top gnome converters; the map keeps the teams.
+- **G** (or an open hand tossed upward) sets down the gnome that grabbed on last. Over water it gets a ducking
+  and is cross with you. Brought back low over a mushroom after its quest, it hops off by itself.
 
 ### How the garden is kept
 
@@ -115,7 +117,8 @@ The game asks for the public profile only and keeps a hash of the app-scoped use
 sign-in with the headset's own Meta account to a page opened by URL (only to apps installed from the Horizon Store);
 the VR glasses run the same OS and accounts as Quest.
 
-Checks: `node tests/bloom.mjs` (two browsers sow, see, water and clear) and `node tools/bloom-look.mjs <dir>` for screenshots.
+Checks: `node tests/bloom.mjs` (two browsers sow, see, water and clear), `node tests/gnomes.mjs` (two browsers: a gnome
+at home, carried, its quest, its team, set down, converted) and `node tools/bloom-look.mjs <dir>` for screenshots.
 Flower art from other makers is in `assets/flora` with its licences in `assets/flora/CREDITS.md`.
 
 ## Project description

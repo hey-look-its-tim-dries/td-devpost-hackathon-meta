@@ -137,11 +137,11 @@ export function createHud() {
     g.textBaseline = 'alphabetic';
     const cols = [[w.flying, 'FLYING NOW'], [w.hands, 'HANDS'], [w.plants, 'GROVES']];
     cols.forEach(([n, label], i) => { const x = 100 + i * 180; g.textAlign = 'center'; g.fillStyle = INK; g.font = '700 44px Inter, system-ui, sans-serif'; g.fillText(Number(n).toLocaleString('en'), x, 62); g.fillStyle = 'rgba(22,16,14,0.6)'; g.font = '500 17px Inter, system-ui, sans-serif'; g.fillText(label, x, 86); });
-    g.textAlign = 'left'; g.fillStyle = SEAL; g.font = '700 18px Inter, system-ui, sans-serif'; g.fillText('TOP GARDENERS', 28, 128);
-    g.textAlign = 'right'; g.fillText(`YOU ${w.planted}`, c.width - 28, 128);
-    w.top.slice(0, 4).forEach((t, i) => { const y = 160 + i * 32; g.textAlign = 'left'; g.fillStyle = INK; g.font = '600 24px Georgia, serif'; g.fillText(`${i + 1}. ${t.name}`, 28, y, 380); g.textAlign = 'right'; g.font = '700 22px Inter, system-ui, sans-serif'; g.fillText(Number(t.n).toLocaleString('en'), c.width - 28, y); });
+    g.textAlign = 'left'; g.fillStyle = SEAL; g.font = '700 18px Inter, system-ui, sans-serif'; g.fillText(w.board.title, 28, 128);
+    g.textAlign = 'right'; g.fillText(`YOU ${w.board.you}`, c.width - 28, 128);
+    w.board.rows.slice(0, 4).forEach((t, i) => { const y = 160 + i * 32; g.textAlign = 'left'; g.fillStyle = INK; g.font = '600 24px Georgia, serif'; g.fillText(`${i + 1}. ${t.name}`, 28, y, 380); g.textAlign = 'right'; g.font = '700 22px Inter, system-ui, sans-serif'; g.fillText(Number(t.n).toLocaleString('en'), c.width - 28, y); });
     g.textAlign = 'left'; g.fillStyle = SEAL; g.font = '700 16px Inter, system-ui, sans-serif'; g.fillText(`GNOMES ON YOUR TEAM ${w.team ?? 0} · CONVERTED ${w.converted ?? 0}`, 28, 286);
-    if (!w.top.length) { g.textAlign = 'left'; g.fillStyle = 'rgba(22,16,14,0.6)'; g.font = 'italic 400 24px Georgia, serif'; g.fillText('nobody has planted yet: be the first', 28, 166); }
+    if (!w.board.rows.length) { g.textAlign = 'left'; g.fillStyle = 'rgba(22,16,14,0.6)'; g.font = 'italic 400 24px Georgia, serif'; g.fillText(w.board.empty, 28, 166); }
     stats.tex.needsUpdate = true;
   }
 

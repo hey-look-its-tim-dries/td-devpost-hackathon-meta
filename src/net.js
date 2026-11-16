@@ -212,7 +212,7 @@ export function createNet({ api = API, storage = null, fetchFn = globalThis.fetc
       }
       connect();
       return {
-        deco(list) { deco = list; if (ws?.readyState === 1 && list.length) ws.send(JSON.stringify({ deco: list })); },
+        deco(list) { deco = list; if (ws?.readyState === 1) ws.send(JSON.stringify({ deco: list })); }, // an emptied whorl is told too: the gnome you set down leaves it for everyone
         rename(n) { name = n; if (ws?.readyState === 1) ws.send(JSON.stringify({ name })); },
         send(pose) { const now = Date.now(); if (ws?.readyState === 1 && now - lastSent >= 200) { lastSent = now; ws.send(encodePose(pose)); } },
         close() { closed = true; ws?.close(); },

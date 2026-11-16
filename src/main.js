@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js';
-import { headSteer } from './steer.js';
+import { headSteer, steeringHand } from './steer.js';
 import { JOINTS, palmFrame, OneEuro, createSteer, steerChecks, pointSteer } from './gesture.js';
 import { createGestureCard } from './gesturecard.js';
 import { createPanel } from './panel.js';
@@ -50,6 +50,8 @@ import { FB_APP_ID } from './config.js';
 import { look as hudLook } from './ui/themed.js';
 import { createMusic } from './music.js';
 import { createGnomes } from './gnomes/game.js';
+import { createSandstorm } from './garden/sandstorm.js';
+import { STORM } from './garden/drift.js';
 import { withRiders, splitRiders } from './gnomes/gnomes.js';
 import { dialogUrl, fromFragment } from './net/facebook.js';
 
@@ -203,7 +205,7 @@ net.fetchWorld().then(({ hands: list, online: ok }) => {
   if (ok) { refreshNames(); forgetGone([...list.map((h) => h.id), mine?.id].filter(Boolean), chart, pins); } // Hands washed while you were away
 
   if (ok) { bloom.load(); gnomes.load(); }
-  if (ok) roomLink = net.openRoom({ name: mine?.name ?? null, deco: withRiders(bloom.pouch.signature(), myGnomes), onGarden: bloom.onGarden, onDecos: (m) => { for (const [id, raw] of Object.entries(m)) { const { sig, hats } = splitRiders(raw); bouquets.set(+id, bouquet(fromSignature(sig), { strands: 5, max: 80 })); theirGnomes.set(+id, hats); } }, onGnome: (g) => gnomes.onGnome(g), onHello: (id) => (me = id), onNames: (m) => others.setNames(m), onSnapshot: (s) => others.apply(s, me, glide.pos), onLaid: applyLaid, onLeft: removeHand, onState: (st) => (roomState = st), onCommunity: (m) => { if (m.donated) community.add(m.donated); if (m.sealed) { stamp(`Community Hand ${m.sealed}`, 'all 22 handbits given · the next one begins'); net.community().then((c) => community.set(c)); } } });
+  if (ok) roomLink = net.openRoom({ name: mine?.name ?? null, deco: withRiders(bloom.pouch.signature(), myGnomes), onGarden: bloom.onGarden, onDecos: (m) => { for (const [id, raw] of Object.entries(m)) { const { sig, riders } = splitRiders(raw); bouquets.set(+id, bouquet(fromSignature(sig), { strands: 5, max: 80 })); theirGnomes.set(+id, riders); } }, onGnome: (g) => gnomes.onGnome(g), onHello: (id) => (me = id), onNames: (m) => others.setNames(m), onSnapshot: (s) => others.apply(s, me, glide.pos), onLaid: applyLaid, onLeft: removeHand, onState: (st) => (roomState = st), onCommunity: (m) => { if (m.donated) community.add(m.donated); if (m.sealed) { stamp(`Community Hand ${m.sealed}`, 'all 22 handbits given · the next one begins'); net.community().then((c) => community.set(c)); } } });
   else panel.say('Playing alone: the map could not be reached', 6);
 });
 const others = createOthers({ max: 60 }); // the other players in your room, as lighter creatures
@@ -263,7 +265,9 @@ function hudContents() {
   for (const h of hands) { const [x, z] = toWorld(h.pose, 0, 230); radar.hands.push({ x, z, name: h.name }); }
   for (const c of bloom.clouds()) if (!bloom.taken(c.id)) radar.clouds.push({ x: c.x, z: c.z, color: bloom.species[c.sp].color });
   return { show: false, yaw: glide.yaw, pos: glide.pos, altitude: glide.pos[1] - groundAt(glide.pos[0], glide.pos[2]), place: pl, markers: marks, active: false, garden: g, radar,
-    world: { flying: others.count + 1, hands: hands.length, plants: g.plants, planted: g.planted, top: g.top, team: gn.team, converted: gn.converted } };
+    // the board on the stats card: the top gardeners, taking turns with the top gnome converters once there are any
+    world: { flying: others.count + 1, hands: hands.length, plants: g.plants, team: gn.team, converted: gn.converted,
+      board: gn.top.length && Math.floor(performance.now() / 8000) % 2 ? { title: 'TOP GNOME CONVERTERS', you: gn.converted, rows: gn.top, empty: '' } : { title: 'TOP GARDENERS', you: g.planted, rows: g.top, empty: 'nobody has planted yet: be the first' } } };
 }
 function updateTags() { // no allocation per frame: one set, one callback
   camera.getWorldPosition(eyeW);
@@ -307,8 +311,8 @@ scene.add(ink.mesh);
 
 // ---------- Bloom: the garden game (src/garden/game.js) ----------
 const bouquets = new Map(); // room id -> that player's bouquet, from the signature they told the room
-const theirGnomes = new Map(); // room id -> the hats of the gnomes on that player's whorl
-let myGnomes = []; // the hats of the gnomes on yours
+const theirGnomes = new Map(); // room id -> the gnomes on that player's whorl: [{ hat, id (the mushroom it left) }]
+let myGnomes = []; // the gnomes on yours
 const sendDeco = (sig) => roomLink?.deco(withRiders(sig, myGnomes)); // your bouquet and your gnomes, in one signature
 const bloom = createBloom({ scene, shared: world.shared, storage, net, hands, groundAt, say: (text, s) => panel.say(text, s), stamp: (a, b, k) => stamp(a, b, k), online: () => online, onDeco: (d) => sendDeco(d) });
 const fauna = createFauna(bloom.species);
@@ -333,18 +337,15 @@ fauna.setLand((x, z) => !!whereAt(hands, x, z)?.handbit); // herds keep out of t
 const goldBeam = new THREE.Mesh(new THREE.CylinderGeometry(7, 7, 2400, 8, 1, true), new THREE.MeshBasicMaterial({ color: 0xe9c46a, transparent: true, opacity: 0.55, depthWrite: false, fog: false }));
 goldBeam.visible = false;
 scene.add(goldBeam);
-const dust = new THREE.Mesh(new THREE.CylinderGeometry(900, 1000, 900, 40, 1, true), new THREE.MeshBasicMaterial({ color: 0xb08a5a, transparent: true, opacity: 0.38, side: THREE.DoubleSide, depthWrite: false }));
-const dustCap = new THREE.Mesh(new THREE.SphereGeometry(900, 24, 10, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xc39a66, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false }));
-dustCap.position.y = 450; dustCap.scale.y = 0.35;
-dust.add(dustCap); dust.visible = false;
-scene.add(dust); // the sandstorm: a wall of dust that crosses the world (src/garden/drift.js)
+const sandstorm = createSandstorm(world.shared.uTrip, STORM.r); // a turning column of dust that crosses the world (where: src/garden/drift.js)
+scene.add(sandstorm.group);
 // ---------- gnomes (src/gnomes): they live in the mushrooms, ride the animals and your whorl, and have side quests ----------
 const NO_GNOMES = [];
 const gnomes = createGnomes({
   scene, bloom, net, groundAt, creature, others, fauna, makeLabel: createLabel,
   say: (text, s) => panel.say(text, s), stamp: (a, b, k) => stamp(a, b, k), online: () => online,
   hands: () => hands.filter((h) => h.pose).map((h) => { const [x, z] = toWorld(h.pose, 0, 230); return { name: h.name, x, z }; }),
-  onRiders: (hats) => { myGnomes = hats; sendDeco(bloom.pouch.signature()); }, ridersOf: (id) => theirGnomes.get(id) ?? NO_GNOMES,
+  onRiders: (on) => { myGnomes = on; sendDeco(bloom.pouch.signature()); }, ridersOf: (id) => theirGnomes.get(id) ?? NO_GNOMES, quest: params.get('quest'),
 });
 const gnomeCtx = { pos: glide.pos, yaw: 0, speed: 0, alt: 0, flying: false, wet: false, place: null, eye: eyeW, burst: () => creature.burst() };
 addEventListener('keydown', (e) => { if ((e.key === 'g' || e.key === 'G') && mode === 'fly' && started && !e.repeat) { gnomeCtx.place = place; gnomes.act('drop', gnomeCtx); } });
@@ -419,6 +420,7 @@ const handFactory = new XRHandModelFactory();
 // your hands are ink silhouettes (the hand models are lit standard materials; the Source's lights would turn them grey)
 const inkHands = [], INK_HAND = new THREE.MeshBasicMaterial({ color: 0x16100e });
 setInterval(() => { for (const m of inkHands) m.traverse((o) => { if (o.isMesh && o.material !== INK_HAND) o.material = INK_HAND; }); }, 1000);
+let steerer = null; // the hand that steers now (src/steer.js steeringHand)
 const xrHands = [0, 1].map((i) => {
   const hand = renderer.xr.getHand(i);
   const model = handFactory.createHandModel(hand, 'mesh');
@@ -580,6 +582,7 @@ function readHands(dt) {
     h.frame = ok ? palmFrame(h.store, h.handedness) : null;
     h.engaged = h.hold.update(h.frame, handFloor(), dt) && !!h.frame; // a raised open hand, held a moment
   }
+  steerer = steeringHand(steerer, xrHands); // one hand steers; the other is free to sow, pour and toss
 }
 const headQuat = new THREE.Quaternion(), headLocal = new THREE.Vector3();
 let headNeutral = null;
@@ -618,7 +621,7 @@ let started = false;
 function steering() {
   // the title screen is the world, drifting; ?auto=dive dives, for screenshots
   if (AUTO || !started) return { turn: 0.12, climb: params.get('auto') === 'dive' ? -0.8 : 0 };
-  const h = (renderer.xr.isPresenting || webcam) && xrHands.find((q) => q.engaged); // your fingers are the arrow
+  const h = (renderer.xr.isPresenting || webcam) && steerer; // your fingers are the arrow
   if (flyTo && Math.hypot(flyTo.x - glide.pos[0], flyTo.z - glide.pos[2]) < 400) { panel.say(`Over ${flyTo.label}`, 4); flyTo = null; }
   const who = whoSteers({ flyTo: !!flyTo, engaged: !!h, keys: keys.size > 0, xr: renderer.xr.isPresenting });
   if (who !== 'auto') flyTo = null; // steering yourself takes over from Fly here, in the headset and on a screen
@@ -838,11 +841,12 @@ function frame() {
   if (mode !== 'atelier' && mode !== 'atlas') glide.update(dt, steer, groundAt); // the world waits while you read your hand or your atlas
   if (sow) gardenAct('plant');
   // sowing by hand (in the headset): sweep an open hand to scatter seed that way, throw it forward to cast far
-  // ahead, press a flat palm down to pour water. The hand that steers does none of these.
+  // ahead, press a flat palm down to pour water, toss it upward to set a gnome down. The hand that steers does none of these.
   if (renderer.xr.isPresenting && started && mode === 'fly') for (const h of xrHands) {
-    const swept = (h.fling ??= createFling()).update(h.engaged ? null : h.frame, dt);
-    if (swept) gardenAct(`scatter:${swept}`);
-    if ((h.pour ??= createPush()).update(h.engaged ? null : h.frame, dt, handFloor()) === 'push') gardenAct('pour');
+    const swept = (h.fling ??= createFling()).update(h === steerer ? null : h.frame, dt, handFloor());
+    if (swept === 'up') gnomes.act('drop', gnomeCtx); // tossed upward: the gnome that grabbed on last lets go
+    else if (swept) gardenAct(`scatter:${swept}`);
+    if ((h.pour ??= createPush()).update(h === steerer ? null : h.frame, dt, handFloor()) === 'push') gardenAct('pour');
   }
   bloomCtx.place = place; bloomCtx.braiding = braiding; bloomCtx.flying = started && mode === 'fly';
   bloom.frame(dt, bloomCtx);
@@ -915,9 +919,7 @@ function frame() {
   }
   others.each((c, id) => { const b = bouquets.get(id); if (b) for (const o of b) { const l = c.strand(o.strand % c.strands), j = Math.min(l.count - 1, Math.max(1, Math.round(o.at * (l.count - 1)))) * 3; fl.deco(l.xyz[j], l.xyz[j + 1], l.xyz[j + 2], (5 + 4 * o.size) * (1 + 0.12 * Math.sin(t * 2.2 + o.phase)), o.sp); } });
   for (const c of bloom.clouds()) if (!bloom.taken(c.id)) for (let i = 0; i < 10; i++) { const a = t * (0.5 + 0.07 * i) + i * 0.63, r = 30 + 50 * ((i * 0.618) % 1); fl.deco(c.x + Math.cos(a) * r, c.y + Math.sin(a * 1.3 + i) * 25, c.z + Math.sin(a) * r, 30, c.sp); }
-  const sandNow = bloom.storm();
-  dust.visible = !!sandNow;
-  if (sandNow) { dust.position.set(sandNow.x, groundAt(sandNow.x, sandNow.z) + 380, sandNow.z); dust.rotation.y = t * 0.4; dust.material.opacity = 0.3 + 0.08 * Math.sin(t * 1.7); }
+  sandstorm.update(t, bloom.storm(), groundAt);
   const gold = bloom.gold();
   goldBeam.visible = !!gold;
   if (gold) { goldBeam.position.set(gold.x, gold.y, gold.z); for (let i = 0; i < 16; i++) { const a = t * 1.4 + i * 0.3927, r = 60 + 20 * Math.sin(t * 2 + i); fl.deco(gold.x + Math.cos(a) * r, gold.y + Math.sin(a * 2) * 30, gold.z + Math.sin(a) * r, 40, gold.sp); } }

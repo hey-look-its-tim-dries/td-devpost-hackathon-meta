@@ -223,3 +223,21 @@ test('sowing by hand: an open hand swept fast to a side scatters that way, throw
   sweep(f, [0.04, 0, 0]);
   assert.deepEqual(sweep(f, [-0.04, 0, 0], 12), [], 'the swing back right after does not sow again');
 });
+
+test('an open hand tossed upward is its own sweep (it sets a gnome down): it takes a longer throw than a scatter, and a hand dropping still does nothing', () => {
+  const frame = (x, y, z, extension = 1) => ({ center: [x, y, z], normal: [0, -1, 0], extension });
+  const sweep = (f, step, n = 12, ext = 1) => { const out = []; let p = [0, 1.0, -0.3]; for (let i = 0; i < n; i++) { p = p.map((v, k) => v + step[k]); const r = f.update(frame(...p, ext), 1 / 60); if (r) out.push(r); } return out; };
+  assert.deepEqual(sweep(createFling(), [0, 0.04, 0]), ['up'], '2.4 m/s upward over 48 cm');
+  assert.deepEqual(sweep(createFling(), [0.01, 0.04, -0.01]), ['up'], 'mostly upward counts');
+  assert.deepEqual(sweep(createFling(), [0, 0.04, 0], 7), [], '28 cm is a hand being raised, not a toss');
+  assert.deepEqual(sweep(createFling(), [0, 0.04, 0], 12, 0.1), [], 'a fist tosses nothing');
+  assert.deepEqual(sweep(createFling(), [0, -0.04, 0]), [], 'a hand dropping to your lap does nothing');
+  assert.deepEqual(sweep(createFling(), [0.04, 0.01, 0]), ['right'], 'a sideways sweep is still a scatter');
+});
+
+test('a toss starts with the hand already up: a hand raised fast from your lap sets no gnome down', () => {
+  const frame = (y) => ({ center: [0, y, -0.3], normal: [0, -1, 0], extension: 1 });
+  const rise = (from, floorY) => { const f = createFling(), out = []; let y = from; for (let i = 0; i < 14; i++) { y += 0.04; const r = f.update(frame(y), 1 / 60, floorY); if (r) out.push(r); } return out; };
+  assert.deepEqual(rise(0.9, 1.0), [], 'it started under the floor (your lap): a hand being raised');
+  assert.deepEqual(rise(1.1, 1.0), ['up'], 'it started up in front of you: a toss');
+});

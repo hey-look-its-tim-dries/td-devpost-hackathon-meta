@@ -60,14 +60,17 @@ test('annoying a gnome: a wild one grumbles; another gardener\'s loses heart and
   assert.deepEqual(afterAnnoy({ owner: 'you', loyalty: 2 }, 'me'), { owner: 'you', loyalty: 1, event: 'grumpy' });
   assert.deepEqual(afterAnnoy({ owner: 'you', loyalty: 1 }, 'me'), { owner: null, loyalty: 0, event: 'deserted' });
 });
-test('gnomes on board travel in the bouquet\'s signature and come out again; the flowers are untouched', () => {
-  const sig = [5, 10, 9, 20], out = withRiders(sig, [2, 4]);
-  assert.deepEqual(out, [5, 10, 9, 20, 4095, 2, 4095, 4]);
-  assert.deepEqual(splitRiders(out), { sig, hats: [2, 4] });
+test('gnomes on board travel in the bouquet\'s signature, each with its hat and the mushroom it left; the flowers are untouched', () => {
+  const sig = [5, 10, 9, 20], riders = [{ hat: 2, id: 70000 }, { hat: 4, id: 5 }], out = withRiders(sig, riders);
+  assert.deepEqual(out, [5, 10, 9, 20, 4095, 2, 4094, 70000 & 4095, 4093, 70000 >> 12, 4095, 4, 4094, 5, 4093, 0]);
+  assert.deepEqual(splitRiders(out), { sig, riders });
   assert.equal(fromSignature(splitRiders(out).sig).length, 2);
-  assert.ok(withRiders(Array.from({ length: 48 }, (_, i) => i), [1, 2, 3, 4, 5]).length <= 48, 'never longer than the room allows');
-  assert.equal(splitRiders(withRiders([], [1, 2, 3, 4, 5])).hats.length, GNOME.max);
-  assert.deepEqual(splitRiders('junk'), { sig: [], hats: [] });
+  const full = withRiders(Array.from({ length: 48 }, (_, i) => i), [1, 2, 3, 4, 5].map((hat) => ({ hat, id: 16000000 + hat })));
+  assert.ok(full.length <= 48 && full.every((v) => Number.isInteger(v) && v >= 0 && v < 4096), 'never longer, never larger than the room allows');
+  assert.equal(splitRiders(full).riders.length, GNOME.max);
+  assert.deepEqual(splitRiders(full).riders[0], { hat: 1, id: 16000001 });
+  assert.deepEqual(splitRiders([5, 10, 4095, 3]), { sig: [5, 10], riders: [{ hat: 3, id: 0 }] }, 'a rider with no home told still rides');
+  assert.deepEqual(splitRiders('junk'), { sig: [], riders: [] });
 });
 
 import { pose, CLIPS } from '../src/gnomes/pose.js';
@@ -92,4 +95,37 @@ test('a quest never asks for a place you are already at: targets are a good way 
   const atSource = Array.from({ length: 600 }, (_, d) => questFor(g, d, { from: { x: 50, z: 50 }, hands: [], homes: [] }));
   assert.ok(!atSource.some((q) => q.kind === 'source'), 'a gnome that lives at the Source does not ask to go there');
   for (const q of all) if (q.r) assert.ok(Math.hypot(q.x - from.x, q.z - from.z) > q.r + 200, `${q.kind} is not done on the spot`);
+});
+
+import { lostGnome } from '../src/gnomes/gnomes.js';
+test('the room tells you when a gnome leaves your team: converted by another gardener, or driven off', () => {
+  const mine = { tag: 'me', owner: 'you', loyalty: 2 };
+  assert.equal(lostGnome(mine, 'me', [7, 'them', 'Quosaira', 2, 'converted']), 'Quosaira converted one of your gnomes');
+  assert.equal(lostGnome(mine, 'me', [7, null, null, 0, 'deserted']), 'One of your gnomes deserted: someone annoyed it once too often');
+  assert.equal(lostGnome(mine, 'me', [7, 'me', 'you', 3, 'loyal']), null, 'still yours');
+  assert.equal(lostGnome({ tag: 'them', owner: 'Quosaira', loyalty: 2 }, 'me', [7, null, null, 0, 'deserted']), null, 'it was never yours');
+  assert.equal(lostGnome(undefined, 'me', [7, 'them', 'Quosaira', 2, 'joined']), null, 'a wild gnome joining someone is no loss');
+  assert.equal(lostGnome(mine, null, [7, 'them', 'Quosaira', 2, 'converted']), null, 'before you know who you are, nothing is yours');
+});
+test('gnomes hop on at any speed short of a roar: one threshold, below it they grab on, at it they are cross', () => {
+  assert.equal(GNOME.pickup.speed, GNOME.buzz.speed);
+  assert.ok(GNOME.pickup.speed > 340 * 1.35, 'the foxfire\'s push (a third over cruise) still picks gnomes up');
+});
+
+import { gainedGnome } from '../src/gnomes/gnomes.js';
+test('the room also tells you when a gnome comes over to you, so your count is right even when the map\'s own answer got lost', () => {
+  assert.equal(gainedGnome(undefined, 'me', [7, 'me', 'You', 2, 'joined']), 'joined');
+  assert.equal(gainedGnome({ tag: 'them' }, 'me', [7, 'me', 'You', 2, 'converted']), 'converted');
+  assert.equal(gainedGnome({ tag: 'me' }, 'me', [7, 'me', 'You', 3, 'loyal']), null, 'it was yours already');
+  assert.equal(gainedGnome(undefined, 'me', [7, 'them', 'Quosaira', 2, 'joined']), null, 'someone else\'s gain');
+  assert.equal(gainedGnome(undefined, null, [7, 'me', 'You', 2, 'joined']), null, 'before you know who you are');
+});
+
+test('a quest can be asked for by kind (the film and the checks do), if the world has what it needs', () => {
+  const g = { id: 9, seed: 1234 }, world = { hands: [{ name: 'Oruvel', x: 5000, z: 0 }], homes: [] };
+  for (let d = 0; d < 40; d++) assert.equal(questFor(g, d, { ...world, kind: 'foxfire' }).kind, 'foxfire');
+  assert.match(questFor(g, 3, { ...world, kind: 'hand' }).text, /Oruvel/);
+  const noCousins = Array.from({ length: 40 }, (_, d) => questFor(g, d, { ...world, kind: 'cousin' }).kind);
+  assert.ok(!noCousins.includes('cousin'), 'no cousin to visit: the day\'s own quest instead');
+  assert.deepEqual(questFor(g, 5, { ...world, kind: 'nonsense' }), questFor(g, 5, world));
 });

@@ -34,3 +34,15 @@ test('hand pull clamps and stillness angle reads', () => {
   assert.equal(handSteer(-0.075), -0.5);
   assert.ok(Math.abs(angleBetween(I, turnRight(10)) - deg(10)) < 1e-6);
 });
+
+import { steeringHand } from '../src/steer.js';
+test('one hand steers: the first one raised keeps the stick while it stays up, so the other is free to sow, pour and toss', () => {
+  const l = { engaged: false }, r = { engaged: true };
+  assert.equal(steeringHand(null, [l, r]), r);
+  l.engaged = true; // the left comes up to sweep seed
+  assert.equal(steeringHand(r, [l, r]), r, 'the right keeps steering');
+  r.engaged = false;
+  assert.equal(steeringHand(r, [l, r]), l, 'it dropped: the other takes over');
+  l.engaged = false;
+  assert.equal(steeringHand(l, [l, r]), null, 'no hand up: nobody steers');
+});

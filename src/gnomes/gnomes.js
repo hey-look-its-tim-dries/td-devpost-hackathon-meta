@@ -6,7 +6,7 @@
 // roar past and you annoy it. A gnome on board gives you a side quest. Do it and it joins your team, or
 // grows more loyal, or, if it was someone else's, wavers and then converts. Annoy another gardener's gnome
 // often enough and it deserts them. Pure: the map's server applies the same team rules.
-export const GNOME = { chance: 38, max: 3, pickup: { r: 90, alt: 240, speed: 400 }, buzz: { r: 120, speed: 460 }, questMs: 180000, loyal: 5 };
+export const GNOME = { chance: 38, max: 3, pickup: { r: 90, alt: 240, speed: 460 }, buzz: { r: 120, speed: 460 }, questMs: 180000, loyal: 5 };
 const mix = (a) => { a = Math.imul(a ^ (a >>> 16), 2246822507); a = Math.imul(a ^ (a >>> 13), 3266489909); return (a ^ (a >>> 16)) >>> 0; };
 const pick = (list, h) => list[mix(h) % list.length];
 
@@ -17,7 +17,7 @@ export const HATS = ['#d8342c', '#2f6fd6', '#3f9a3a', '#e8b21e', '#8a4fd0', '#e0
 // the gnome of a home, or null when nobody lives there: { id, name, hat (index into HATS), seed }
 export function gnomeAt(grove, species) {
   if (!isHome(grove, species) || mix(grove.id * 7 + 3) % 100 >= GNOME.chance) return null;
-  const seed = mix(grove.id);
+  const seed = seedOf(grove.id);
   return { id: grove.id, name: pick(A, seed) + pick(B, seed + 1), hat: mix(seed + 2) % HATS.length, seed };
 }
 // what a gnome at home is doing now (the same for everyone): mostly sitting about, sometimes asleep, pottering, or out riding
@@ -44,13 +44,13 @@ const LINES = {
 export const shout = (kind, seed, n = 0) => pick(LINES[kind] ?? LINES.greet, seed * 13 + n * 7 + kind.length);
 
 // ---- side quests: one per gnome per day, from what the world has ----
-// world: { from: { x, z } (the gnome's own mushroom), hands: [{ name, x, z }], homes: [{ id, name, x, z }] } (other gnomes' mushrooms). Returns { kind, text, need, have, x?, z?, r? }
+// world: { from: { x, z } (the gnome's own mushroom), hands: [{ name, x, z }], homes: [{ id, name, x, z }] (other gnomes' mushrooms), kind? }. Returns { kind, text, need, have, x?, z?, r? }
 export function questFor(gnome, day, world = {}) {
   // somewhere to go must be a real trip: not the Hand it lives on, not the gnome next door, not the Source from the Source
   const from = world.from ?? { x: 1e9, z: 1e9 }, far = (q, d) => Math.hypot(q.x - from.x, q.z - from.z) > d;
   const h = mix(gnome.seed + day * 977), hands = (world.hands ?? []).filter((q) => far(q, 2600)), cousins = (world.homes ?? []).filter((q) => q.id !== gnome.id && far(q, 900));
   const kinds = ['foxfire', 'sow', 'water', 'speed', 'high', 'cloud', 'river', ...(far({ x: 0, z: 0 }, 1500) ? ['source'] : []), ...(hands.length ? ['hand', 'hand'] : []), ...(cousins.length ? ['cousin', 'cousin'] : [])];
-  const kind = kinds[h % kinds.length], q = (text, need, extra = {}) => ({ kind, text, need, have: 0, ...extra });
+  const kind = kinds.includes(world.kind) ? world.kind : kinds[h % kinds.length], q = (text, need, extra = {}) => ({ kind, text, need, have: 0, ...extra }); // world.kind: asked for (the film, the checks)
   if (kind === 'source') return q('Take me to the Source! I want to see the shiny spire.', 1, { x: 0, z: 0, r: 500 });
   if (kind === 'hand') { const t = hands[mix(h + 1) % hands.length]; return q(`Fly me to ${t.name}. My cousin there owes me a button.`, 1, { x: t.x, z: t.z, r: 900 }); }
   if (kind === 'cousin') { const t = cousins[mix(h + 2) % cousins.length]; return q(`Take me to ${t.name}'s mushroom. It's their birthday. Probably.`, 1, { x: t.x, z: t.z, r: 260 }); }
@@ -91,10 +91,34 @@ export function afterAnnoy(rec, me) {
   return loyalty <= 0 ? { owner: null, loyalty: 0, event: 'deserted' } : { owner: rec.owner, loyalty, event: 'grumpy' };
 }
 
-// ---- gnomes on board, told to the room inside the bouquet's signature: [4095, hat] per rider, after the species ----
-export function withRiders(sig, hats) { return [...sig.slice(0, 48 - 2 * Math.min(GNOME.max, hats.length)), ...hats.slice(0, GNOME.max).flatMap((h) => [4095, h])]; }
-export function splitRiders(sig) {
-  const s = [], hats = [];
-  if (Array.isArray(sig)) for (let i = 0; i + 1 < sig.length; i += 2) { if (sig[i] === 4095) hats.push(sig[i + 1] % HATS.length); else s.push(sig[i], sig[i + 1]); }
-  return { sig: s, hats: hats.slice(0, GNOME.max) };
+// the room tells of a gnome's change of heart: [id, tag, owner, loyalty, event]. If it was on your team (was: your
+// record of it; mine: your tag) and no longer is, the line to tell you; otherwise null
+export function lostGnome(was, mine, [, tag, owner, , event]) {
+  if (!mine || was?.tag !== mine || tag === mine) return null;
+  return event === 'converted' ? `${owner} converted one of your gnomes` : 'One of your gnomes deserted: someone annoyed it once too often';
 }
+
+// ... and if it was not on your team and now is, how it came: 'joined' | 'converted'; otherwise null. The map's
+// answer to your own quest says the same, but answers get lost; the room's word keeps your count right
+export const gainedGnome = (was, mine, [, tag, , , event]) => (mine && tag === mine && was?.tag !== mine ? event : null);
+
+// ---- gnomes on board, told to the room inside the bouquet's signature, after the species ----
+// Per rider three pairs: [4095, hat], then the mushroom it left in two 12-bit halves, [4094, low] [4093, high]
+// (the room passes whole numbers under 4096 only). Others draw the gnome on your whorl and its cap empty.
+export function withRiders(sig, riders) {
+  const on = riders.slice(0, GNOME.max);
+  return [...sig.slice(0, 48 - 6 * on.length), ...on.flatMap((r) => [4095, r.hat, 4094, r.id & 4095, 4093, (r.id >>> 12) & 4095])];
+}
+export function splitRiders(sig) {
+  const s = [], riders = [];
+  if (Array.isArray(sig)) for (let i = 0; i + 1 < sig.length; i += 2) {
+    const k = sig[i], v = sig[i + 1], last = riders.at(-1);
+    if (k === 4095) riders.push({ hat: v % HATS.length, id: 0 });
+    else if (k === 4094) { if (last) last.id |= v & 4095; }
+    else if (k === 4093) { if (last) last.id |= (v & 4095) << 12; }
+    else s.push(k, v);
+  }
+  return { sig: s, riders: riders.slice(0, GNOME.max) };
+}
+// what a gnome looks like, from the mushroom it lives in (the same for whoever draws it)
+export const seedOf = (id) => mix(id);

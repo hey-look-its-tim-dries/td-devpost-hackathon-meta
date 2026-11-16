@@ -159,3 +159,15 @@ test('a world that is slow to answer once is asked again before the game gives u
   assert.equal(gone.online, false);
   assert.equal(never, 3, 'three tries, then the bundled founders');
 });
+
+test('the room hears what is on your whorl, also when it is emptied: a gnome set down by someone with no flowers leaves', () => {
+  const sent = [], real = globalThis.WebSocket;
+  globalThis.WebSocket = class { constructor() { this.readyState = 1; setTimeout(() => this.onopen?.(), 0); } send(m) { sent.push(m); } close() {} };
+  try {
+    const link = createNet({ storage: memory(), api: 'http://x' }).openRoom({});
+    link.deco([4095, 2, 4094, 7, 4093, 0]);
+    link.deco([]);
+    link.close();
+    assert.deepEqual(sent.map((m) => JSON.parse(m)), [{ deco: [4095, 2, 4094, 7, 4093, 0] }, { deco: [] }]);
+  } finally { globalThis.WebSocket = real; }
+});

@@ -242,20 +242,25 @@ export function createPush({ depth = 0.08, holdOn = 0.4, holdOff = 0.3, dropTole
 
 // Sowing by hand. The oldest sowing movement there is: an open hand swept fast scatters seed. Swept to
 // a side it broadcasts that way ('left' | 'right'); thrown forward it casts seed far ahead ('forward').
-// One scatter per sweep, and the swing back just after does not sow again. Positions are in the rig's
-// frame (x right, y up, -z forward), in metres.
-export function createFling({ speed = 1.3, travel = 0.25, cooldown = 0.7 } = {}) {
-  let last = null, run = [0, 0, 0], wait = 0;
+// One scatter per sweep, and the swing back just after does not sow again. Tossed upward ('up') it shakes
+// a gnome off your whorl; that takes a longer throw (toss), so a hand merely raised is not one, and a hand
+// dropping to your lap is never anything. Positions are in the rig's frame (x right, y up, -z forward), in metres.
+export function createFling({ speed = 1.3, travel = 0.25, toss = 0.4, cooldown = 0.7 } = {}) {
+  let last = null, run = [0, 0, 0], wait = 0, y0 = 0; // y0: how high the hand was when this sweep began
   return {
-    update(frame, dt) {
+    // floorY: a toss must begin above it (a hand coming up from your lap is being raised, not tossing)
+    update(frame, dt, floorY = -Infinity) {
       wait = Math.max(0, wait - dt);
       if (!frame || dt <= 0) { last = null; run = [0, 0, 0]; return null; }
       const c = frame.center, d = last ? [c[0] - last[0], c[1] - last[1], c[2] - last[2]] : null;
       last = [c[0], c[1], c[2]];
       if (!d || frame.extension < 0.5 || Math.hypot(...d) / dt < speed) { run = [0, 0, 0]; return null; }
+      if (!run[0] && !run[1] && !run[2]) y0 = c[1] - d[1];
       run = [run[0] + d[0], run[1] + d[1], run[2] + d[2]];
       if (Math.hypot(...run) < travel) return null;
-      const ax = Math.abs(run[0]), ay = Math.abs(run[1]), fwd = -run[2], dir = fwd > ax && fwd > ay ? 'forward' : ax > ay && ax > Math.abs(run[2]) ? (run[0] < 0 ? 'left' : 'right') : null;
+      const ax = Math.abs(run[0]), ay = Math.abs(run[1]), fwd = -run[2], up = run[1] > ax && run[1] > Math.abs(run[2]);
+      if (up && Math.hypot(...run) < toss) return null; // still going up: wait and see whether it is a real toss
+      const dir = up ? (y0 >= floorY ? 'up' : null) : fwd > ax && fwd > ay ? 'forward' : ax > ay && ax > Math.abs(run[2]) ? (run[0] < 0 ? 'left' : 'right') : null;
       run = [0, 0, 0];
       if (!dir || wait > 0) return null;
       wait = cooldown;

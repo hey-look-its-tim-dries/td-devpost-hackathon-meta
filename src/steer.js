@@ -39,3 +39,7 @@ export const angleBetween = (a, b) =>
   2 * Math.acos(Math.min(1, Math.abs(a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3])));
 
 export { mul };
+
+// Which hand steers: the one that was steering, as long as it is still up; otherwise the first one up. The
+// other hand, raised or not, is free for the sowing gestures (hands: [{ engaged }]).
+export const steeringHand = (was, hands) => (was?.engaged ? was : hands.find((h) => h.engaged) ?? null);
