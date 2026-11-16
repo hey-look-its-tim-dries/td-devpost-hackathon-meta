@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { drawMap, mapView, fromMap } from './map.js';
 import { W, H, TABS, TAB_LABELS, MAP, LAYERS, layout, hitAt } from './layout.js';
 import { TONES } from '../world/scene.js';
+import { themed, look } from '../ui/themed.js';
 
 const INK = '#16100e', PAPER = '#f6ead6', SEAL = '#b8442e', GILT = '#c9a35a', RIVER = '#2f5d7c';
 const SERIF = 'Georgia, "Times New Roman", serif', SANS = 'Inter, "Segoe UI", system-ui, sans-serif';
@@ -19,9 +20,9 @@ export function createAtlas() {
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.45), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }));
   mesh.renderOrder = 25;
   mesh.visible = false;
-  const g = canvas.getContext('2d'), map = document.createElement('canvas');
+  const g = themed(canvas.getContext('2d')), map = document.createElement('canvas'); // calm or foxfire: the same drawing in either look
   map.width = MAP.w; map.height = MAP.h;
-  const mg = map.getContext('2d');
+  const mg = themed(map.getContext('2d'));
   let tab = 'world', regions = layout(tab), view = null, layers = Object.fromEntries(LAYERS.map((l) => [l, l !== 'watersheds'])), drag = null, last = null;
   const rasters = new Map(); // hand id -> { mask, r }
 
@@ -30,10 +31,10 @@ export function createAtlas() {
     const d = hand.data;
     if (!d?.cells) return null;
     const mask = chart.mask(hand.id), have = rasters.get(hand.id);
-    if (have && have.mask === mask) return have.r;
+    if (have && have.mask === mask && have.neon === look.neon) return have.r;
     const k = 2, w = Math.ceil(d.w / k), h = Math.ceil(d.h / k), c = document.createElement('canvas');
     c.width = w; c.height = h;
-    const cg = c.getContext('2d'), img = cg.createImageData(w, h), tone = hex(TONES[(hand.palette ?? 2) * 3 + 1] ?? '#c98f6b'), parch = [243, 228, 210], river = [127, 167, 184];
+    const cg = c.getContext('2d'), img = cg.createImageData(w, h), tone = hex(TONES[(hand.palette ?? 2) * 3 + 1] ?? '#c98f6b'), parch = look.neon ? [22, 8, 46] : [243, 228, 210], river = look.neon ? [0, 229, 255] : [127, 167, 184]; // in the foxfire the map glows too
     for (let r = 0; r < h; r++) for (let q = 0; q < w; q++) {
       const v = d.cells[(r * k) * d.w + q * k], o = (r * w + q) * 4;
       if (v === -2) continue;
@@ -42,7 +43,7 @@ export function createAtlas() {
     }
     cg.putImageData(img, 0, 0);
     const out = { image: c, x0: d.x0, y0: d.y0, w, h, cell: d.cell * k };
-    rasters.set(hand.id, { mask, r: out });
+    rasters.set(hand.id, { mask, r: out, neon: look.neon });
     return out;
   }
 

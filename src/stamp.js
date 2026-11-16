@@ -1,6 +1,7 @@
 // src/stamp.js
 // The seal stamp (spec 11.1): a Seal-red stamp that thumps onto your view for the big moments (a Hand
 // sealed, a Community Hand sealed). Scale 1.15 -> 1 in 80 ms, holds, fades. A child of the camera.
+import { themed } from './ui/themed.js';
 import * as THREE from 'three';
 
 const W = 768, H = 384, SEAL = '#b8442e';
@@ -16,7 +17,7 @@ export function createStamp() {
   return {
     mesh,
     show(title, sub = '', kicker = 'SEALED') {
-      const g = canvas.getContext('2d');
+      const g = themed(canvas.getContext('2d')); // calm or foxfire: the same drawing in either look
       g.clearRect(0, 0, W, H);
       g.fillStyle = 'rgba(243, 228, 210, 0.95)';
       g.beginPath(); g.roundRect(8, 8, W - 16, H - 16, 40); g.fill();

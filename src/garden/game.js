@@ -4,7 +4,8 @@
 // race everyone to the golden seed. What you plant is on the shared map for all to see, water and
 // build on; plots bloom, and wildlife moves in. This file wires the pure rules (garden, pouch, drift)
 // to the map, the renderers and the flight; main.js calls frame() and act().
-import { SPECIES, FLORA, STARTERS } from './species.js';
+import { SPECIES, FLORA, FUNGI, STARTERS } from './species.js';
+import { createFoxfire, wildMushroom } from './foxfire.js';
 import { createGarden, habitatOf, vigour, UNITS, LEVELS } from './garden.js';
 import { createPouch } from './pouch.js';
 import { clouds, golden, storm, stormDried } from './drift.js';
@@ -23,7 +24,9 @@ const HYPER = { seconds: 10, tile: 30, spacing: 14 }; // a hyper sow: ten second
 const BLOOM = ['bare sand', 'first bloom', 'meadow', 'garden', 'full bloom'];
 
 export function createBloom({ scene, shared, storage, net, hands, groundAt, say, stamp, online, onDeco }) {
-  const garden = createGarden(SPECIES), pouch = createPouch(storage, SPECIES, STARTERS), flora = createFlora(SPECIES, FLORA, shared);
+  const garden = createGarden(SPECIES), pouch = createPouch(storage, SPECIES, STARTERS), flora = createFlora(SPECIES, FLORA.concat(FUNGI), shared), fox = createFoxfire();
+  // while the foxfire lasts everything you earn counts for more (twice, and more as you chain mushrooms)
+  const credit = (what) => { let up = false; for (let i = fox.mult(Date.now()); i > 0; i--) up = pouch.credit(what) || up; return up; };
   scene.add(flora.group);
   const handOf = (id) => hands.find((h) => h.id === id && h.data?.cells && (h.rise ?? 1) >= 1);
   const waiting = []; // groves whose Hand has not risen here yet
@@ -134,7 +137,7 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
     const p = { id: tempId--, hand: place.hand.id, bit: place.index, x, y, sp, stage: 0, tended: Date.now(), big: braiding ? 1 : 0, hab: habitatOf(place.handbit.code, nearWater) };
     if (!add(p, true)) { pouch.giveBack(sp); return; }
     pouch.planted(sp);
-    const up = pouch.credit('plant');
+    const up = credit('plant');
     fill(0.03);
     worldPlants++;
     onDeco?.(pouch.signature());
@@ -159,7 +162,7 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
       if (sp === null) break;
       const [x, y] = toHand(w.hand.pose, wx, wz), p = { id: tempId--, hand: w.hand.id, bit: w.index, x, y, sp, stage: 0, tended: Date.now(), big: 0, hab: habitatOf(w.handbit.code, false) };
       if (!add(p, true)) { pouch.giveBack(sp); continue; }
-      pouch.planted(sp); pouch.credit('plant'); fill(0.03); worldPlants++; sent.push(p);
+      pouch.planted(sp); credit('plant'); fill(0.03); worldPlants++; sent.push(p);
     }
     if (!sent.length) return say(pouch.total ? 'Nothing but water and wilderness there: scatter over a Hand' : 'Your pouch is empty: fly through a seed cloud', 3);
     ctx.burst?.();
@@ -172,7 +175,7 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
     if (!place || !pouch.water) return say(place ? 'No water: skim a river first' : 'Pour over a Hand', 2.5);
     const [x, y] = toHand(place.hand.pose, pos[0], pos[2]), near = [...garden.all()].filter((p) => p.hand === place.hand.id && p.id > 0 && (p.stage < 3 || p.dry > 0) && now - p.tended > 1500 && Math.hypot(p.x - x, p.y - y) < REACH * 2).sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y)).slice(0, 3);
     if (!near.length) return say('Nothing thirsty here', 2);
-    for (const p of near) { if (!pouch.pour()) break; (online() ? net.tend(p.id) : Promise.resolve({ stage: Math.min(3, p.stage + 1), tended: now })).then((r) => { if (!r.error) { grown(p.id, r.stage, r.tended); pouch.credit('tend'); fill(0.1); } }); }
+    for (const p of near) { if (!pouch.pour()) break; (online() ? net.tend(p.id) : Promise.resolve({ stage: Math.min(3, p.stage + 1), tended: now })).then((r) => { if (!r.error) { grown(p.id, r.stage, r.tended); credit('tend'); fill(0.1); } }); }
     say(`Poured over ${near.length} grove${near.length > 1 ? 's' : ''}`, 2);
   }
   function uproot(ctx) {
@@ -181,7 +184,7 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
     const [x, y] = toHand(place.hand.pose, pos[0], pos[2]), p = garden.nearest(place.hand.id, x, y, REACH);
     if (!p) return say('Nothing here to clear', 2);
     const dead = vigour(p, Date.now()) === 'dead';
-    const done = () => { remove(p.id); worldPlants = Math.max(0, worldPlants - 1); if (dead) { pouch.gather(p.sp, 2); pouch.credit('clear'); say(`Cleared a dead grove: two ${SPECIES[p.sp].name} seeds from the compost`, 3); } else say(`Uprooted ${SPECIES[p.sp].name}`, 2.5); };
+    const done = () => { remove(p.id); worldPlants = Math.max(0, worldPlants - 1); if (dead) { pouch.gather(p.sp, 2); credit('clear'); say(`Cleared a dead grove: two ${SPECIES[p.sp].name} seeds from the compost`, 3); } else say(`Uprooted ${SPECIES[p.sp].name}`, 2.5); };
     if (p.id < 0 || !online()) return done();
     net.uproot(p.id).then((ok) => (ok ? done() : say('Not yours to clear: only its planter, the owner of this Hand, or anyone once it is dead', 4)));
   }
@@ -201,7 +204,7 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
       if (w?.handbit && w.index === place.index && (!lastSprig || Math.hypot(wx - lastSprig[0], wz - lastSprig[1]) >= step * 0.99) && !garden.full(place.hand.id, place.index, 1)) {
         lastSprig = [wx, wz];
         const p = { id: tempId--, hand: place.hand.id, bit: place.index, x, y, sp, stage: 0, tended: now, big: 2, hab: habitatOf(place.handbit.code, false) };
-        if (add(p, true)) { pouch.planted(sp); pouch.credit('sprig'); worldPlants++; queue.push(p); }
+        if (add(p, true)) { pouch.planted(sp); credit('sprig'); worldPlants++; queue.push(p); }
       }
     }
     if (queue.length && (queue.length >= 40 || performance.now() > flushAt)) {
@@ -228,7 +231,7 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
           (online() ? net.tend(thirsty.id) : Promise.resolve({ stage: Math.min(3, thirsty.stage + 1), tended: now })).then((r) => {
             if (r.error) return;
             grown(thirsty.id, r.stage, r.tended);
-            pouch.credit('tend'); fill(0.1);
+            credit('tend'); fill(0.1);
             say(was ? `Revived ${SPECIES[thirsty.sp].name}` : r.stage === 3 ? `${SPECIES[thirsty.sp].name} is in flower` : `Watered ${SPECIES[thirsty.sp].name}`, 2);
           });
         } else if (now - lastPollen > 2500) {
@@ -236,12 +239,26 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
           if (ripe && SPECIES[ripe.sp].rarity <= TIER(pouch.level)) { lastPollen = now; if (pouch.gather(ripe.sp, 1)) discovered(ripe.sp); }
         }
       }
+      // mushrooms: fly low through one and you eat it. Wild ones grow on dead groves; planted ones fruit in flower
+      // (stage 3). The foxfire comes over the world, you get two of its spores to plant, and it fruits again in five minutes.
+      if (place && alt < PLANT_ALT) {
+        const [mx, my] = toHand(place.hand.pose, pos[0], pos[2]);
+        const shroom = garden.nearest(place.hand.id, mx, my, REACH, (p) => p.id > 0 && fox.canEat(p.id, now) && (p.dry === 2 || (SPECIES[p.sp]?.kind === 'mushroom' && p.stage === 3 && !p.dry)));
+        if (shroom) {
+          const kind = wildMushroom(shroom, FUNGI) ?? shroom.sp, k = fox.eat(now);
+          fox.ate(shroom.id, now);
+          if (pouch.gather(kind, 2)) discovered(kind);
+          ctx.burst?.();
+          if (k === 1) stamp('Foxfire', `you ate ${SPECIES[kind].name}: the world glows, and everything counts double`, 'MUSHROOM');
+          else say(`${SPECIES[kind].name}: chain x${k + 1}, ${fox.left(now)} s of foxfire`, 3);
+        }
+      }
       // the seed clouds and the golden seed
       for (const c of drift) if (!taken.has(c.id) && Math.hypot(c.x - pos[0], c.y - pos[1], c.z - pos[2]) < 130) {
         taken.add(c.id);
         const s = SPECIES[c.sp];
         if (s.rarity > TIER(pouch.level)) { say(`${s.name} is too rare for you yet: garden to level ${s.rarity === 2 ? 3 : 6}`, 4); continue; }
-        const fresh = pouch.gather(c.sp, c.n); pouch.credit('gather'); fill(0.25); ctx.burst?.();
+        const fresh = pouch.gather(c.sp, c.n * fox.mult(now)); credit('gather'); fill(0.25 * fox.mult(now)); ctx.burst?.();
         if (fresh) discovered(c.sp); else say(`${c.n} ${s.name} seeds`, 2.5);
       }
       if (gold && !goldTaken.has(gold.epoch) && Math.hypot(gold.x - pos[0], gold.y - pos[1], gold.z - pos[2]) < 170) {
@@ -249,7 +266,7 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
         goldTaken.add(g.epoch);
         (online() ? net.claimGolden(g.epoch) : Promise.resolve({ won: true })).then((r) => {
           if (r && !r.won) return say(`${r.name} reached the golden seed first`, 4);
-          pouch.gather(g.sp, g.n); pouch.credit('golden'); fill(1); ctx.burst?.();
+          pouch.gather(g.sp, g.n); credit('golden'); fill(1); ctx.burst?.();
           stamp('The golden seed', `${g.n} seeds of ${SPECIES[g.sp].name}, a legend`, 'FIRST THERE');
         });
       }
@@ -273,7 +290,7 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
     }
     if (dirty || flora.moved(pos)) { dirty = false; flora.rebuild(garden.all(), pos, groundAt); }
   }
-  function discovered(sp) { pouch.credit('discover'); stamp(`New in your herbarium: ${SPECIES[sp].name}`, `${SPECIES[sp].latin} · ${pouch.found.size} of ${SPECIES.length} found`, 'HERBARIUM'); }
+  function discovered(sp) { credit('discover'); stamp(`New in your herbarium: ${SPECIES[sp].name}`, `${SPECIES[sp].latin} · ${pouch.found.size} of ${SPECIES.length} found`, 'HERBARIUM'); }
 
   // plots near you: notice blooms, and tell the wildlife where to live
   function blooms(ctx) {
@@ -284,7 +301,7 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
       if (!hb) continue;
       const pl = garden.plot(hand, bit, now), k = `${hand}:${bit}`, before = levels.get(k);
       levels.set(k, pl.level);
-      if (before !== undefined && pl.level > before) { if (pl.level === 4) stamp(`${hb.name} is in full bloom`, `${h.name} · ${pl.kinds.size} kinds`, 'FULL BLOOM'); else say(`${hb.name} of ${h.name}: ${BLOOM[pl.level]}`, 3.5); pouch.credit('bloom'); }
+      if (before !== undefined && pl.level > before) { if (pl.level === 4) stamp(`${hb.name} is in full bloom`, `${h.name} · ${pl.kinds.size} kinds`, 'FULL BLOOM'); else say(`${hb.name} of ${h.name}: ${BLOOM[pl.level]}`, 3.5); credit('bloom'); }
       if (!pl.level) continue;
       const [x, z] = toWorld(h.pose, hb.cx, hb.cy);
       every.push({ x, z, level: pl.level });
@@ -303,6 +320,7 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
   return {
     // your bouquet: every kind you sowed, in order, as ornaments for your whorl; made again only when you have sown more
     bouquet() { if (bq.total !== pouch.plantedTotal) { bq.total = pouch.plantedTotal; bq.list = bouquet(pouch.log(), { strands: 24 }); } return bq.list; },
+    foxfire: fox, // the glowing state mushrooms bring: main.js turns the world by foxfire.level(Date.now())
     garden, pouch, flora, species: SPECIES, onGarden, load, signIn, handsRead: () => loaded.size, plots: () => near, allPlots: () => every, storm: () => sand,
     // the atlas's Garden tab: the herbarium; taps choose a kind, a page, or the seed to sow
     herbarium: { paint: (g, regions, tools) => { const r = paintHerbarium(g, regions, tools, { species: SPECIES, found: pouch.found, has: pouch.has, icon: flora.icon, style: flora.styleOf, selected: pouch.selected, ...herb }); herb.page = r.page; } },
@@ -333,7 +351,7 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
     refreshTop,
     // what the HUD shows of the garden
     hud(place) {
-      const sel = SPECIES[pouch.selected], out = { charge, hyper: Math.max(0, Math.ceil((hyperUntil - performance.now()) / 1000)), seeds: pouch.total, water: pouch.water, wet, level: pouch.level, xp: pouch.xp, found: pouch.found.size, of: SPECIES.length, planted: pouch.plantedTotal, plants: worldPlants, top,
+      const tNow = Date.now(), sel = SPECIES[pouch.selected], out = { fox: fox.active(tNow) ? { left: fox.left(tNow), mult: fox.mult(tNow) } : null, charge, hyper: Math.max(0, Math.ceil((hyperUntil - performance.now()) / 1000)), seeds: pouch.total, water: pouch.water, wet, level: pouch.level, xp: pouch.xp, found: pouch.found.size, of: SPECIES.length, planted: pouch.plantedTotal, plants: worldPlants, top,
         selected: pouch.total ? { id: sel.id, name: sel.name, n: pouch.has(sel.id), style: flora.styleOf(sel.id), icon: flora.icon(sel.id) } : null, plot: null };
       if (place?.handbit) {
         const pl = garden.plot(place.hand.id, place.index, Date.now()), next = LEVELS[pl.level];

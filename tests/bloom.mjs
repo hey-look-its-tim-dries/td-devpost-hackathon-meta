@@ -16,11 +16,11 @@ const open = async (label) => {
 const until = async (page, fn, what, arg) => { for (let i = 0; i < 960; i++) { const v = await page.evaluate(fn, arg); if (v) return v; await wait(250); } throw new Error(`timed out: ${what}`); };
 const ready = (p) => until(p, () => window.__pwc?.state.started && window.__pwc.hands.filter((h) => h.data?.cells).length >= 10 && window.__pwc.state.room === 'open' && window.__pwc.bloom.handsRead() > 0, 'ready');
 const mineIds = (p) => p.evaluate(() => [...window.__pwc.bloom.garden.all()].filter((g) => g.id > 0).map((g) => g.id));
-let a = null, had0 = null;
+let a = null, b = null, had0 = null;
 try {
   a = await open('A');
   await ready(a); // one at a time: two software-rendered pages starting together starve each other
-  const b = await open('B');
+  b = await open('B');
   await ready(b);
   await wait(2500); // what the map already holds near here has been read
   had0 = await mineIds(a);
@@ -71,7 +71,7 @@ try {
   await until(b, (ids) => ids.every((id) => !window.__pwc.bloom.garden.get(id)), 'B sees it cleared', gone);
   console.log('cleared on both');
   console.log('BLOOM OK: sow, see, water, clear between two players');
-} catch (e) { console.log('FAILED', e.message, a ? JSON.stringify(await a.evaluate(() => { const p = window.__pwc, g = [...p.bloom.garden.all()].filter((q) => q.big === 2), h = p.bloom.hud(p.hands[0] && null); return { hyper: h.hyper, charge: h.charge, seeds: h.seeds, sprigs: g.length, temp: g.filter((q) => q.id < 0).length, pos: p.state.pos, mode: p.state.mode }; }).catch(() => null)) : ''); process.exitCode = 1; } finally {
+} catch (e) { console.log('B:', b ? JSON.stringify(await b.evaluate(() => { const p = window.__pwc; return p ? { started: p.state.started, baked: p.hands.filter((q) => q.data?.cells).length, hands: p.hands.length, room: p.state.room, online: p.state.online, read: p.bloom.handsRead(), pos: p.state.pos, fps: p.state.fps } : 'no __pwc'; }).catch((x) => String(x))) : 'not opened'); console.log('FAILED', e.message, a ? JSON.stringify(await a.evaluate(() => { const p = window.__pwc, g = [...p.bloom.garden.all()].filter((q) => q.big === 2), h = p.bloom.hud(p.hands[0] && null); return { hyper: h.hyper, charge: h.charge, seeds: h.seeds, sprigs: g.length, temp: g.filter((q) => q.id < 0).length, pos: p.state.pos, mode: p.state.mode, started: p.state.started, baked: p.hands.filter((q) => q.data?.cells).length, room: p.state.room, online: p.state.online, read: p.bloom.handsRead() }; }).catch(() => null)) : ''); process.exitCode = 1; } finally {
   // tidy, pass or fail: A takes what it planted off the map, so the next run finds room
   if (a && had0) await a.evaluate(async (old) => { const p = window.__pwc; for (const g of [...p.bloom.garden.all()]) if (g.id > 0 && !old.includes(g.id)) await p.net.uproot(g.id); }, had0).catch(() => {});
   await browser.close();

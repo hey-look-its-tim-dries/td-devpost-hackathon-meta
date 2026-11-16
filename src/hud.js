@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 
 import { bearings, spans } from './compass.js';
+import { themed, look } from './ui/themed.js';
 
 const PUN = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']; // -z is north
 
@@ -16,7 +17,7 @@ const card = (w, h, mw, mh, pos) => {
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(mw, mh), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false, opacity: 0 }));
   mesh.renderOrder = 28;
   mesh.position.set(...pos);
-  return { canvas, tex, mesh, g: canvas.getContext('2d') };
+  return { canvas, tex, mesh, g: themed(canvas.getContext('2d')) };
 };
 
 export function createHud() {
@@ -28,7 +29,7 @@ export function createHud() {
   const stats = card(560, 300, 0.14, 0.075, [-0.2, 0.085, -0.65]); // the world in numbers
   const cards = [ribbon, place, garden, radar, stats];
   group.add(...cards.map((c) => c.mesh));
-  let alpha = 0, since = 0, lastKey = '', clock = 0, gardenKey = '', statsKey = '';
+  let alpha = 0, since = 0, lastKey = '', clock = 0, gardenKey = '', statsKey = '', neon = false;
   const GILT = '#c9a35a', RIVER = '#2f5d7c', LEAF = '#3f7d3a';
   const INK = '#16100e', SEAL = '#b8442e', PAPER = 'rgba(243, 228, 210, 0.9)';
 
@@ -104,7 +105,7 @@ export function createHud() {
       g.fillStyle = INK; g.font = '600 20px Inter, system-ui, sans-serif'; g.fillText(`${(p.title ?? p.label).toUpperCase()} · ${p.n}/${p.cap} · ${p.hint}`, 26, 142, c.width - 52);
       for (let i = 0; i < 4; i++) { g.fillStyle = i < p.level ? GILT : 'rgba(22,16,14,0.2)'; g.beginPath(); g.arc(c.width - 40 - i * 22, 182, 7, 0, Math.PI * 2); g.fill(); }
       g.fillStyle = gd.hyper ? SEAL : 'rgba(22,16,14,0.6)'; g.font = `${gd.hyper ? 700 : 500} 17px Inter, system-ui, sans-serif`;
-      g.fillText(gd.hyper ? `HYPER SOW · ${gd.hyper} s · fly low and draw with flowers` : gd.charge >= 1 ? 'F: HYPER SOW READY · SPACE plant · Q/E seed · X clear' : `SPACE plant · Q/E seed · X clear · hyper sow ${Math.round(gd.charge * 100)}%`, 26, 187, c.width - 150);
+      g.fillText(gd.fox ? `FOXFIRE · ${gd.fox.left} s · everything counts x${gd.fox.mult} · eat another to chain` : gd.hyper ? `HYPER SOW · ${gd.hyper} s · fly low and draw with flowers` : gd.charge >= 1 ? 'F: HYPER SOW READY · SPACE plant · Q/E seed · X clear' : `SPACE plant · Q/E seed · X clear · hyper sow ${Math.round(gd.charge * 100)}%`, 26, 187, c.width - 150);
     } else { g.fillStyle = 'rgba(22,16,14,0.6)'; g.font = '500 20px Inter, system-ui, sans-serif'; g.fillText(gd.wet ? 'ON THE RIVER: WATER FILLED' : 'FLY OVER A HAND TO PLANT', 26, 142); }
     garden.tex.needsUpdate = true;
   }
@@ -152,10 +153,11 @@ export function createHud() {
       for (const { mesh: m } of cards) { m.material.opacity = alpha; m.visible = alpha > 0.02; }
       if (alpha <= 0.02 || clock < 0.1) return;
       clock = 0; // repaint at most 10 times a second
+      if (neon !== look.neon) { neon = look.neon; lastKey = gardenKey = statsKey = ''; } // the look changed (foxfire): paint everything again
       paintRibbon(yaw, bearings(pos, yaw, markers));
       const key = JSON.stringify([p, spans(altitude)]);
       if (key !== lastKey) { lastKey = key; paintPlace(p, altitude); }
-      if (gd) { const k = JSON.stringify([gd.selected?.id, gd.selected?.n, gd.seeds, gd.water, gd.wet, gd.level, gd.found, gd.plot, gd.hyper, Math.round(gd.charge * 20)]); if (k !== gardenKey) { gardenKey = k; paintGarden(gd); } }
+      if (gd) { const k = JSON.stringify([gd.selected?.id, gd.selected?.n, gd.seeds, gd.water, gd.wet, gd.level, gd.found, gd.plot, gd.hyper, Math.round(gd.charge * 20), gd.fox]); if (k !== gardenKey) { gardenKey = k; paintGarden(gd); } }
       if (rd) paintRadar(rd, yaw, pos);
       if (wd) { const k = JSON.stringify(wd); if (k !== statsKey) { statsKey = k; paintStats(wd); } }
     },

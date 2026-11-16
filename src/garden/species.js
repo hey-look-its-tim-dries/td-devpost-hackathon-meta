@@ -717,6 +717,31 @@ const ROWS = [
   ['American Pika', 'Ochotona princeps', 'animal', 'ridge', 1, '#a8906a', '#e8d8c0', 'hare', 0.5],
   ['Spinifex Hopping Mouse', 'Notomys alexis', 'animal', 'dune', 1, '#d8a868', '#f8f0e0', 'hare', 0.5],
   ['Swamp Wallaby', 'Wallabia bicolor', 'animal', 'bank', 1, '#5a4a40', '#e8803a', 'hare', 1.3],
+  // mushrooms (appended 2026-11-16): fungi feed on what died, and eating one brings the foxfire. Several of these really glow in the dark.
+  ["Fly Agaric", 'Amanita muscaria', 'mushroom', 'ridge', 1, '#e0261c', '#fff7e8', 'cap', 1.3],
+  ["Chanterelle", 'Cantharellus cibarius', 'mushroom', 'bank', 1, '#f2a516', '#ffd37a', 'cap', 0.8],
+  ["Porcini", 'Boletus edulis', 'mushroom', 'ridge', 1, '#8a5a2b', '#f1e3c4', 'cap', 1.4],
+  ["Field Mushroom", 'Agaricus campestris', 'mushroom', 'dune', 1, '#f3ead8', '#c9a98a', 'cap', 0.9],
+  ["Oyster Mushroom", 'Pleurotus ostreatus', 'mushroom', 'bank', 1, '#b9b4c4', '#f4f0f8', 'cap', 1.0],
+  ["Shaggy Ink Cap", 'Coprinus comatus', 'mushroom', 'dune', 1, '#f5f1e6', '#3a2c2c', 'cap', 1.1],
+  ["Common Puffball", 'Lycoperdon perlatum', 'mushroom', 'dune', 1, '#efe6d2', '#b89f7e', 'cap', 0.6],
+  ["Desert Shaggy Mane", 'Podaxis pistillaris', 'mushroom', 'dune', 2, '#e9dcc3', '#5b4334', 'cap', 1.2],
+  ["Morel", 'Morchella esculenta', 'mushroom', 'bank', 2, '#b08948', '#e9d7a8', 'cap', 0.9],
+  ["Amethyst Deceiver", 'Laccaria amethystina', 'mushroom', 'bank', 2, '#8f4fd0', '#c9a5f0', 'cap', 0.6],
+  ["Blue Milk Cap", 'Lactarius indigo', 'mushroom', 'ridge', 2, '#3b6fd6', '#a9c4f5', 'cap', 0.9],
+  ["Scarlet Elf Cup", 'Sarcoscypha coccinea', 'mushroom', 'bank', 2, '#e3221f', '#ffd9c7', 'cap', 0.5],
+  ["Parrot Waxcap", 'Gliophorus psittacinus', 'mushroom', 'ridge', 2, '#5fc23c', '#f0d24a', 'cap', 0.5],
+  ["Lion's Mane", 'Hericium erinaceus', 'mushroom', 'ridge', 2, '#f6efdd', '#e0cfa6', 'cap', 1.1],
+  ["Desert Truffle", 'Terfezia arenaria', 'mushroom', 'dune', 3, '#b98c5a', '#6e4a2c', 'cap', 0.5],
+  ["Violet Webcap", 'Cortinarius violaceus', 'mushroom', 'ridge', 3, '#5a2a8c', '#9a6ad0', 'cap', 1.0],
+  ["Jack-o'-lantern Mushroom", 'Omphalotus olearius', 'mushroom', 'bank', 3, '#ff7a12', '#b6ff5a', 'cap', 1.0],
+  ["Bitter Oyster", 'Panellus stipticus', 'mushroom', 'bank', 3, '#d9b98a', '#7dff8a', 'cap', 0.5],
+  ["Veiled Lady", 'Phallus indusiatus', 'mushroom', 'bank', 3, '#f7f3ea', '#3b2f2a', 'cap', 1.2],
+  ["Sky Blue Mushroom", 'Entoloma hochstetteri', 'mushroom', 'ridge', 3, '#2d5bff', '#9db8ff', 'cap', 0.6],
+  ["Ghost Fungus", 'Omphalotus nidiformis', 'mushroom', 'dune', 4, '#f1ead6', '#7dffb0', 'cap', 1.2],
+  ["Green Pepe", 'Mycena chlorophos', 'mushroom', 'bank', 4, '#c8f7c0', '#39ff14', 'cap', 0.5],
+  ["Eternal Light Mushroom", 'Mycena luxaeterna', 'mushroom', 'bank', 4, '#cfe8d8', '#7dffb0', 'cap', 0.5],
+  ["Devil's Fingers", 'Clathrus archeri', 'mushroom', 'ridge', 4, '#d81e2c', '#2a1414', 'cap', 1.0],
 ];
 
 export const SPECIES = ROWS.map(([name, latin, kind, habitat, rarity, color, color2, form, size], id) =>
@@ -725,6 +750,8 @@ export const SPECIES = ROWS.map(([name, latin, kind, habitat, rarity, color, col
 // what can be planted: every flower and tree, in id order
 export const FLORA = SPECIES.filter((s) => s.kind === 'flower' || s.kind === 'tree').map((s) => s.id);
 
+// the mushrooms: planted like flora, and what the wild ones on dead groves are
+export const FUNGI = SPECIES.filter((s) => s.kind === 'mushroom').map((s) => s.id);
 export const byKind = (kind) => SPECIES.filter((s) => s.kind === kind);
 
 // what a new player holds: one common, cheerful flower per habitat (dune, bank, ridge)

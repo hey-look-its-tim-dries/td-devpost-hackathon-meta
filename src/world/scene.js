@@ -21,10 +21,16 @@ export const NOISE_GLSL = /* glsl */ `
 // the sky's colour in a world direction, shared by the sky and the terrain's haze so they meet without
 // a seam; needs uZenith, uHorizon, uSunColor and uSunDir
 export const SKY_GLSL = /* glsl */ `
+  uniform float uTrip; // 0 the calm world .. 1 foxfire (src/garden/foxfire.js): every shader that draws the air blends by it
   vec3 skyColor(vec3 d) {
     vec3 c = mix(uHorizon, uZenith, pow(clamp(d.y, 0.0, 1.0), 0.55));
     float s = max(dot(d, uSunDir), 0.0);
-    return c + uSunColor * (pow(s, 8.0) * 0.2 + pow(s, 64.0) * 0.35);
+    c += uSunColor * (pow(s, 8.0) * 0.2 + pow(s, 64.0) * 0.35);
+    // foxfire: deep space over an ultraviolet horizon, hot where the sun sets
+    vec3 n = mix(vec3(0.045, 0.008, 0.1), vec3(0.006, 0.0, 0.022), pow(clamp(d.y, 0.0, 1.0), 0.4));
+    vec2 az = normalize(d.xz + vec2(1e-5)), sun = normalize(vec2(-0.25, -1.0)); // the striped sun sets in the north-north-west, over the Source as you first fly in
+    n += vec3(1.0, 0.1, 0.6) * pow(max(dot(az, sun), 0.0), 6.0) * exp(-abs(d.y) * 7.0) * 0.35;
+    return mix(c, n, uTrip);
   }`;
 // water that reflects the sky; needs NOISE_GLSL and SKY_GLSL before it
 export const WATER_GLSL = /* glsl */ `
@@ -42,7 +48,10 @@ export const WATER_GLSL = /* glsl */ `
     col += uSunColor * (pow(max(dot(n, h), 0.0), 140.0) * 1.4 + pow(max(dot(n, h), 0.0), 18.0) * 0.06); // sun glints on the ripples
     float shore = 1.0 - smoothstep(0.3, 3.5, depth), lace = vnoise(p.xz * 0.09 + vec2(time * 0.25, -time * 0.18)) * 0.6 + vnoise(p.xz * 0.31 - time * 0.4) * 0.4;
     col = mix(col, vec3(0.93, 0.9, 0.84), smoothstep(0.55, 0.8, lace + shore * 0.55) * shore * near * 0.8); // foam lace at the banks
-    return col;
+    // foxfire: liquid neon, brightest at the banks, with pink light moving over it
+    vec3 neon = vec3(0.0, 0.8, 1.0) * (0.5 + 0.3 * sin(p.x * 0.04 + time * 1.3) * sin(p.z * 0.035 - time * 1.1));
+    neon += vec3(0.5, 1.0, 1.0) * (1.0 - smoothstep(0.0, 6.0, depth)) * 0.7 + vec3(1.0, 0.0, 0.8) * 0.18 * (0.5 + 0.5 * sin(p.x * 0.013 + p.z * 0.017 + time * 0.5));
+    return mix(col, neon, uTrip);
   }`;
 export const INK_GLSL = 'const vec3 INK = vec3(0.0103, 0.0065, 0.0052);';
 
@@ -61,10 +70,21 @@ const SKY_FRAG = /* glsl */ `
   void main() {
     vec3 d = normalize(vDir);
     vec3 col = skyColor(d);
-    col += uSunColor * smoothstep(0.9993, 0.9997, dot(d, uSunDir)) * 1.5; // the sun's disc
+    float calm = 1.0 - uTrip;
+    col += uSunColor * smoothstep(0.9993, 0.9997, dot(d, uSunDir)) * 1.5 * calm; // the sun's disc
     vec2 q = d.xz / (d.y + 0.12) * 1.6 + vec2(uTime * 0.004, 0.0);
     float cirrus = smoothstep(0.55, 0.9, vnoise(q * vec2(1.0, 6.0)) * 0.7 + vnoise(q * 5.0) * 0.3);
-    col = mix(col, vec3(1.0, 0.97, 0.93), cirrus * 0.35 * smoothstep(0.02, 0.3, d.y));
+    col = mix(col, vec3(1.0, 0.97, 0.93), cirrus * 0.35 * smoothstep(0.02, 0.3, d.y) * calm);
+    if (uTrip > 0.001) { // foxfire: stars, and the striped sun low where the calm sun's light comes from
+      vec3 g3 = floor(d * 150.0);
+      float h = hash(g3.xy + g3.z * 37.0), star = step(0.989, h) * smoothstep(0.02, 0.2, d.y) * (0.6 + 0.4 * sin(uTime * (1.0 + h * 3.0) + h * 40.0));
+      vec3 sc = normalize(vec3(-0.25, 0.17, -1.0));
+      float ang = acos(clamp(dot(d, sc), -1.0, 1.0)), R = 0.21, inside = 1.0 - smoothstep(R - 0.004, R, ang);
+      float y = clamp((d.y - (sc.y - R)) / (2.0 * R), 0.0, 1.0); // 0 at the foot of the disc .. 1 at its top
+      vec3 sunc = mix(vec3(1.0, 0.16, 0.05), vec3(1.0, 0.9, 0.2), y);
+      float stripes = y < 0.62 ? step(mix(0.62, 0.12, y), fract(y * 11.0)) : 1.0; // black bands, thicker towards the foot
+      col += (vec3(0.8, 0.95, 1.0) * star * (1.0 - inside) + sunc * inside * stripes * 0.62 + vec3(1.0, 0.25, 0.5) * exp(-max(ang - R, 0.0) * 9.0) * 0.25 * (1.0 - inside)) * uTrip;
+    }
     gl_FragColor = vec4(col, 1.0);
     #include <colorspace_fragment>
   }`;
@@ -72,6 +92,7 @@ const SKY_FRAG = /* glsl */ `
 export function createWorldScene() {
   const shared = {
     uTime: { value: 0 },
+    uTrip: { value: 0 }, // 0 the calm world .. 1 foxfire
     uSunDir: { value: new THREE.Vector3(-0.55, 0.42, 0.72).normalize() },
     uFogColor: { value: new THREE.Color(HORIZON) },
     uFogDensity: { value: FOG_DENSITY },

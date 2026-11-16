@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { rng } from '../hand/dna.js';
+import { wildMushroom } from './foxfire.js';
 import { paintAtlases, styleOf, drawStem, ROW, PIX, SOFT, GEN } from './paint.js';
 
 const NEAR = 7000; // groves farther than this from you are not drawn
@@ -50,7 +51,7 @@ const TINT = /* glsl */ `
   }
 `;
 const SPRITE_FRAG = /* glsl */ `
-  uniform sampler2D uMap; uniform float uTile;
+  uniform sampler2D uMap; uniform float uTile, uTrip;
   varying vec2 vUv; varying float vDry;
   #include <fog_pars_fragment>
   ${TINT}
@@ -59,6 +60,7 @@ const SPRITE_FRAG = /* glsl */ `
     if (c.a < 0.5) discard;
     vec3 col = wither(c.rgb, vDry);
     if (uTile > 0.5) { vec2 f = fract(vUv * ${ROW * GEN}.0); float edge = min(min(f.x, 1.0 - f.x), min(f.y, 1.0 - f.y)); col *= 0.72 + 0.28 * smoothstep(0.0, 0.14, edge); } // each pixel a set stone
+    col = mix(col, pow(col, vec3(1.6)) * 1.5, uTrip); // foxfire: every flower its own light, colours deepened so the bloom does not wash them white
     gl_FragColor = vec4(col, 1.0);
     #include <colorspace_fragment>
     #include <fog_fragment>
@@ -84,7 +86,7 @@ const MESH_VERT = /* glsl */ `
   ${COMMON}
   attribute float aPart; attribute vec3 aC0; attribute vec3 aC1; attribute vec3 aC2;
   uniform vec3 uSunDir;
-  varying vec3 vCol; varying float vDry;
+  varying vec3 vCol, vGlow; varying float vDry, vRim;
   #include <fog_pars_vertex>
   void main() {
     float c = cos(aFx.z), s = sin(aFx.z);
@@ -92,17 +94,21 @@ const MESH_VERT = /* glsl */ `
     vec3 base = aPart < 0.5 ? aC0 : aPart < 1.5 ? aC1 : aC2;
     vCol = base * (0.5 + 0.6 * max(dot(n, uSunDir), 0.0) + 0.14 * n.y);
     vDry = aFx.y;
-    vec4 mvPosition = viewMatrix * vec4(place(position, aPart > 0.5 ? 1.0 : 0.3), 1.0);
+    vec3 wp = place(position, aPart > 0.5 ? 1.0 : 0.3);
+    vGlow = base; vRim = pow(1.0 - abs(dot(n, normalize(cameraPosition - wp))), 2.0); // for the foxfire look: light along the edges
+    vec4 mvPosition = viewMatrix * vec4(wp, 1.0);
     gl_Position = projectionMatrix * mvPosition;
     #include <fog_vertex>
   }
 `;
 const MESH_FRAG = /* glsl */ `
-  varying vec3 vCol; varying float vDry;
+  uniform float uTrip;
+  varying vec3 vCol, vGlow; varying float vDry, vRim;
   #include <fog_pars_fragment>
   ${TINT}
   void main() {
-    gl_FragColor = vec4(wither(vCol, vDry), 1.0);
+    vec3 neon = vGlow * (0.05 + 2.6 * vRim * vRim) * (vDry > 0.5 ? 0.35 : 1.0); // foxfire: dark bodies, a line of their own colour along every edge
+    gl_FragColor = vec4(mix(wither(vCol, vDry), neon, uTrip), 1.0);
     #include <colorspace_fragment>
     #include <fog_fragment>
   }
@@ -124,6 +130,7 @@ function meshes() {
     palm: M(part(at(rod(0.03, 0.05, 0.8), 0, 0, 0, 1, 1, 1, 0, 0, -0.12), 0), ...ring(7, (a) => part(at(ball(0.2), 0.1 + Math.cos(a) * 0.2, 0.78, Math.sin(a) * 0.2, 1.2, 0.12, 0.34, 0, -a, -0.5), 1)), part(at(ball(0.05), 0.1, 0.76, 0), 2)),
     umbrella: M(part(rod(0.035, 0.055, 0.66), 0), part(at(ball(0.46, 2), 0, 0.72, 0, 1, 0.2, 1), 1), part(at(ball(0.26), 0.1, 0.8, 0.05, 1, 0.22, 1), 2)),
     column: M(part(rod(0.03, 0.045, 0.14), 0), part(at(ball(0.15, 2), 0, 0.56, 0, 1, 2.9, 1), 1), part(at(ball(0.06), 0, 0.98, 0), 2)),
+    cap: M(part(rod(0.07, 0.1, 0.56), 0), part(at(ball(0.4, 2), 0, 0.58, 0, 1, 0.62, 1), 1), ...ring(6, (a, i) => part(at(ball(0.055), Math.cos(a) * (0.16 + 0.1 * (i % 2)), 0.74 - 0.07 * (i % 2), Math.sin(a) * (0.16 + 0.1 * (i % 2))), 2))), // a mushroom: stem, domed cap, spots
     cactus: M(part(rod(0.07, 0.085, 0.92), 1), part(at(rod(0.045, 0.045, 0.3), 0.2, 0.42, 0), 1), part(at(rod(0.045, 0.045, 0.2), 0.02, 0.44, 0, 1, 1, 1, 0, 0, -1.57), 1), part(at(rod(0.045, 0.045, 0.26), -0.19, 0.3, 0), 1), part(at(rod(0.045, 0.045, 0.2), -0.21, 0.32, 0, 1, 1, 1, 0, 0, -1.57), 1), part(at(ball(0.07), 0, 0.95, 0), 2), part(at(ball(0.05), 0.2, 0.74, 0), 2)),
   };
 }
@@ -200,8 +207,8 @@ export function createFlora(species, flora, shared) {
     });
     softTex.needsUpdate = true;
   })();
-  const spriteMat = (map, o = {}) => new THREE.ShaderMaterial({ uniforms: { ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog), uMap: { value: map }, uTime, uBillboard: { value: o.billboard ? 1 : 0 }, uTile: { value: o.tile ? 1 : 0 } }, vertexShader: o.tile ? TILE_VERT : SPRITE_VERT, fragmentShader: SPRITE_FRAG, side: THREE.DoubleSide, fog: true });
-  const meshMat = () => new THREE.ShaderMaterial({ uniforms: { ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog), uTime, uSunDir: shared.uSunDir }, vertexShader: MESH_VERT, fragmentShader: MESH_FRAG, fog: true });
+  const spriteMat = (map, o = {}) => new THREE.ShaderMaterial({ uniforms: { ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog), uMap: { value: map }, uTime, uTrip: shared.uTrip, uBillboard: { value: o.billboard ? 1 : 0 }, uTile: { value: o.tile ? 1 : 0 } }, vertexShader: o.tile ? TILE_VERT : SPRITE_VERT, fragmentShader: SPRITE_FRAG, side: THREE.DoubleSide, fog: true });
+  const meshMat = () => new THREE.ShaderMaterial({ uniforms: { ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog), uTime, uTrip: shared.uTrip, uSunDir: shared.uSunDir }, vertexShader: MESH_VERT, fragmentShader: MESH_FRAG, fog: true });
   const SPR = { aPos: 4, aFx: 3, aCell: 2 }, MSH = { aPos: 4, aFx: 3, aC0: 3, aC1: 3, aC2: 3 };
   const cards = crossed(), geos = meshes();
   const B = {
@@ -219,16 +226,17 @@ export function createFlora(species, flora, shared) {
   const info = new Map();
   const col = (hex) => new THREE.Color(hex);
   for (const id of flora) {
-    const s = species[id], style = styleOf(s), isTree = s.kind === 'tree', c1 = col(s.color), c2 = col(s.color2);
-    info.set(id, { style, isTree, cell: cell.get(id), mesh: isTree ? s.form : FLOWER_MESH[s.form] ?? 'open', h: (isTree ? TREE_H : FLOWER_H) * (0.6 + 0.4 * s.size),
-      c0: (isTree ? c2 : STEM).toArray(), c1: c1.toArray(), c2: (isTree ? c1.clone().lerp(new THREE.Color('#ffffff'), 0.3) : c2).toArray() });
+    const s = species[id], shroom = s.kind === 'mushroom', style = shroom ? 'mesh' : styleOf(s), isTree = s.kind === 'tree', c1 = col(s.color), c2 = col(s.color2);
+    info.set(id, { style, isTree, cell: cell.get(id), shroom, mesh: shroom ? 'cap' : isTree ? s.form : FLOWER_MESH[s.form] ?? 'open', h: (isTree ? TREE_H : shroom ? 34 : FLOWER_H) * (0.6 + 0.4 * s.size),
+      c0: (isTree ? c2 : shroom ? c2.clone().lerp(new THREE.Color('#fff4e0'), 0.6) : STEM).toArray(), c1: c1.toArray(), c2: (isTree ? c1.clone().lerp(new THREE.Color('#ffffff'), 0.3) : c2).toArray() });
   }
   const tmp = { aPos: [0, 0, 0, 0], aFx: [0, 0, 0], aCell: [0, 0], aH: [0, 0, 0, 0] };
   const last = { x: Infinity, z: Infinity };
   // Three flower models by Kenney (Nature Kit, CC0; assets/flora/kenney-nature-kit) give every other 3D flower
   // species its shape. Only their geometry is used: the lower half takes the stem's green, the upper half the
   // species' own colour, so they grow, sway and wither like the rest.
-  const meshFlowers = flora.filter((id) => info.get(id).style === 'mesh' && !info.get(id).isTree).filter((_, i) => i % 2 === 1);
+  const meshFlowers = flora.filter((id) => info.get(id).style === 'mesh' && !info.get(id).isTree && !info.get(id).shroom).filter((_, i) => i % 2 === 1);
+  const fungi = flora.filter((id) => info.get(id).shroom); // what grows wild on dead groves
   ['flower_redA', 'flower_redB', 'flower_redC'].forEach((name, n) => new GLTFLoader().load(new URL(`../../assets/flora/kenney-nature-kit/${name}.glb`, import.meta.url).href, (gltf) => {
     const parts = [];
     gltf.scene.updateMatrixWorld(true);
@@ -262,14 +270,14 @@ export function createFlora(species, flora, shared) {
       for (const k in B) if (k !== 'deco') B[k].begin();
       shown = 0;
       for (const p of groves) {
-        const it = info.get(p.sp);
+        const wild = wildMushroom(p, fungi), it = info.get(wild ?? p.sp); // what died feeds mushrooms: a dead grove shows them instead
         if (!it || Math.hypot(p.wx - eye[0], p.wz - eye[2]) > NEAR) continue;
         shown++;
-        const r = rng((p.id * 2654435761) >>> 0), k = Math.max(p.big === 2 ? 0.7 : 0, 0.45 + 0.55 * (p.stage / 3)), big = p.big === 1 ? 2 : 1;
+        const r = rng((p.id * 2654435761) >>> 0), k = wild !== null ? 0.9 : Math.max(p.big === 2 ? 0.7 : 0, 0.45 + 0.55 * (p.stage / 3)), big = p.big === 1 ? 2 : 1;
         const sprig = p.big === 2; // one plant, from a hyper sow: a line you draw is made of these
-        const n = sprig ? 1 : it.isTree ? Math.min(3, 1 + Math.floor(p.stage / 2)) * big : (4 + p.stage * 3) * big, spread = it.isTree ? 75 : 42;
-        tmp.aFx[0] = p.pop ?? -99; tmp.aFx[1] = p.dry ?? 0;
-        if (it.style === 'pixel' && !it.isTree) { // the mosaic tile, square to its Hand
+        const n = wild !== null ? 3 : sprig ? 1 : it.isTree ? Math.min(3, 1 + Math.floor(p.stage / 2)) * big : (4 + p.stage * 3) * big, spread = it.isTree ? 75 : 42;
+        tmp.aFx[0] = p.pop ?? -99; tmp.aFx[1] = wild !== null ? 0 : p.dry ?? 0;
+        if (it.style === 'pixel' && !it.isTree && wild === null) { // the mosaic tile, square to its Hand
           const rot = p.rot ?? 0, c = Math.cos(rot), s = Math.sin(rot), hs = p.hs; // hs: the land at a 3 by 3 grid over the tile, row by row from -z
           const T = p.tile ?? TILE; // a sprig's tile is a third the size
           tmp.aPos[3] = T / 2; tmp.aFx[2] = rot;

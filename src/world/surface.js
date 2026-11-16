@@ -97,6 +97,7 @@ const FRAG = /* glsl */ `
   ${WATER_GLSL}
   ${INK_GLSL}
   const vec3 SUNLIGHT = vec3(1.0, 0.95, 0.88); // the light itself is near white; uSunColor tints the glow
+  vec3 hue(float h) { return clamp(abs(fract(h + vec3(0.0, 2.0 / 3.0, 1.0 / 3.0)) * 6.0 - 3.0) - 1.0, 0.0, 1.0); } // a full-strength colour for the foxfire look
   // fine skin at p, faded by the pixel footprint px (metres): organic wrinkle lines crossing the ridges,
   // round pores on the crests (r is the ridge, +1 on a crest), grain. x: height in metres, y: darkening.
   vec2 skinDetail(vec2 p, float r, float px, int k) {
@@ -117,6 +118,7 @@ const FRAG = /* glsl */ `
     vec2 p = vWorld.xz;
     vec3 dpx = dFdx(vWorld), dpy = dFdy(vWorld);
     float px = max(length(dpx), length(dpy)); // metres per pixel
+    float fwH = max(fwidth(vWorld.y), 1e-3); // metres of height per pixel, for the foxfire look's contour lines (taken here, in uniform control flow)
     vec3 V = normalize(cameraPosition - vWorld), n = normalize(vNormal);
     vec3 tc;
     vec4 info;
@@ -129,6 +131,8 @@ const FRAG = /* glsl */ `
     float bh = 0.0, sheen = 0.0;
     bool isWater = false; // (water() is the shading function)
     float depth = 0.0;
+    float nRidge = 0.0, nEdge = 0.0, nDim = 1.0, nCoast = 0.0; // what the foxfire look draws in light: ridges, borders, the coast; dimmed where uncharted
+    vec3 nTone = vec3(1.0, 0.0, 1.0);
     if (onHand) {
       float code = floor(info.b * 255.0 + 0.5), kind = code - 16.0 * step(15.5, code);
       float coast = 1.0 - sstep(0.16, 0.3, a.r); // the inked coastline, from the smooth heights
@@ -146,6 +150,7 @@ const FRAG = /* glsl */ `
         albedo *= 1.0 - det.y;
         bh = r * 5.0 * s + det.x;
         sheen = sstep(0.5, 0.9, r) * s;
+        nRidge = sstep(0.8, 0.97, r) * s; nTone = hue(floor(info.r * 255.0 + 0.5) * 0.173 + 0.55);
         // charting: an uncharted handbit is blank parchment with an inked border, until you fly over it
         int layer = int(tc.z + 0.5), hb = int(info.g * 255.0 + 0.5) - 1;
         ivec4 q = uCharted[layer / 4];
@@ -167,9 +172,11 @@ const FRAG = /* glsl */ `
           albedo = mix(albedo, parch, blank * 0.5); // a wash, so the world keeps its look before you chart it
           albedo = mix(albedo, INK, blank * edge * 0.75);
           sheen *= 1.0 - blank;
+          nDim = 1.0 - 0.75 * blank; nEdge = blank * edge;
         }
       }
       albedo = mix(albedo, INK, coast * 0.8);
+      nCoast = coast;
     } else if (vWorld.y < 0.5) {
       isWater = true;
       depth = min(30.0, -vWild * 25.0); // the wild lakes sit a few decimetres under sea level: read them as open water, shallow only at the shore
@@ -187,6 +194,7 @@ const FRAG = /* glsl */ `
       albedo = mix(albedo, INK, seam * (0.15 + 0.25 * stitch));
       bh = r * 3.0 * aa + det.x;
       sheen = sstep(0.5, 0.9, r) * aa;
+      nRidge = sstep(0.8, 0.97, r) * aa * 0.4; nEdge = seam * 0.5; nTone = hue(cell.z * 3.1);
     }
     // bump from the detail height (derivatives taken here, in uniform control flow)
     vec3 r1 = cross(dpy, n), r2 = cross(n, dpx);
@@ -204,6 +212,20 @@ const FRAG = /* glsl */ `
       col += albedo * vec3(0.42, 0.1, 0.05) * smoothstep(-0.25, 0.15, ndl) * (1.0 - smoothstep(0.15, 0.6, ndl)) * 0.55; // skin: light glows red where it grazes
       col += uSunColor * pow(max(dot(n, normalize(V + uSunDir)), 0.0), 36.0) * 0.22 * sheen;
       col += albedo * vec3(0.25, 0.07, 0.04) * pow(1.0 - max(dot(n, V), 0.0), 3.0) * 0.5; // warm rim
+    }
+    if (uTrip > 0.001 && !isWater) {
+      // foxfire: the land goes dark and is drawn in light. Contour lines every 25 m (bold every 100) follow its
+      // form, a magenta grid lies over it, each Hand's ridges glow in its own colour; uncharted land stays dim.
+      float far = 1.0 - sstep(6.0, 40.0, px);
+      float l25 = (1.0 - smoothstep(0.0, 1.4, abs(fract(vWorld.y / 25.0 + 0.5) - 0.5) * 25.0 / fwH)) * smoothstep(3.0, 9.0, 25.0 / fwH);
+      float l100 = (1.0 - smoothstep(0.0, 2.2, abs(fract(vWorld.y / 100.0 + 0.5) - 0.5) * 100.0 / fwH)) * smoothstep(3.0, 9.0, 100.0 / fwH);
+      vec2 gq = abs(fract(p / 250.0 + 0.5) - 0.5) * 250.0 / px;
+      float grid = (1.0 - smoothstep(0.0, 1.4, min(gq.x, gq.y))) * smoothstep(4.0, 12.0, 250.0 / px);
+      vec3 nc = mix(vec3(0.014, 0.0, 0.035), vec3(0.05, 0.01, 0.11), 0.5 + 0.5 * n.y);
+      nc += nTone * nRidge * 0.6 * far;
+      nc += vec3(0.0, 1.0, 1.0) * (l25 * 0.3 + l100 * 0.85) * (onHand ? 1.0 : 0.5);
+      nc += vec3(1.0, 0.0, 1.0) * (grid * (onHand ? 0.45 : 0.25) + nEdge * 0.9) + vec3(0.7, 1.0, 1.0) * nCoast;
+      col = mix(col, nc * nDim, uTrip);
     }
     float dist = length(cameraPosition - vWorld);
     col = mix(col, skyColor(-V), 1.0 - exp(-pow(dist * uFogDensity, 2.0)));

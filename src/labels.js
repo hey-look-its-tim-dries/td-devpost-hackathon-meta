@@ -1,6 +1,7 @@
 // src/labels.js
 // A name tag floating over another player: ink on a parchment pill, always facing you, scaled with
 // distance so it reads at the same size near or far (about 1.4 degrees tall).
+import { themed } from './ui/themed.js';
 import * as THREE from 'three';
 
 const W = 512, H = 96;
@@ -16,7 +17,7 @@ export function createLabel(text = '') {
     set(t) {
       if (t === shown) return;
       shown = t;
-      const g = canvas.getContext('2d');
+      const g = themed(canvas.getContext('2d')); // calm or foxfire: the same drawing in either look
       g.clearRect(0, 0, W, H);
       g.font = '600 52px Georgia, "Times New Roman", serif';
       const w = Math.min(W - 8, g.measureText(t).width + 56);

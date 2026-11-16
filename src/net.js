@@ -34,14 +34,17 @@ export function createNet({ api = API, storage = null, fetchFn = globalThis.fetc
 
   return {
     token,
+    // Three tries before the game settles for playing alone: a page busy starting up (a slow device compiling its
+    // shaders) can let the first request time out although the map answered.
     async fetchWorld() {
-      try {
-        const { status, body } = await call('/world');
-        if (status !== 200 || !Array.isArray(body?.hands) || !body.hands.length) throw new Error(status);
-        return { hands: body.hands.map(rowToHand), online: true };
-      } catch {
-        return { hands: founders().map((f, i) => ({ ...f, id: `hand-founder-${i}`, founder: true })), online: false };
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const { status, body } = await call('/world');
+          if (status !== 200 || !Array.isArray(body?.hands) || !body.hands.length) throw new Error(status);
+          return { hands: body.hands.map(rowToHand), online: true };
+        } catch { if (attempt < 2) await new Promise((r) => setTimeout(r, timeout / 4)); }
       }
+      return { hands: founders().map((f, i) => ({ ...f, id: `hand-founder-${i}`, founder: true })), online: false };
     },
     // { id, pose } laid; { existing, ...Hand } when this device already has one on the map (409); { conflict, fits }; or { error }
     async layHand({ palm, prints, pose, name }) {

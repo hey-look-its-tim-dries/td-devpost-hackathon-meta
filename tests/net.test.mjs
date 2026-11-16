@@ -146,3 +146,16 @@ test('pairing: a code from the map; the headset waits (204) until the phone has 
   ctl.abort();
   assert.equal(await waiting, null, 'stops when the headset gives up');
 });
+
+test('a world that is slow to answer once is asked again before the game gives up on it', async () => {
+  const rows = (await createNet({ storage: memory(), fetchFn: async () => { throw new Error('down'); } }).fetchWorld()).hands.map((h) => ({ id: h.id, name: h.name, palette: 2, side: 'R', palm: Buffer.from(h.palm).toString('base64url'), prints: h.prints.map((p) => Buffer.from(p).toString('base64url')), pose: h.pose, founder: true, placed_at: 1 }));
+  let asked = 0;
+  const net = createNet({ storage: memory(), timeout: 50, fetchFn: () => (++asked === 1 ? new Promise(() => {}) : Promise.resolve(new Response(JSON.stringify({ gen: 1, hands: rows })))) });
+  const w = await net.fetchWorld();
+  assert.equal(w.online, true, 'the second try reached it');
+  assert.equal(asked, 2);
+  let never = 0;
+  const gone = await createNet({ storage: memory(), timeout: 30, fetchFn: () => { never++; return new Promise(() => {}); } }).fetchWorld();
+  assert.equal(gone.online, false);
+  assert.equal(never, 3, 'three tries, then the bundled founders');
+});

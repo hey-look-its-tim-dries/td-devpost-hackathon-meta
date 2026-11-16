@@ -1,3 +1,4 @@
+import { themed } from './ui/themed.js';
 import * as THREE from 'three';
 
 // A small card of text on warm paper, floating in front of you. At 0.36 m wide and about 0.7 m
@@ -18,7 +19,7 @@ export function createPanel() {
     mesh,
     get text() { return mesh.userData.text || ''; },
     say(text, seconds = 6) {
-      const g = canvas.getContext('2d');
+      const g = themed(canvas.getContext('2d')); // calm or foxfire: the same drawing in either look
       g.clearRect(0, 0, 1024, 256);
       g.fillStyle = 'rgba(246, 232, 216, 0.94)';
       g.beginPath();

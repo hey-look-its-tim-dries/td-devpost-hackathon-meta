@@ -38,7 +38,7 @@ import { createCommunityArt } from './community-art.js';
 import { slotFor } from './world/community.js';
 import { journalText, watersheds, when } from './journal.js';
 import { drawPostcard, POSTCARD, exportData } from './postcard.js';
-import { TONES } from './world/scene.js';
+import { TONES, HORIZON } from './world/scene.js';
 import { steerTo, whoSteers } from './autopilot.js';
 import { forgetGone } from './world/tidy.js';
 import { createOthers } from './others.js';
@@ -47,6 +47,7 @@ import { createFauna } from './garden/fauna.js';
 import { bouquet, fromSignature } from './garden/bouquet.js';
 import { drawGarland } from './garden/garland.js';
 import { FB_APP_ID } from './config.js';
+import { look as hudLook } from './ui/themed.js';
 import { dialogUrl, fromFragment } from './net/facebook.js';
 
 // Palm Whorl Cities, first milestone: the First Ten. Ten founding hands lie in a ring around the
@@ -108,7 +109,7 @@ surface.meshes.forEach((m) => scene.add(m));
 // ?horizon=<url of a .spz>: an AI-generated splat world as a distant backdrop (a test)
 if (params.get('horizon')) loadHorizon(scene, renderer, params.get('horizon'), { scale: +(params.get('horizonScale') ?? 500) });
 rig.add(world.sky);
-addProps(scene, world.shared); // the Source spire (made in Blender), with a sun and haze of its own
+const air = addProps(scene, world.shared); // the Source spire (made in Blender), with a sun and haze of its own
 const panel = createPanel();
 rig.add(panel.mesh);
 
@@ -329,6 +330,43 @@ const dustCap = new THREE.Mesh(new THREE.SphereGeometry(900, 24, 10, 0, Math.PI 
 dustCap.position.y = 450; dustCap.scale.y = 0.35;
 dust.add(dustCap); dust.visible = false;
 scene.add(dust); // the sandstorm: a wall of dust that crosses the world (src/garden/drift.js)
+// ---------- foxfire: the glowing state mushrooms bring (src/garden/foxfire.js) ----------
+// One number, 0 calm .. 1 foxfire, turns every look: the land, sky and water (uTrip in their shaders), the garden,
+// the ink, the lights, the haze, the HUD (src/ui/themed.js), and on a screen a heavy bloom. ?fox holds it at 1.
+const FOX = params.has('fox') ? 1 : null;
+const C = (hex) => new THREE.Color(hex);
+const DAY = { fog: C(HORIZON), ink: C('#16100e'), sun: C(0xfff1e0), sky: C(0xc9d6e2), ground: C(0x9a6a50) };
+const NIGHT = { fog: C('#14052b'), ink: C('#eaffff'), streak: C('#3fd8ff'), hand: C('#00e5ff'), sun: C('#ff5ad6'), sky: C('#66e8ff'), ground: C('#7a1fff') };
+let trip = 0, tripWas = -1, composer = null, bloomPass = null;
+function foxfire(dt) {
+  trip = FOX ?? bloom.foxfire.level(Date.now());
+  if (trip > 0 && mode === 'fly' && glide.speed < CRUISE * 1.35) glide.speed += 110 * dt * trip; // it carries you a third faster than cruise
+  if (trip === tripWas) return;
+  tripWas = trip;
+  world.shared.uTrip.value = trip;
+  hudLook.neon = trip > 0.5;
+  scene.fog.color.lerpColors(DAY.fog, NIGHT.fog, trip);
+  ink.mesh.material.uniforms.uColor.value.lerpColors(DAY.ink, NIGHT.ink, trip);
+  streakInk.mesh.material.uniforms.uColor.value.lerpColors(DAY.ink, NIGHT.streak, trip);
+  INK_HAND.color.lerpColors(DAY.ink, NIGHT.hand, trip);
+  air.sun.color.lerpColors(DAY.sun, NIGHT.sun, trip);
+  air.hemi.color.lerpColors(DAY.sky, NIGHT.sky, trip);
+  air.hemi.groundColor.lerpColors(DAY.ground, NIGHT.ground, trip);
+  if (bloomPass) bloomPass.strength = 0.6 * trip;
+  // on a screen only: a heavy bloom, so every line of light wears a halo (in the headset a second pass per eye costs too much;
+  // there the glow is in the shaders). Loaded the first time the foxfire comes.
+  if (trip > 0 && !composer && composer !== false && !renderer.xr.isPresenting && !params.has('nobloom')) {
+    composer = false; // loading
+    Promise.all([import('three/addons/postprocessing/EffectComposer.js'), import('three/addons/postprocessing/RenderPass.js'), import('three/addons/postprocessing/UnrealBloomPass.js'), import('three/addons/postprocessing/OutputPass.js')]).then(([{ EffectComposer }, { RenderPass }, { UnrealBloomPass }, { OutputPass }]) => {
+      const c = new EffectComposer(renderer);
+      c.addPass(new RenderPass(scene, camera));
+      c.addPass((bloomPass = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.6 * trip, 0.45, 0.42)));
+      c.addPass(new OutputPass());
+      composer = c;
+    }).catch(() => {});
+  }
+}
+addEventListener('resize', () => composer?.setSize?.(innerWidth, innerHeight));
 let invite = null; // when to offer a new player a Hand of their own
 let sowing = false; // the plant key or a right-hand pinch is held
 const bloomCtx = { pos: glide.pos, forward: [0, 0, -1], place: null, flying: false, braiding: null, burst: () => creature.burst(), near: (x, z, r) => Math.hypot(x - glide.pos[0], z - glide.pos[2]) < r };
@@ -785,6 +823,7 @@ function frame() {
   }
   bloomCtx.place = place; bloomCtx.braiding = braiding; bloomCtx.flying = started && mode === 'fly';
   bloom.frame(dt, bloomCtx);
+  foxfire(dt);
   if (invite && mode === 'fly' && (t > invite.at || bloom.pouch.plantedTotal >= invite.planted)) { invite = null; openAtelier(); }
   fauna.update(dt, t, glide.pos, groundAt);
   creature.grow(Math.min(1, (bloom.pouch.level - 1) / 8 + bloom.pouch.plantedTotal / 500));
@@ -911,7 +950,7 @@ function frame() {
   }
   surface.update(renderer.xr.isPresenting ? rig.localToWorld(camPos.copy(renderer.xr.getCamera().position)) : camera.getWorldPosition(camPos), viewFrustum());
   panel.update(dt, headLocal, headQuat);
-  renderer.render(scene, camera);
+  if (composer && trip > 0.01 && !renderer.xr.isPresenting) composer.render(); else renderer.render(scene, camera); // the bloom only while the foxfire lasts
 }
 
 // ---------- start / stop ----------

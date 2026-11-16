@@ -93,6 +93,20 @@ function tree(g, s, r, thick) {
   }
 }
 
+function mushroom(g, s, r) {
+  const one = (cx, k) => { // a stem, a domed cap with a dark underside, spots in the second colour
+    const top = 0.98 - 0.5 * k;
+    g.fillStyle = shade(s.color2, 0.55); g.beginPath(); g.roundRect(cx - 0.05 * k, top, 0.1 * k, 0.5 * k, 0.03); g.fill();
+    g.fillStyle = s.color; g.beginPath(); g.ellipse(cx, top, 0.27 * k, 0.2 * k, 0, Math.PI, Math.PI * 2); g.closePath(); g.fill();
+    g.fillStyle = shade(s.color, -0.3); ell(g, cx, top, 0.27 * k, 0.04 * k);
+    g.fillStyle = s.color2; for (let i = 0; i < 5; i++) ell(g, cx + (r() - 0.5) * 0.36 * k, top - (0.04 + r() * 0.11) * k, 0.028 * k, 0.022 * k);
+  };
+  const n = 1 + Math.floor(r() * 3);
+  if (n > 1) one(0.24, 0.66);
+  if (n > 2) one(0.79, 0.56);
+  one(0.5, 1.2);
+}
+
 // only the stem and leaves of a flower, for a portrait whose bloom comes from elsewhere
 export function drawStem(g, x0, y0, px) {
   g.save(); g.translate(x0, y0); g.scale(px, px);
@@ -108,7 +122,7 @@ export function drawSpecies(g, s, x0, y0, px, smooth) {
   g.translate(x0, y0);
   g.beginPath(); g.rect(0, 0, px, px); g.clip();
   g.scale(px, px);
-  (s.kind === 'tree' ? tree : flower)(g, s, r, smooth ? 0.045 : 0.09);
+  (s.kind === 'tree' ? tree : s.kind === 'mushroom' ? mushroom : flower)(g, s, r, smooth ? 0.045 : 0.09);
   if (smooth) { // light from the upper left, shade to the lower right, only where something is painted
     g.globalCompositeOperation = 'source-atop';
     const l = g.createRadialGradient(0.3, 0.2, 0.02, 0.3, 0.2, 0.75);

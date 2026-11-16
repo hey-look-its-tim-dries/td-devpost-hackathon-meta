@@ -3,8 +3,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { SPECIES, FLORA, STARTERS, byKind } from '../src/garden/species.js';
 
-const MIN = { flower: 220, tree: 100, bird: 70, insect: 30, fish: 30, animal: 30 };
+const MIN = { flower: 220, tree: 100, bird: 70, insect: 30, fish: 30, animal: 30, mushroom: 20 };
 const FORMS = {
+  mushroom: ['cap'],
   flower: ['daisy', 'tulip', 'bell', 'spike', 'umbel', 'rosette'],
   tree: ['round', 'cone', 'palm', 'umbrella', 'column', 'cactus'],
   bird: ['songbird', 'raptor', 'wader', 'hummer'],

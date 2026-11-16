@@ -2,15 +2,15 @@
 // The herbarium, a tab of the palm atlas: every species of the index by kind, the ones you found in
 // colour with their name, the rest as blanks to look for. Tap a flower or tree you carry seeds of to
 // make it the seed you sow. Canvas 2D on the atlas card (1200 x 900); the card owns `regions`.
-export const KINDS = ['flower', 'tree', 'bird', 'insect', 'fish', 'animal'];
-const LABEL = { flower: 'Flowers', tree: 'Trees', bird: 'Birds', insect: 'Insects', fish: 'Fish', animal: 'Animals' };
+export const KINDS = ['flower', 'tree', 'mushroom', 'bird', 'insect', 'fish', 'animal'];
+const LABEL = { mushroom: 'Fungi', flower: 'Flowers', tree: 'Trees', bird: 'Birds', insect: 'Insects', fish: 'Fish', animal: 'Animals' };
 export const PER_PAGE = 60, COLS = 10;
 const INK = '#16100e', SEAL = '#b8442e', GILT = '#c9a35a';
 
 // st: { species, found: Set, has(id), icon(id), style(id), selected, kind, page }
 export function paintHerbarium(g, regions, { button, text }, st) {
   const of = (k) => st.species.filter((s) => s.kind === k);
-  KINDS.forEach((k, i) => { const all = of(k); button(`kind:${k}`, 30 + i * 192, 104, 182, 56, `${LABEL[k]} ${all.filter((s) => st.found.has(s.id)).length}/${all.length}`, { primary: k === st.kind }); });
+  KINDS.forEach((k, i) => { const all = of(k); button(`kind:${k}`, 28 + i * 164, 104, 158, 56, `${LABEL[k]} ${all.filter((s) => st.found.has(s.id)).length}/${all.length}`, { primary: k === st.kind }); });
   const list = of(st.kind), pages = Math.max(1, Math.ceil(list.length / PER_PAGE)), page = Math.min(st.page, pages - 1);
   list.slice(page * PER_PAGE, (page + 1) * PER_PAGE).forEach((s, i) => {
     const x = 34 + (i % COLS) * 114, y = 178 + Math.floor(i / COLS) * 106, found = st.found.has(s.id), n = st.has(s.id);
