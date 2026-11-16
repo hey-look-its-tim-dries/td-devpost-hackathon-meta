@@ -243,8 +243,7 @@ svg.icon { vertical-align: -0.2em; margin-right: 0.4em; flex: none; filter: drop
 
 /* the opening screen's frame: the neon garden round the edges, the middle cut out so the living world shows through */
 .title-art { position: absolute; inset: -2%; background: url(assets/title/frame.jpg) center / cover no-repeat; pointer-events: none;
-  -webkit-mask-image: linear-gradient(to right, #000 0, #000 5%, transparent 15%, transparent 85%, #000 95%, #000 100%), linear-gradient(to bottom, transparent 0, transparent 80%, #000 96%);
-  mask-image: linear-gradient(to right, #000 0, #000 5%, transparent 15%, transparent 85%, #000 95%, #000 100%), linear-gradient(to bottom, transparent 0, transparent 80%, #000 96%);
+  -webkit-mask: url(assets/title/mask.png) center / 100% 100% no-repeat; mask: url(assets/title/mask.png) center / 100% 100% no-repeat; /* the sides (below the picture's own lettering) and the bottom: the middle and the top are cut out */
   animation: title-glow 7s ease-in-out infinite alternate; }
 @keyframes title-glow { from { filter: brightness(0.9) saturate(1); transform: scale(1); } to { filter: brightness(1.2) saturate(1.25); transform: scale(1.025); } }
 .banner .banner-inner { position: relative; }
@@ -262,3 +261,11 @@ svg.icon { vertical-align: -0.2em; margin-right: 0.4em; flex: none; filter: drop
 /* the title on one line, as wide as the screen allows */
 .banner-inner { max-width: min(1100px, 94vw); }
 .banner h1 { white-space: nowrap; font-size: clamp(1.9rem, 7.2vw, 5.4rem); }
+
+/* the opening screen in order: title, what you do, [your whorl], the world's numbers, one row of ways in, the small print */
+.banner-inner .live { margin: 0 0 10px; }
+.banner-inner .menu { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); width: min(1000px, 76vw); gap: 10px; }
+.banner-inner .menu button { width: 100%; padding-inline: 10px; font-size: 0.82rem; white-space: nowrap; }
+.banner-inner .menu #previewButton, .banner-inner .menu #xrButton { background: linear-gradient(90deg, #3ff3ff, #ff4fe0); color: #16100e; border-color: transparent; font-weight: 800; }
+.banner-inner .menu #previewButton svg.icon, .banner-inner .menu #xrButton svg.icon { stroke: #16100e; filter: none; }
+.banner .small { max-width: 860px; font-size: 0.72rem; opacity: 0.8; margin-top: 6px; }

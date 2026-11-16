@@ -148,3 +148,13 @@ test('a whorl can change: new prints are grown into, not snapped to; unknown or 
   const q = createCreature(); q.style(['nonsense', null]); q.style(null);
   assert.deepEqual(flown(q), flown(createCreature()));
 });
+
+import { pose as gnomePose } from '../src/gnomes/pose.js';
+test('the hanging gnome moves with the flight: it swings to the side, streams out behind at speed, and kicks harder for joy', () => {
+  const calm = gnomePose('hang', 1.3, 5), wild = gnomePose('hang', 1.3, 5, { swing: 0.8, lift: 0.9, joy: 1 });
+  for (const k of Object.keys(wild)) assert.ok(Number.isFinite(wild[k]), k);
+  assert.ok(Math.abs(wild.roll) > Math.abs(calm.roll) + 0.4, 'swung to the side');
+  assert.ok(wild.tilt > calm.tilt + 0.4, 'streaming out behind');
+  const kick = (m) => { let lo = 9, hi = -9; for (let t = 0; t < 2; t += 0.02) { const p = gnomePose('hang', t, 5, m); lo = Math.min(lo, p.legL); hi = Math.max(hi, p.legL); } return hi - lo; };
+  assert.ok(kick({ swing: 0, lift: 0, joy: 1 }) > kick({ swing: 0, lift: 0, joy: 0 }) * 1.5, 'joy kicks its legs');
+});

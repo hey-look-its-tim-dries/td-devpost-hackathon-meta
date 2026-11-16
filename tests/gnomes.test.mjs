@@ -151,3 +151,21 @@ test('what a gnome on board sees is what happens while it is on board: being in 
   for (const e of fed) q = advance(q, e);
   assert.equal(q.done, true);
 });
+
+import { dangle, JOYS } from '../src/gnomes/gnomes.js';
+test('a gnome on your whorl dangles: a hard turn swings it out and it wobbles back; wild flying is joy, and joy squeals now and then', () => {
+  let d = { swing: 0, vel: 0, joy: 0, quiet: 0 }, squeals = 0, most = 0;
+  const step = (input, seconds) => { for (let i = 0; i < seconds * 60; i++) { const r = dangle(d, input, 1 / 60); d = r.state; if (r.squeal) squeals++; most = Math.max(most, Math.abs(d.swing)); } };
+  step({ turn: 0, speed: 340, climb: 0 }, 2);
+  assert.ok(Math.abs(d.swing) < 0.05 && d.joy < 0.1 && squeals === 0, 'calm flight: it just hangs');
+  step({ turn: 1.0, speed: 340, climb: 0 }, 1.2);
+  assert.ok(most > 0.5, `a hard turn swings it out (${most.toFixed(2)})`);
+  const side = Math.sign(d.swing);
+  let crossed = false;
+  for (let i = 0; i < 120; i++) { d = dangle(d, { turn: 0, speed: 340, climb: 0 }, 1 / 60).state; if (Math.sign(d.swing) === -side) crossed = true; }
+  assert.ok(crossed, 'let go of the turn and it swings back past the middle: a pendulum, not a stick');
+  step({ turn: 0, speed: 900, climb: -200 }, 6);
+  assert.ok(d.joy > 0.8, 'a fast dive is joy');
+  assert.ok(squeals >= 1 && squeals <= 3, `it squeals, but not all the time (${squeals} in 6 s)`);
+  assert.ok(JOYS.length >= 8 && JOYS.every((s) => s.length <= 22));
+});

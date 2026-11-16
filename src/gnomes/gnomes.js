@@ -26,6 +26,21 @@ export function activity(id, now) {
   return h < 3 ? 'sit' : h < 5 ? 'sleep' : h < 8 ? 'potter' : 'ride';
 }
 
+// ---- a gnome dangling from your whorl ----
+// state: { swing (rad, how far out to the side it hangs), vel, joy 0..1, quiet (s since its last squeal) }
+// input: { turn (-1..1, how hard you turn), speed (m/s), climb (m/s up or down) }
+// A pendulum on a short string: a turn throws it outward, and it swings back and past. Flying fast, steep or
+// suddenly is joy; joy squeals, a few seconds apart. Returns { state, squeal (true the moment it squeals) }
+export const JOYS = ['Wheee!', 'Woohoo!', 'Yippee!', 'Again! Again!', 'Hee hee hee!', 'Faster! Faster!', 'Whoa-ho-ho!', 'Eeeee!', 'Best. Day. Ever!', 'Loop it! Loop it!'];
+export function dangle(state, input, dt) {
+  const want = -Math.max(-1, Math.min(1, input.turn)) * 0.95;
+  const vel = (state.vel + ((want - state.swing) * 22 - state.vel * 2.6) * dt), swing = Math.max(-1.4, Math.min(1.4, state.swing + vel * dt));
+  const wild = Math.max(Math.min(1, Math.max(0, (input.speed - 480) / 300)), Math.min(1, Math.abs(input.climb) / 180), Math.min(1, Math.abs(vel) / 5));
+  const joy = state.joy + (wild - state.joy) * Math.min(1, dt * (wild > state.joy ? 3 : 0.8)), quiet = state.quiet + dt;
+  const squeal = joy > 0.6 && quiet > 3.2;
+  return { state: { swing, vel, joy, quiet: squeal ? 0 : quiet }, squeal };
+}
+
 // ---- what they shout ----
 const LINES = {
   greet: ['Oi! Nice bouquet!', 'Coo-ee!', 'Got any spores?', 'Lower! I can\'t see your flowers!', 'Hello up there!', 'Mind the petals!', 'Take me with you!', 'Lovely day for a mushroom.'],

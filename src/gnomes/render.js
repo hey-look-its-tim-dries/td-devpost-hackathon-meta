@@ -44,9 +44,9 @@ export function createGnomeRenderer() {
     get count() { return n; },
     begin() { n = 0; },
     // one gnome: where its feet are, which way it faces, how tall a unit is (m), what it is doing, and its looks
-    add({ x, y, z, yaw = 0, s = 11, clip = 'idle', t = 0, hat = 0, seed = 0 }) {
+    add({ x, y, z, yaw = 0, s = 11, clip = 'idle', t = 0, hat = 0, seed = 0, motion = null }) { // motion: how the flight throws a hanging gnome about (pose.js)
       if (!ready || n >= MAX) return;
-      const p = pose(clip, t, seed);
+      const p = pose(clip, t, seed, motion);
       e.set(p.tilt, yaw, p.roll, 'YXZ'); q.setFromEuler(e);
       root.compose(v.set(x, y + p.y * s, z), q, one.set(s, s, s));
       joint('body', 0, 0, 0);

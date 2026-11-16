@@ -8,7 +8,8 @@ export const CLIPS = ['sit', 'sleep', 'potter', 'wave', 'shout', 'hang', 'cheer'
 const rest = () => ({ y: 0, tilt: 0, roll: 0, headX: 0, headY: 0, armLx: 0, armLz: -0.12, armRx: 0, armRz: 0.12, legL: 0, legR: 0 });
 const s = Math.sin;
 
-export function pose(clip, t, seed = 0) {
+// m (for 'hang'): how the flight throws it about: { swing (rad to the side), lift 0..1 (streaming out behind), joy 0..1 }
+export function pose(clip, t, seed = 0, m = null) {
   const p = rest(), ph = (seed % 97) * 0.37;
   switch (clip) {
     case 'sit': // on the cap, legs out, looking about
@@ -27,7 +28,10 @@ export function pose(clip, t, seed = 0) {
       p.armLz = -2.3 - 0.3 * s(t * 17); p.armRz = 2.3 + 0.3 * s(t * 17 + 1); p.y = 0.05 * Math.abs(s(t * 8)); p.tilt = 0.2; p.headX = -0.2; p.legL = 0.3 * Math.max(0, s(t * 8)); p.legR = 0.3 * Math.max(0, -s(t * 8));
       break;
     case 'hang': // holding on overhead, legs trailing and kicking
-      p.armLz = -2.9; p.armRz = 2.9; p.legL = 0.55 + 0.35 * s(t * 4 + ph); p.legR = 0.55 + 0.35 * s(t * 4 + ph + 2); p.tilt = 0.25; p.roll = 0.18 * s(t * 2.2 + ph); p.headX = -0.35;
+      { const swing = m?.swing ?? 0, lift = m?.lift ?? 0, joy = m?.joy ?? 0, rate = 4 + 9 * joy; // the body follows the flight; the legs kick, wildly when it is having fun
+        p.armLz = -2.9 + 0.25 * joy * s(t * 11 + ph); p.armRz = 2.9 - (joy > 0.5 ? 1.3 + 0.5 * s(t * 9) : 0); p.armRx = joy > 0.5 ? -0.4 * s(t * 9) : 0; // (one hand lets go to wave when it is thrilled)
+        p.legL = 0.55 + 0.6 * lift + (0.35 + 0.55 * joy) * s(t * rate + ph); p.legR = 0.55 + 0.6 * lift + (0.35 + 0.55 * joy) * s(t * rate + ph + 2);
+        p.tilt = 0.25 + 0.75 * lift + 0.08 * joy * s(t * 6); p.roll = swing + 0.18 * s(t * 2.2 + ph); p.headX = -0.35 - 0.3 * lift; p.headY = 0.5 * swing + 0.25 * joy * s(t * 3.1); p.y = 0.04 * joy * s(t * 12); }
       break;
     case 'cheer': // arms up, jumping
       p.armLz = -2.6 + 0.3 * s(t * 13); p.armRz = 2.6 - 0.3 * s(t * 13); p.y = 0.16 * Math.abs(s(t * 7)); p.legL = -0.5 * Math.max(0, s(t * 7)); p.legR = -0.5 * Math.max(0, s(t * 7)); p.headX = -0.3;
