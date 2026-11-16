@@ -1,0 +1,747 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Palm Whorl Cities: player and judge guide</title>
+<style>
+  @page { size: A4 portrait; margin: 0; }
+  :root {
+    --violet: #14052b;
+    --cyan: #3ff3ff;
+    --magenta: #ff4fe0;
+    --paper: #f6efe4;
+    --paper-2: #efe5d5;
+    --ink: #16100e;
+    --ink-soft: #4a3f39;
+    --seal: #b8442e;
+    --rule: #d9cbb6;
+  }
+  * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  html, body { margin: 0; padding: 0; background: #888; }
+  body {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 9.6pt; line-height: 1.5; color: var(--ink);
+  }
+  .page {
+    width: 210mm; height: 297mm; padding: 18mm 18mm 24mm;
+    position: relative; overflow: hidden;
+    background: var(--paper);
+    page-break-after: always; break-after: page;
+  }
+  .page:last-child { page-break-after: auto; break-after: auto; }
+  .page::before { /* thin foxfire accent along the top edge */
+    content: ""; position: absolute; left: 0; right: 0; top: 0; height: 1.2mm;
+    background: linear-gradient(90deg, var(--cyan), var(--magenta));
+    opacity: .75;
+  }
+  .footer {
+    position: absolute; left: 18mm; right: 18mm; bottom: 12mm;
+    display: flex; justify-content: space-between; align-items: baseline;
+    border-top: .25mm solid var(--rule); padding-top: 2mm;
+    font-size: 7.4pt; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft);
+  }
+  .footer .pn { font-family: Georgia, serif; font-size: 10pt; letter-spacing: 0; color: var(--seal); }
+
+  h1, h2, h3 { font-family: Georgia, "Times New Roman", serif; font-weight: normal; margin: 0; color: var(--ink); }
+  .kicker {
+    font-size: 7.8pt; letter-spacing: .22em; text-transform: uppercase; color: var(--seal); font-weight: bold;
+    margin-bottom: 2mm;
+  }
+  .kicker .num { color: var(--ink); margin-right: 2.5mm; }
+  h1 { font-size: 27pt; line-height: 1.1; margin-bottom: 3mm; }
+  h1 + .lede { margin-top: 0; }
+  .lede { font-family: Georgia, serif; font-size: 12.5pt; line-height: 1.45; color: var(--ink-soft); margin: 0 0 5mm; font-style: italic; }
+  h2 { font-size: 14pt; margin: 5mm 0 1.6mm; }
+  h3 { font-size: 11pt; margin: 3.5mm 0 1mm; }
+  p { margin: 0 0 2.6mm; }
+  .sc { font-variant: small-caps; letter-spacing: .06em; color: var(--seal); font-weight: bold; }
+  strong { font-weight: bold; }
+  em { font-style: italic; }
+
+  .shot {
+    display: block; width: 100%; height: auto;
+    border: 1px solid rgba(22,16,14,.35);
+    box-shadow: 0 .6mm 1.8mm rgba(22,16,14,.18);
+    background: #ddd;
+  }
+  figure { margin: 0 0 4mm; }
+  figcaption { font-size: 7.8pt; color: var(--ink-soft); margin-top: 1.6mm; line-height: 1.4; }
+  figcaption b { color: var(--seal); letter-spacing: .08em; text-transform: uppercase; font-size: 7pt; margin-right: 1.5mm; }
+
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 7mm; align-items: start; }
+  .cols-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5mm; }
+  .cols-wide { display: grid; grid-template-columns: 1.5fr 1fr; gap: 7mm; align-items: start; }
+
+  .note {
+    border-left: .8mm solid var(--seal); background: var(--paper-2);
+    padding: 3mm 4mm; margin: 3mm 0; font-size: 9pt;
+  }
+  .note.cyan { border-left-color: #1fb8c2; }
+  .note.magenta { border-left-color: #d63ab9; }
+  .note .sc { display: block; margin-bottom: .6mm; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 8.9pt; }
+  th { text-align: left; font-size: 7.2pt; letter-spacing: .14em; text-transform: uppercase; color: var(--seal);
+       border-bottom: .4mm solid var(--ink); padding: 1.4mm 2mm 1.4mm 0; }
+  td { padding: 1.55mm 2mm 1.55mm 0; border-bottom: .25mm solid var(--rule); vertical-align: top; }
+  td:first-child { font-weight: bold; white-space: nowrap; }
+  kbd {
+    display: inline-block; min-width: 5.2mm; padding: .1mm 1.3mm; text-align: center;
+    font-family: Menlo, Monaco, "Courier New", monospace; font-size: 7.8pt; font-weight: bold;
+    border: .3mm solid var(--ink); border-bottom-width: .7mm; border-radius: 1mm; background: #fffaf2; color: var(--ink);
+  }
+  code, pre { font-family: Menlo, Monaco, "Courier New", monospace; font-size: 8pt; }
+  code { background: var(--paper-2); padding: 0 1mm; border-radius: .6mm; }
+  pre {
+    background: var(--violet); color: #e9e2ff; padding: 3mm 4mm; border-radius: 1.2mm; margin: 1.5mm 0 3mm;
+    white-space: pre-wrap; word-break: break-all; line-height: 1.5; border-left: .8mm solid var(--cyan);
+  }
+  pre .c { color: #9a8cc0; }
+  ul.clean { margin: 0 0 2.6mm; padding-left: 4.5mm; }
+  ul.clean li { margin-bottom: 1mm; }
+  ol.steps { margin: 0 0 2.6mm; padding-left: 5mm; }
+  ol.steps li { margin-bottom: 1.2mm; }
+
+  /* ---------- cover and closing ---------- */
+  .bleed { padding: 0; color: #f1eaff; background: var(--violet); }
+  .bleed::before { display: none; }
+  .cover {
+    background:
+      radial-gradient(ellipse 90% 55% at 50% 108%, rgba(255,79,224,.55), transparent 62%),
+      radial-gradient(ellipse 70% 40% at 15% 0%, rgba(63,243,255,.22), transparent 70%),
+      linear-gradient(180deg, #14052b 0%, #1d0840 55%, #2a0b4f 100%);
+  }
+  .grid-floor {
+    position: absolute; left: -20%; right: -20%; bottom: 0; height: 70mm;
+    background:
+      repeating-linear-gradient(90deg, rgba(63,243,255,.35) 0 .3mm, transparent .3mm 14mm),
+      repeating-linear-gradient(0deg, rgba(255,79,224,.35) 0 .3mm, transparent .3mm 9mm);
+    transform: perspective(60mm) rotateX(58deg); transform-origin: 50% 100%;
+    opacity: .55;
+  }
+  .cover-inner { position: absolute; inset: 18mm; display: flex; flex-direction: column; }
+  .cover .tagline { font-size: 8.4pt; letter-spacing: .34em; text-transform: uppercase; color: var(--magenta); font-weight: bold; }
+  .cover h1 {
+    font-size: 50pt; line-height: 1; margin: 4mm 0 3mm; color: #fff;
+  }
+  .cover .sub { font-family: Georgia, serif; font-style: italic; font-size: 14pt; color: #d8cdf2; margin-bottom: 8mm; }
+  .art {
+    position: relative; width: 100%; height: 132mm; border-radius: 2mm; overflow: hidden;
+    background: #0b0219; border: .4mm solid rgba(63,243,255,.55);
+    box-shadow: 0 0 0 .4mm rgba(255,79,224,.25), 0 2mm 8mm rgba(0,0,0,.5);
+  }
+  .art .placeholder {
+    position: absolute; inset: 5mm; border: .4mm dashed rgba(63,243,255,.6); border-radius: 1.4mm;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
+    background: repeating-linear-gradient(135deg, rgba(255,255,255,.03) 0 3mm, transparent 3mm 6mm);
+  }
+  .art .placeholder .big { font-family: Georgia, serif; font-size: 26pt; color: var(--cyan); letter-spacing: .06em; }
+  .art .placeholder .small { font-family: Menlo, monospace; font-size: 8.5pt; color: #cbbdf0; margin-top: 3mm; }
+  .art .placeholder .hint { font-size: 8pt; color: #9d8fc4; margin-top: 2mm; max-width: 110mm; }
+  .art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .chips { display: flex; gap: 2.5mm; margin-top: 8mm; }
+  .chips span { border: .3mm solid rgba(63,243,255,.55); color: #e9e2ff; border-radius: 5mm; padding: 1mm 3.4mm;
+    font-size: 7.6pt; letter-spacing: .2em; text-transform: uppercase; }
+  .chips span:nth-child(even) { border-color: rgba(255,79,224,.6); }
+  .cover .intro { font-family: Georgia, serif; font-size: 12.5pt; line-height: 1.5; color: #e4dafa; max-width: 150mm; margin: 6mm 0 0; }
+  .cover .meta {
+    margin-top: auto; display: flex; justify-content: space-between; align-items: flex-end;
+    font-size: 8.4pt; color: #cbbdf0; letter-spacing: .04em; line-height: 1.6;
+  }
+  .cover .meta .badge {
+    border: .3mm solid var(--cyan); color: var(--cyan); padding: 1.2mm 3mm; border-radius: 5mm;
+    letter-spacing: .16em; text-transform: uppercase; font-size: 7.4pt; font-weight: bold;
+  }
+  .closing {
+    background:
+      radial-gradient(ellipse 80% 50% at 50% 50%, rgba(255,79,224,.28), transparent 70%),
+      radial-gradient(ellipse 60% 35% at 50% 100%, rgba(63,243,255,.25), transparent 70%),
+      linear-gradient(180deg, #14052b, #220a45);
+  }
+  .closing .center {
+    position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 30mm;
+  }
+  .closing .whorl { width: 52mm; height: 52mm; margin-bottom: 12mm; }
+  .closing h2 { font-size: 30pt; line-height: 1.2; color: #fff; margin: 0 0 8mm; }
+  .closing h2 span { color: var(--cyan); }
+  .closing h2 em { color: var(--magenta); font-style: italic; }
+  .closing p { color: #cbbdf0; font-size: 9.6pt; margin: 0 0 1.5mm; }
+  .closing .url { font-family: Menlo, monospace; font-size: 8pt; color: var(--cyan); }
+  .closing .sig { position: absolute; bottom: 16mm; left: 0; right: 0; text-align: center; font-size: 7.4pt;
+    letter-spacing: .3em; text-transform: uppercase; color: #8d7fb8; }
+
+  /* ---------- contents ---------- */
+  .toc { list-style: none; padding: 0; margin: 4mm 0 0; }
+  .toc li { display: grid; grid-template-columns: 13mm 1fr auto; align-items: baseline; padding: 2.15mm 0; border-bottom: .25mm solid var(--rule); }
+  .toc .n { font-family: Georgia, serif; font-size: 13pt; color: var(--seal); }
+  .toc .t { font-family: Georgia, serif; font-size: 13pt; }
+  .toc .t small { display: block; font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 8.2pt; color: var(--ink-soft); margin-top: .5mm; }
+  .toc .p { font-family: Georgia, serif; font-size: 12pt; color: var(--ink-soft); }
+
+  /* ---------- annotated screen ---------- */
+  .annot { position: relative; }
+  .pin {
+    position: absolute; width: 6.2mm; height: 6.2mm; margin: -3.1mm 0 0 -3.1mm; border-radius: 50%;
+    background: var(--seal); color: #fff; font-family: Georgia, serif; font-size: 9pt; font-weight: bold;
+    display: flex; align-items: center; justify-content: center;
+    border: .5mm solid #fff; box-shadow: 0 .4mm 1.2mm rgba(0,0,0,.45);
+  }
+  .legend { display: grid; grid-template-columns: 1fr 1fr; gap: 2.4mm 7mm; margin-top: 3mm; }
+  .legend div { display: grid; grid-template-columns: 7mm 1fr; align-items: start; font-size: 8.9pt; line-height: 1.42; }
+  .legend .dot {
+    width: 5.4mm; height: 5.4mm; border-radius: 50%; background: var(--seal); color: #fff;
+    font-family: Georgia, serif; font-weight: bold; font-size: 8pt; display: flex; align-items: center; justify-content: center;
+  }
+  .legend b { display: block; }
+
+  .tuft-call {
+    display: grid; grid-template-columns: 30mm 1fr; gap: 5mm; align-items: center;
+    background: #fffaf2; border: .5mm solid var(--seal); border-radius: 3mm; padding: 4mm; margin: 2mm 0 4mm;
+    box-shadow: 0 .6mm 1.8mm rgba(22,16,14,.15);
+  }
+  .tuft-call img { width: 30mm; height: 30mm; border-radius: 2.4mm; background: #e9d6b9; display: block; }
+  .tuft-call .who { font-size: 7.4pt; letter-spacing: .18em; color: var(--seal); font-weight: bold; text-transform: uppercase; }
+  .tuft-call .says { font-family: Georgia, serif; font-size: 13pt; line-height: 1.35; margin-top: 1mm; }
+
+  .stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4mm; margin: 4mm 0; }
+  .stat { border-top: .5mm solid var(--seal); padding-top: 2mm; }
+  .stat .v { font-family: Georgia, serif; font-size: 20pt; line-height: 1; }
+  .stat .l { font-size: 7.4pt; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-soft); margin-top: 1mm; }
+
+  .tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 3mm 6mm; margin-top: 2mm; }
+  .tab { border: .3mm solid var(--rule); border-radius: 1.6mm; padding: 2.6mm 3.4mm; background: #fbf6ee; }
+  .tab h3 { margin: 0 0 .6mm; font-size: 10.5pt; }
+  .tab p { margin: 0; font-size: 8.7pt; line-height: 1.42; }
+
+  .flow { display: grid; grid-template-columns: 1fr 6mm 1fr 6mm 1fr 6mm 1fr; align-items: stretch; margin-top: 2mm; }
+  .flow .box { border: .3mm solid var(--rule); background: #fbf6ee; border-radius: 1.6mm; padding: 3mm; font-size: 8.4pt; line-height: 1.4; }
+  .flow .box.hl { border-color: var(--seal); background: #fff4ec; }
+  .flow .box .sc { display: block; margin-bottom: 1mm; }
+  .flow .arrow { display: flex; align-items: center; justify-content: center; color: var(--seal); font-size: 13pt; }
+  .small-note { font-size: 8.4pt; color: var(--ink-soft); margin-top: 3mm; font-style: italic; }
+  .linkbox { border: .3mm solid var(--rule); border-radius: 1.6mm; padding: 3mm 4mm; background: #fbf6ee; margin-bottom: 3mm; }
+  .linkbox .sc { display: block; margin-bottom: .6mm; }
+  .linkbox .u { font-family: Menlo, monospace; font-size: 8pt; word-break: break-all; }
+</style>
+</head>
+<body>
+
+<!-- ============ COVER ============ -->
+<section class="page bleed cover">
+  <div class="grid-floor"></div>
+  <div class="cover-inner">
+    <div class="tagline">Sow the desert into bloom, together</div>
+    <h1><span style="color:var(--cyan)">Palm</span> Whorl <span style="color:var(--magenta)">Cities</span></h1>
+    <div class="sub">A guide for players and judges</div>
+    <div class="art">
+      <div class="placeholder">
+        <div class="big">ARTWORK (Veo)</div>
+        <div class="small">docs/manual/art-cover.jpg</div>
+        <div class="hint">Drop the key artwork at this path and render the PDF again. It fills this panel automatically.</div>
+      </div>
+      <!-- COVER ARTWORK: replace by saving the image as docs/manual/art-cover.jpg -->
+      <img src="art-cover.jpg" alt="" onerror="this.style.display='none'">
+    </div>
+    <div class="chips"><span>Fly</span><span>Sow</span><span>Water</span><span>Meet</span><span>Foxfire</span><span>Gnomes</span></div>
+    <p class="intro">Read your hand. It becomes land in a world shared by everyone who plays. Then fly over it as an ink whorl and sow the desert into bloom.</p>
+    <div class="meta">
+      <div>A live shared world made of players' hands<br>Meta Quest &middot; desktop browser &middot; phone<br>Made by Tim Dries</div>
+      <div class="badge">Meta VR Start 2026</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CONTENTS ============ -->
+<section class="page">
+  <div class="kicker">Inside this guide</div>
+  <h1>Contents</h1>
+  <p class="lede">Read it front to back, or jump to what you need. Judges in a hurry: start with 01, then 12.</p>
+  <ul class="toc">
+    <li><span class="n">01</span><span class="t">The idea<small>One world, made of the hands of everyone who plays</small></span><span class="p">3</span></li>
+    <li><span class="n">02</span><span class="t">Your hand becomes land<small>Reading your hand by eye or with a phone</small></span><span class="p">4</span></li>
+    <li><span class="n">03</span><span class="t">Flying<small>Hand gestures on Quest, keys in the browser, the phone</small></span><span class="p">5</span></li>
+    <li><span class="n">04</span><span class="t">The screen explained<small>Every card and counter, one by one</small></span><span class="p">7</span></li>
+    <li><span class="n">05</span><span class="t">Gardening<small>712 real species, groves, sandstorms and the golden seed</small></span><span class="p">8</span></li>
+    <li><span class="n">06</span><span class="t">The foxfire<small>Half a minute of neon synthwave</small></span><span class="p">9</span></li>
+    <li><span class="n">07</span><span class="t">Gnomes<small>Wishes, missions and a team of your own</small></span><span class="p">10</span></li>
+    <li><span class="n">08</span><span class="t">Grandfather Tuft and the first minutes<small>A grumpy guide who means well</small></span><span class="p">11</span></li>
+    <li><span class="n">09</span><span class="t">The atlas<small>Six tabs that live in your left palm</small></span><span class="p">12</span></li>
+    <li><span class="n">10</span><span class="t">Playing together<small>The lobby, meeting players, the Community Hand</small></span><span class="p">13</span></li>
+    <li><span class="n">11</span><span class="t">Privacy and safety<small>No pictures of your hand, ever</small></span><span class="p">14</span></li>
+    <li><span class="n">12</span><span class="t">Setup and running it yourself<small>For judges and developers</small></span><span class="p">15</span></li>
+    <li><span class="n">13</span><span class="t">Credits and links<small>Who made it and with what</small></span><span class="p">16</span></li>
+  </ul>
+  <div class="footer"><span>Palm Whorl Cities &middot; Player and judge guide</span><span class="pn">2</span></div>
+</section>
+
+<!-- ============ 01 THE IDEA ============ -->
+<section class="page">
+  <div class="kicker"><span class="num">01</span>The idea</div>
+  <h1>A world made of hands</h1>
+  <p class="lede">A palm already looks like a map. The lines are rivers. A fingerprint is a hill drawn in contour lines. So we built a world out of them.</p>
+  <figure>
+    <img class="shot" src="../screenshots/21-title-centrepiece.jpg" alt="">
+    <figcaption><b>Title</b>The title screen. Play in the browser, use a webcam as hands, or sign in with Google to keep your garden.</figcaption>
+  </figure>
+  <div class="cols">
+    <div>
+      <h2>No designed levels</h2>
+      <p>There is no level designer in Palm Whorl Cities. Ten founder Hands ring the Source at the centre of the world. Every other piece of land comes from a player.</p>
+      <p>You read your own hand. It becomes land: palm lines turn into rivers and fingertips into terraced hills. The world proposes three places where it fits. You pinch one, and your Hand rises out of the desert for everyone.</p>
+    </div>
+    <div>
+      <h2>Then you garden it, together</h2>
+      <p>You fly over that land as a <em>whorl</em>, a small ink creature shaped by your five fingerprints. You sow real flowers and trees, water them from the rivers and watch wildlife move in.</p>
+      <p>It is one live garden for all players. Anyone can water anyone's grove. And your whorl wears what you have sown as a bouquet, so a sky full of players is a sky full of flying flowers.</p>
+    </div>
+  </div>
+  <div class="note"><span class="sc">In one line</span>Read your hand, give it to the world, then fly over everyone's hands and sow the desert into bloom.</div>
+  <div class="footer"><span>Palm Whorl Cities &middot; Player and judge guide</span><span class="pn">3</span></div>
+</section>
+
+<!-- ============ 02 HAND READING ============ -->
+<section class="page">
+  <div class="kicker"><span class="num">02</span>Your hand becomes land</div>
+  <h1>Reading your hand</h1>
+  <p class="lede">In the headset you sit in a palm reader's dome. No camera reads your skin. You look at your own hand and tell the world what you see.</p>
+  <figure>
+    <img class="shot" src="../screenshots/29-headset-palm-dome.jpg" alt="">
+    <figcaption><b>Quest</b>The palm reader's dome. Choose to read by eye, or let your phone read photos and delete them.</figcaption>
+  </figure>
+  <div class="cols">
+    <figure>
+      <img class="shot" src="crop-prints.jpg" alt="">
+      <figcaption><b>Step 1</b>Look at each fingertip and touch the pattern that matches: arch, loop, whorl and more.</figcaption>
+    </figure>
+    <figure>
+      <img class="shot" src="crop-lines.jpg" alt="">
+      <figcaption><b>Step 2</b>Trace your palm lines with a fingertip. A dotted guide helps if you are unsure.</figcaption>
+    </figure>
+  </div>
+  <div class="cols">
+    <div>
+      <h3>By eye, or with a phone</h3>
+      <p>Reading by eye works for everyone, at any age. If you prefer, your phone takes photos of your palm and fingertips, reads the lines and patterns in its own browser, then deletes the photos.</p>
+    </div>
+    <div>
+      <h3>Where it lands</h3>
+      <p>Your reading becomes a Hand. The world shows three places where it fits among the others. Pinch one, and your Hand rises: lines become rivers, fingertips terraced hills.</p>
+    </div>
+  </div>
+  <div class="footer"><span>Palm Whorl Cities &middot; Player and judge guide</span><span class="pn">4</span></div>
+</section>
+
+<!-- ============ 03 FLYING (headset) ============ -->
+<section class="page">
+  <div class="kicker"><span class="num">03</span>Flying</div>
+  <h1>Hands only, on Quest</h1>
+  <p class="lede">You fly as a whorl. On Meta Quest there is no controller: your hands do everything. One hand steers, the other is free to garden.</p>
+  <table>
+    <tr><th style="width:30%">To do this</th><th>Do this with your hands</th></tr>
+    <tr><td>Steer</td><td>Point. Your fingers are the arrow, and the whorl follows them.</td></tr>
+    <tr><td>Go faster</td><td>Dive: point down and gain speed.</td></tr>
+    <tr><td>Sow</td><td>Pinch and hold while over a Hand. The seed is thrown ahead of you.</td></tr>
+    <tr><td>Scatter</td><td>Sweep an open hand to the side. Seed sprays out that way.</td></tr>
+    <tr><td>Collect water</td><td>Skim low over a river.</td></tr>
+    <tr><td>Pour water</td><td>Hold a flat palm, facing down.</td></tr>
+    <tr><td>Hyper sow</td><td>A long pinch with your left hand.</td></tr>
+    <tr><td>Clear a grove</td><td>Make a fist and pull it up.</td></tr>
+    <tr><td>Set a gnome down</td><td>Toss an open hand upward.</td></tr>
+    <tr><td>Open the atlas</td><td>Turn your left palm up. Turn it down to close it.</td></tr>
+  </table>
+  <div class="cols" style="margin-top:5mm">
+    <div class="note cyan"><span class="sc">Resting hands never steer</span>A hand takes over only when it is raised and open for a moment. Drop it into your lap and the whorl flies on calmly.</div>
+    <div class="note magenta"><span class="sc">No keys in the headset</span>Every hint inside the headset shows a gesture, never a key. The atlas has a How page with every move.</div>
+  </div>
+  <figure style="margin-top:2mm">
+    <img class="shot" src="../screenshots/02-flying.jpg" alt="" style="height:62mm; object-fit:cover">
+    <figcaption><b>Flight</b>The whorl over the rivers of a founder Hand.</figcaption>
+  </figure>
+  <div class="footer"><span>Palm Whorl Cities &middot; Player and judge guide</span><span class="pn">5</span></div>
+</section>
+
+<!-- ============ 03 FLYING (browser + phone) ============ -->
+<section class="page">
+  <div class="kicker"><span class="num">03</span>Flying, continued</div>
+  <h1>Keys and phones</h1>
+  <p class="lede">No headset? Play in any desktop browser with the keyboard, on a phone with tilt and thumbs, or let a laptop webcam stand in for your hands.</p>
+  <div class="cols">
+    <table>
+      <tr><th colspan="2">Fly and garden</th></tr>
+      <tr><td><kbd>A</kbd> <kbd>D</kbd></td><td>Turn left and right</td></tr>
+      <tr><td><kbd>W</kbd> <kbd>S</kbd></td><td>Climb and descend</td></tr>
+      <tr><td><kbd>Space</kbd></td><td>Sow</td></tr>
+      <tr><td><kbd>Q</kbd> <kbd>E</kbd></td><td>Previous and next seed</td></tr>
+      <tr><td><kbd>Z</kbd> <kbd>C</kbd> <kbd>R</kbd></td><td>Scatter</td></tr>
+      <tr><td><kbd>T</kbd></td><td>Pour water</td></tr>
+      <tr><td><kbd>F</kbd></td><td>Hyper sow</td></tr>
+      <tr><td><kbd>X</kbd></td><td>Clear a grove</td></tr>
+      <tr><td><kbd>G</kbd></td><td>Set a gnome down</td></tr>
+    </table>
+    <table>
+      <tr><th colspan="2">Screens and sound</th></tr>
+      <tr><td><kbd>M</kbd></td><td>Open the atlas</td></tr>
+      <tr><td><kbd>P</kbd></td><td>Pause</td></tr>
+      <tr><td><kbd>I</kbd></td><td>Inventory</td></tr>
+      <tr><td><kbd>H</kbd></td><td>Bring back hidden cards</td></tr>
+      <tr><td><kbd>U</kbd></td><td>Mute Grandfather Tuft</td></tr>
+      <tr><td><kbd>N</kbd></td><td>Sound on or off</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>Skip the tutorial</td></tr>
+    </table>
+  </div>
+  <h2>On a phone</h2>
+  <div class="cols-wide">
+    <figure style="margin:0">
+      <img class="shot" src="../screenshots/30-phone-gyroscope.jpg" alt="">
+      <figcaption><b>Phone</b>Landscape play with touch buttons.</figcaption>
+    </figure>
+    <div>
+      <p><strong>Steer</strong> by tilting the phone (the gyroscope) or by dragging a thumb on the screen.</p>
+      <p><strong>Touch buttons</strong> do the rest: SOW, HYPER, POUR, SCATTER, MAP, BAG, pause and next seed.</p>
+    </div>
+  </div>
+  <div class="note cyan" style="margin-top:5mm"><span class="sc">Webcam as hands</span>On a laptop, choose "Use my webcam as hands" on the title screen. The camera reads your gestures live, the same gestures as on Quest. Nothing is recorded.</div>
+  <div class="footer"><span>Palm Whorl Cities &middot; Player and judge guide</span><span class="pn">6</span></div>
+</section>
+
+<!-- ============ 04 SCREEN ============ -->
+<section class="page">
+  <div class="kicker"><span class="num">04</span>The screen explained</div>
+  <h1>What you see while flying</h1>
+  <p class="lede">The screen looks busy at first. Each card has one job, and you can hide any of them.</p>
+  <div class="annot">
+    <img class="shot" src="../screenshots/24-sowing.jpg" alt="">
+    <span class="pin" style="left:72.6%; top:4%">1</span>
+    <span class="pin" style="left:11.2%; top:3.4%">2</span>
+    <span class="pin" style="left:13.2%; top:21.6%">3</span>
+    <span class="pin" style="left:67.4%; top:21%">4</span>
+    <span class="pin" style="left:90%; top:5%">5</span>
+    <span class="pin" style="left:5%; top:71%">6</span>
+    <span class="pin" style="left:18.4%; top:71.4%">7</span>
+    <span class="pin" style="left:50.4%; top:81.6%">8</span>
+    <span class="pin" style="left:57.4%; top:78.2%">9</span>
+  </div>
+  <div class="legend">
+    <div><span class="dot">1</span><span><b>Compass</b>Your heading, plus markers for the Source, the golden seed, sandstorms and the nearest gnome.</span></div>
+    <div><span class="dot">2</span><span><b>Live player count</b>How many people are flying in the world right now.</span></div>
+    <div><span class="dot">3</span><span><b>Stats card</b>Players, Hands and groves, the top gardeners and your gnome team.</span></div>
+    <div><span class="dot">4</span><span><b>Grandfather Tuft</b>Your guide's call-in window. He talks; you can mute him.</span></div>
+    <div><span class="dot">5</span><span><b>Inventory rail</b>Your seeds and how many of each, with flora and fauna found.</span></div>
+    <div><span class="dot">6</span><span><b>Map</b>The Hands around you, other players and gnomes.</span></div>
+    <div><span class="dot">7</span><span><b>Place card</b>The territory under you: its name, and the owner's picture and garden.</span></div>
+    <div><span class="dot">8</span><span><b>Hint</b>A reminder of pause and inventory.</span></div>
+    <div><span class="dot">9</span><span><b>Garden card</b>The seed in your hand, your level and how close the grove below is to growing.</span></div>
+  </div>
+  <div class="note" style="margin-top:4mm"><span class="sc">Tip</span>Cards you close stay closed. Press <kbd>H</kbd> to bring them all back.</div>
+  <div class="footer"><span>Palm Whorl Cities &middot; Player and judge guide</span><span class="pn">7</span></div>
+</section>
+
+<!-- ============ 05 GARDENING ============ -->
+<section class="page">
+  <div class="kicker"><span class="num">05</span>Gardening</div>
+  <h1>Sow the desert</h1>
+  <p class="lede">Every flower, tree, bird and fish in the game is a real species. You start with a handful of seeds and find the rest as you go.</p>
+  <div class="stat-row">
+    <div class="stat"><div class="v">712</div><div class="l">Real species</div></div>
+    <div class="stat"><div class="v">403</div><div class="l">Flowers and trees to sow</div></div>
+    <div class="stat"><div class="v">4</div><div class="l">Stages per grove</div></div>
+    <div class="stat"><div class="v">1</div><div class="l">Shared garden</div></div>
+  </div>
+  <figure>
+    <img class="shot" src="../screenshots/16-bloom-garden.png" alt="">
+    <figcaption><b>Bloom</b>A Hand in bloom. Groves grow when watered; plots bloom and wildlife moves in.</figcaption>
+  </figure>
+  <div class="cols">
+    <div>
+      <h3>Sow, water, grow</h3>
+      <p>Fly over a Hand and sow. Each planting is a grove. Skim a river to fill up with water, then pour it on your groves. Watered groves grow through four stages.</p>
+      <h3>Plots bloom, wildlife arrives</h3>
+      <p>When a plot fills up it blooms. Then life moves in: insects first, then birds and fish, then animals. There are mushrooms too.</p>
+      <h3>You are what you sow</h3>
+      <p>Your whorl wears everything you have sown as a bouquet. No two players look alike.</p>
+    </div>
+    <div>
+      <h3>The world has weather</h3>
+      <p><span class="sc">Sandstorms</span> cross the world every ten minutes and dry what they touch. Someone has to water it again.</p>
+      <p><span class="sc">The golden seed</span> appears every four minutes. Everyone sees it at the same time, and everyone races for it.</p>
+      <p><span class="sc">Seed clouds</span> drift on the wind. Catch them as they pass.</p>
+      <div class="note cyan"><span class="sc">Anyone can help</span>Any player can water any grove. Help is the fastest way to make the world bloom.</div>
+    </div>
+  </div>
+  <div class="footer"><span>Palm Whorl Cities &middot; Player and judge guide</span><span class="pn">8</span></div>
+</section>
+
+<!-- ============ 06 FOXFIRE ============ -->
+<section class="page">
+  <div class="kicker"><span class="num">06</span>The foxfire</div>
+  <h1>Half a minute of neon</h1>
+  <p class="lede">Fly through a mushroom and the world changes. The desert turns into a neon synthwave night with a striped sun. It lasts about thirty seconds.</p>
+  <figure>
+    <img class="shot" src="../screenshots/25-foxfire-seed-trail.jpg" alt="">
+    <figcaption><b>Foxfire</b>A row of seeds glows ahead. Fly it and each seed rings the next note of a scale.</figcaption>
+  </figure>
+  <div class="cols">
+    <div>
+      <h3>What changes</h3>
+      <ul class="clean">
+        <li><strong>Double rewards</strong> for everything you do.</li>
+        <li><strong>Seed rows</strong> that ring up a scale as you fly through them. A perfect line gives ten seeds.</li>
+        <li><strong>Visions</strong> of giant gnome folk dancing on the horizon.</li>
+        <li><strong>Wildlife five times as tall</strong>, for a little while.</li>
+        <li>A synthwave soundtrack.</li>
+      </ul>
+    </div>
+    <figure>
+      <img class="shot" src="../screenshots/26-foxfire-gnome-folk.jpg" alt="">
+      <figcaption><b>Visions</b>Giant gnome folk dance while the foxfire lasts.</figcaption>
+    </figure>
+  </div>
+  <div class="note magenta"><span class="sc">Where to find mushrooms</span>Mushrooms grow where groves have died. A dry patch after a sandstorm is often the best place to look.</div>
+  <div class="footer"><span>Palm Whorl Cities &middot; Player and judge guide</span><span class="pn">9</span></div>
+</section>
+
+<!-- ============ 07 GNOMES ============ -->
+<section class="page">
+  <div class="kicker"><span class="num">07</span>Gnomes</div>
+  <h1>Small folk with big wishes</h1>
+  <p class="lede">Gnomes live in the mushrooms. They wave, they shout, and if you fly close enough, they grab on.</p>
+  <figure>
+    <img class="shot" src="../screenshots/27-gnome-mission.jpg" alt="">
+    <figcaption><b>Mission</b>A gnome hangs under the whorl. Its wish shows in the CURRENT MISSION bar, with a timer.</figcaption>
+  </figure>
+  <div class="cols">
+    <div>
+      <h3>Finding one</h3>
+      <p>Red hats on the map mark the gnomes. The compass names the nearest one, so you can just follow it.</p>
+      <h3>Picking one up</h3>
+      <p>Fly low and gently over a gnome. It grabs your whorl and hangs underneath with a wish, like "Faster! I want my beard to flap!"</p>
+      <h3>Granting the wish</h3>
+      <p>Do it before the timer runs out and the gnome joins your team. If it belonged to another gardener, it converts to you, and they are told.</p>
+    </div>
+    <div>
+      <figure>
+        <img class="shot" src="../screenshots/28-gnome-on-compass.jpg" alt="">
+        <figcaption><b>Compass</b>The nearest gnome, named on the compass.</figcaption>
+      </figure>
+      <div class="note"><span class="sc">Be gentle</span>Set a gnome down with care (toss an open hand up, or <kbd>G</kbd>). Drop one by accident and it falls, screaming.</div>
+    </div>
+  </div>
+  <div class="footer"><span>Palm Whorl Cities &middot; Player and judge guide</span><span class="pn">10</span></div>
+</section>
+
+<!-- ============ 08 TUFT ============ -->
+<section class="page">
+  <div class="kicker"><span class="num">08</span>Grandfather Tuft and the first minutes</div>
+  <h1>Meet your guide</h1>
+  <p class="lede">Grandfather Tuft is an old gnome. He is grumpy, he is proud of his garden, and he will teach you anyway.</p>
+  <div class="tuft-call">
+    <img src="tuft-face.png" alt="">
+    <div>
+      <div class="who">Grandfather Tuft</div>
+      <div class="says">"Oh. A new one. I am Grandfather Tuft. Try not to crash into anything I planted."</div>
+    </div>
+  </div>
+  <figure>
+    <img class="shot" src="../screenshots/23-first-minutes-tuft.jpg" alt="">
+    <figcaption><b>First minute</b>The tutorial card in the middle, Tuft's call-in window at the top right.</figcaption>
+  </figure>
+  <div class="cols">
+    <div>
+      <h3>A voice in the corner</h3>
+      <p>Tuft calls in from a small window at the top right. He is fully voiced. He comments on what you do, and he is rarely impressed.</p>
+      <h3>Nine short steps</h3>
+      <p>The tutorial has nine short steps, starting with how to turn. The bar fills as you do each one. Press <kbd>Esc</kbd> to skip it.</p>
+    </div>
+    <div>
+      <h3>First-minutes notes</h3>
+      <p>In your first minutes small notes appear next to the things on screen and explain what each one is. Read them once and you know your way around.</p>
+      <div class="note"><span class="sc">Too much Tuft?</span>Mute him with <kbd>U</kbd>, or in the atlas under How. He will not take it personally. Much.</div>
+    </div>
+  </div>
+  <div class="footer"><span>Palm Whorl Cities &middot; Player and judge guide</span><span class="pn">11</span></div>
+</section>
+
+<!-- ============ 09 ATLAS ============ -->
+<section class="page">
+  <div class="kicker"><span class="num">09</span>The atlas</div>
+  <h1>Everything, in your palm</h1>
+  <p class="lede">Turn your left palm up and the atlas opens above it. In the browser press <kbd>M</kbd>. Six tabs hold everything that is not flying.</p>
+  <figure>
+    <img class="shot" src="../screenshots/32-atlas-me.jpg" alt="">
+    <figcaption><b>Me</b>Your profile: your whorl, your stats, friends, rivals and the gnomes on your team.</figcaption>
+  </figure>
+  <div class="tabs">
+    <div class="tab"><h3>World</h3><p>The map with its layers. Replay the history of the world, from the first ten Hands to now.</p></div>
+    <div class="tab"><h3>Me</h3><p>Your profile, your whorl, your stats, friends you have braided with, rivals and your gnomes.</p></div>
+    <div class="tab"><h3>Garden</h3><p>The herbarium: every species in the game. The ones you have found show; the rest wait as question marks.</p></div>
+    <div class="tab"><h3>Community</h3><p>The Community Hand, where every grove in the world is a pixel. Give a handbit to add to it.</p></div>
+    <div class="tab"><h3>Journal</h3><p>News from the world: blooms, golden seeds, converted gnomes, new Hands.</p></div>
+    <div class="tab"><h3>How</h3><p>Every control, the tutorial again, mute Tuft and sound settings.</p></div>
+  </div>
+  <div class="footer"><span>Palm Whorl Cities &middot; Player and judge guide</span><span class="pn">12</span></div>
+</section>
+
+<!-- ============ 10 TOGETHER ============ -->
+<section class="page">
+  <div class="kicker"><span class="num">10</span>Playing together</div>
+  <h1>One garden, live</h1>
+  <p class="lede">Everyone flies in the same world at the same time. What you sow stays for everyone.</p>
+  <figure>
+    <img class="shot" src="../screenshots/22-lobby.jpg" alt="">
+    <figcaption><b>Lobby</b>The world right now: the live map, who is flying, top gardeners, gnome converters and the latest news.</figcaption>
+  </figure>
+  <div class="cols">
+    <div>
+      <h3>The lobby</h3>
+      <p>Before you dive in, the lobby shows the live map and who is flying. Pick a username here. Then press Dive in.</p>
+      <h3>Meeting a player</h3>
+      <p>Fly close to another whorl and the two of you braid together for two seconds and swap seeds. Their picture shows above their whorl, so you know who you met.</p>
+      <h3>Your garden, on every device</h3>
+      <p>Google sign-in keeps your garden across headset, laptop and phone. It is required on the live site. Each Google account is its own player.</p>
+    </div>
+    <div>
+      <figure>
+        <img class="shot" src="../screenshots/31-community-hand-world.jpg" alt="">
+        <figcaption><b>Community Hand</b>The whole world in one hand, near the Source.</figcaption>
+      </figure>
+      <h3>The Community Hand</h3>
+      <p>At the Source lies a Hand that belongs to everyone. Every grove in the world shows up on it as one pixel, and you can give it a handbit of your own.</p>
+    </div>
+  </div>
+  <div class="footer"><span>Palm Whorl Cities &middot; Player and judge guide</span><span class="pn">13</span></div>
+</section>
+
+<!-- ============ 11 PRIVACY ============ -->
+<section class="page">
+  <div class="kicker"><span class="num">11</span>Privacy and safety</div>
+  <h1>Your hand stays yours</h1>
+  <p class="lede">A hand is biometric. We designed around that from the very first day, and it made the game simpler, not weaker.</p>
+  <div class="cols">
+    <div>
+      <h2>What we keep</h2>
+      <ul class="clean">
+        <li><strong>A coarse map DNA</strong> of your Hand: a few hundred bytes that describe the land, not your skin.</li>
+        <li><strong>Your Hand's place</strong> on the shared map, and your garden.</li>
+        <li><strong>With Google sign-in:</strong> only a hash of your account id, plus the address of your profile picture.</li>
+      </ul>
+      <h2>What we never keep</h2>
+      <ul class="clean">
+        <li>Images of your hand. Not from the headset, not from the phone, not from a webcam.</li>
+        <li>Live hand tracking data. It is used in the moment and never stored or sent.</li>
+        <li>Tracking or advertising data.</li>
+      </ul>
+    </div>
+    <div>
+      <h2>The phone reads, then forgets</h2>
+      <p>If you read your hand with a phone, the photos are read in the phone's own browser and deleted right away. Only the coarse map DNA leaves the phone.</p>
+      <h2>Your data, your call</h2>
+      <p>Export everything we hold about you, or ask us to forget your Hand and garden, at any time. Both live on the privacy page, linked from the title screen:</p>
+      <div class="linkbox"><span class="sc">Privacy page</span><span class="u">privacy.html</span></div>
+      <div class="note cyan"><span class="sc">Comfort</span>Press <kbd>P</kbd> to pause at any time. Resting your hands never steers, so you can take a break mid-air.</div>
+    </div>
+  </div>
+  <h2 style="margin-top:6mm">What travels where</h2>
+  <div class="flow">
+    <div class="box"><span class="sc">Your hand</span>In your room. Read by eye, or photographed by your phone.</div>
+    <div class="arrow">&rarr;</div>
+    <div class="box"><span class="sc">Your device</span>Turns the reading into map DNA. Photos are deleted here.</div>
+    <div class="arrow">&rarr;</div>
+    <div class="box hl"><span class="sc">Map DNA</span>A few hundred bytes. Land, not skin.</div>
+    <div class="arrow">&rarr;</div>
+    <div class="box"><span class="sc">Shared map</span>Your Hand rises for every player.</div>
+  </div>
+  <p class="small-note">No image, no live hand tracking and no raw camera frame ever leaves your device.</p>
+  <div class="footer"><span>Palm Whorl Cities &middot; Player and judge guide</span><span class="pn">14</span></div>
+</section>
+
+<!-- ============ 12 SETUP ============ -->
+<section class="page">
+  <div class="kicker"><span class="num">12</span>Setup and running it yourself</div>
+  <h1>For judges and developers</h1>
+  <p class="lede">The fastest way in is the live site. No install, no build step.</p>
+  <h2>Play the live version</h2>
+  <ol class="steps">
+    <li><strong>On Meta Quest:</strong> open the Quest Browser, go to the live URL below and press Enter in the headset. Put your controllers down; hands only.</li>
+    <li><strong>On a desktop:</strong> open the same URL in any modern browser and press Play in the browser.</li>
+    <li>Sign in with Google when asked. The live site needs it to keep your garden.</li>
+  </ol>
+  <div class="linkbox"><span class="sc">Live</span><span class="u">https://hey-look-its-tim-dries.github.io/td-devpost-hackathon-meta/</span></div>
+
+  <h2>Run it locally</h2>
+  <p>Clone the repo, then start the game and the map server in two terminals:</p>
+<pre><span class="c"># terminal 1: the game, in the repo folder</span>
+python3 serve.py 8130
+
+<span class="c"># terminal 2: the map server</span>
+cd server
+npx wrangler dev
+
+<span class="c"># then open</span>
+http://localhost:8130/?api=http://localhost:8787</pre>
+
+  <h2>Tests</h2>
+<pre>node --test tests/*.test.mjs</pre>
+
+  <h2>No headset at hand?</h2>
+  <p>Add <code>?emulate</code> to the URL and Meta's Quest emulator runs in a desktop browser, so you can try the headset flow with simulated hands.</p>
+  <div class="note"><span class="sc">What you need</span>Python 3 for the game server, Node.js for the tests and for Wrangler (Cloudflare's tool, run through <code>npx</code>). Nothing else to install.</div>
+  <div class="footer"><span>Palm Whorl Cities &middot; Player and judge guide</span><span class="pn">15</span></div>
+</section>
+
+<!-- ============ 13 CREDITS ============ -->
+<section class="page">
+  <div class="kicker"><span class="num">13</span>Credits and links</div>
+  <h1>Who made it</h1>
+  <p class="lede">Palm Whorl Cities is made by Tim Dries for the Meta VR Start Developer Competition 2026.</p>
+  <div class="cols">
+    <div>
+      <h2>Links</h2>
+      <div class="linkbox"><span class="sc">Play</span><span class="u">https://hey-look-its-tim-dries.github.io/td-devpost-hackathon-meta/</span></div>
+      <div class="linkbox"><span class="sc">Source code</span><span class="u">https://github.com/hey-look-its-tim-dries/td-devpost-hackathon-meta</span></div>
+      <h2>Built with</h2>
+      <p>three.js and WebXR in the Meta Quest Browser, with WebXR hand input and passthrough. Web Workers build the land. A Cloudflare Worker with a Durable Object and D1 keeps the shared map. MediaPipe reads hands from a webcam and palms on a phone. Models in glTF, made with Blender. GitHub Pages hosts it.</p>
+    </div>
+    <div>
+      <h2>Art and sound</h2>
+      <p>The flowers, trees, mushrooms, models and music are CC0 and CC-BY assets, credited in the repo. Each folder has its own credits file with source, licence and any changes:</p>
+      <ul class="clean">
+        <li><code>assets/flora/CREDITS.md</code> for flower and tree art</li>
+        <li><code>assets/fungi/CREDITS.md</code> for mushrooms and models</li>
+        <li><code>assets/music/CREDITS.md</code> for the foxfire music</li>
+      </ul>
+      <p>The foxfire soundtrack is by Kevin MacLeod, Zodik, Tomasz Kucza, Section7, Bogart VGM, Tausdei, Tarush Singhal, congusbongus and MintoDog. Thank you all.</p>
+      <h2>Thank you</h2>
+      <p>To everyone who lends the world their hand. Every Hand after the first ten was given by a player.</p>
+    </div>
+  </div>
+  <figure style="margin-top:3mm">
+    <img class="shot" src="../screenshots/15-source.jpg" alt="" style="height:70mm; object-fit:cover">
+    <figcaption><b>The Source</b>Where the first ten Hands meet, and where every journey starts.</figcaption>
+  </figure>
+  <div class="footer"><span>Palm Whorl Cities &middot; Player and judge guide</span><span class="pn">16</span></div>
+</section>
+
+<!-- ============ CLOSING ============ -->
+<section class="page bleed closing">
+  <div class="center">
+    <svg class="whorl" viewBox="0 0 100 100" fill="none" stroke-linecap="round">
+      <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3ff3ff"/><stop offset="1" stop-color="#ff4fe0"/></linearGradient></defs>
+      <g stroke="url(#g)" stroke-width="1.8">
+        <ellipse cx="50" cy="52" rx="8" ry="10"/>
+        <ellipse cx="50" cy="52" rx="15" ry="18"/>
+        <ellipse cx="50" cy="52" rx="22" ry="26"/>
+        <ellipse cx="50" cy="52" rx="29" ry="34"/>
+        <path d="M50 8 C 82 10, 94 40, 88 64 C 82 88, 60 96, 44 94"/>
+        <path d="M14 70 C 8 46, 18 18, 44 12"/>
+      </g>
+    </svg>
+    <h2><span>Sow the desert</span><br>into bloom, <em>together.</em></h2>
+    <p>Lend the world your hand. Then fly.</p>
+    <p class="url">hey-look-its-tim-dries.github.io/td-devpost-hackathon-meta</p>
+  </div>
+  <div class="sig">Palm Whorl Cities &middot; Tim Dries &middot; 2026</div>
+</section>
+
+</body>
+</html>
