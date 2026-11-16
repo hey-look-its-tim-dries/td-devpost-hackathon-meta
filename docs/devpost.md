@@ -31,6 +31,11 @@ moves in: insects, then birds and fish, then animals. Pixel flowers lay mosaic t
 ten-second hyper sow you draw with flowers. Every ten minutes a sandstorm crosses the world and parches what
 it passes, until someone waters it; every four, one golden seed appears and everyone races for it.
 
+What dies feeds mushrooms. Eat one and the world turns to foxfire for half a minute: a neon night with a
+striped sun, faster flight, double rewards and synthwave. Gnomes live in the mushrooms. They wave, shout,
+ride the animals, and jump onto your whorl with a side quest; do it and the gnome joins your team, or
+converts from someone else's.
+
 It is one garden for all players, live. Anyone can water anyone's grove. And you are what you have sown:
 your whorl wears your whole sowing history as a bouquet, first-sown at the head, so no two players look
 alike and a sky of players is a sky of flying bouquets. The palm atlas (left palm up) holds the world map,

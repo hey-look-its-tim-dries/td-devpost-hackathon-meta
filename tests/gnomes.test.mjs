@@ -69,3 +69,27 @@ test('gnomes on board travel in the bouquet\'s signature and come out again; the
   assert.equal(splitRiders(withRiders([], [1, 2, 3, 4, 5])).hats.length, GNOME.max);
   assert.deepEqual(splitRiders('junk'), { sig: [], hats: [] });
 });
+
+import { pose, CLIPS } from '../src/gnomes/pose.js';
+test('every pose is a full set of finite joint angles, and reads as what it is', () => {
+  for (const clip of [...CLIPS, 'idle']) for (const t of [0, 0.37, 2.2]) { const p = pose(clip, t, 5); for (const k of ['y', 'tilt', 'roll', 'headX', 'headY', 'armLx', 'armLz', 'armRx', 'armRz', 'legL', 'legR']) assert.ok(Number.isFinite(p[k]), `${clip}.${k}`); }
+  assert.ok(pose('wave', 0.1).armRz > 1.8 && Math.abs(pose('wave', 0.1).armLz) < 0.6, 'one arm high');
+  assert.ok(pose('hang', 1).armLz < -2.5 && pose('hang', 1).armRz > 2.5, 'both arms overhead');
+  const a = pose('potter', 0.1), b = pose('potter', 0.1 + Math.PI / 9);
+  assert.ok(Math.sign(a.legL) === -Math.sign(a.legR) && Math.sign(a.legL) === -Math.sign(b.legL), 'legs alternate');
+  assert.ok(pose('sit', 1).legL < -1 && pose('sleep', 1).headX > 0.3, 'sitting with legs out; asleep with the head down');
+  assert.notDeepEqual(pose('wave', 0.1), pose('wave', 0.2), 'it moves');
+  assert.ok(pose('jump', 1).armRz > 2.5 && pose('jump', 0).armRz === 0, 'the leap reaches up');
+});
+
+test('a quest never asks for a place you are already at: targets are a good way from the gnome\'s own mushroom', () => {
+  const g = { id: 9, seed: 1234 }, from = { x: 100, z: 100 };
+  const world = { from, hands: [{ name: 'Here', x: 300, z: 0 }, { name: 'Far', x: 9000, z: 0 }], homes: [{ id: 11, name: 'Nextdoor', x: 230, z: 100 }, { id: 12, name: 'Faraway', x: 100, z: 2100 }] };
+  const all = Array.from({ length: 600 }, (_, d) => questFor(g, d, world));
+  assert.ok(all.filter((q) => q.kind === 'hand').every((q) => /Far/.test(q.text)), 'never the Hand it lives on');
+  assert.ok(all.filter((q) => q.kind === 'cousin').every((q) => /Faraway/.test(q.text)), 'never the gnome next door');
+  assert.ok(all.some((q) => q.kind === 'hand') && all.some((q) => q.kind === 'cousin'));
+  const atSource = Array.from({ length: 600 }, (_, d) => questFor(g, d, { from: { x: 50, z: 50 }, hands: [], homes: [] }));
+  assert.ok(!atSource.some((q) => q.kind === 'source'), 'a gnome that lives at the Source does not ask to go there');
+  for (const q of all) if (q.r) assert.ok(Math.hypot(q.x - from.x, q.z - from.z) > q.r + 200, `${q.kind} is not done on the spot`);
+});

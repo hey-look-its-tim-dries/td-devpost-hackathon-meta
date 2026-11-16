@@ -9,7 +9,7 @@ export function createMusic({ base = new URL('../', import.meta.url).href, onPla
   try { muted = storage?.getItem('pwc.mute.v1') === '1'; } catch {}
   fetch(`${base}assets/music/tracks.json`).then((r) => (r.ok ? r.json() : [])).then((l) => { tracks = Array.isArray(l) ? l.filter((t) => typeof t?.file === 'string') : []; }).catch(() => { tracks = []; });
   const track = () => tracks[index % tracks.length];
-  const load = () => { el.src = base + track().file; };
+  const load = () => { el.src = base + track().file; const at = +track().startAt || 0; if (at > 0) el.addEventListener('loadedmetadata', () => { try { el.currentTime = at; } catch {} }, { once: true }); }; // start where the full arrangement is in
   const start = () => { el.play().then(() => { if (announced !== index) { announced = index; onPlay?.(track()); } }).catch(() => {}); };
   return {
     arm() { armed = true; }, // from a press: the start button

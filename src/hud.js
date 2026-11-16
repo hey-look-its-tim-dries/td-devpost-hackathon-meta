@@ -105,7 +105,9 @@ export function createHud() {
       g.fillStyle = INK; g.font = '600 20px Inter, system-ui, sans-serif'; g.fillText(`${(p.title ?? p.label).toUpperCase()} · ${p.n}/${p.cap} · ${p.hint}`, 26, 142, c.width - 52);
       for (let i = 0; i < 4; i++) { g.fillStyle = i < p.level ? GILT : 'rgba(22,16,14,0.2)'; g.beginPath(); g.arc(c.width - 40 - i * 22, 182, 7, 0, Math.PI * 2); g.fill(); }
       g.fillStyle = gd.hyper ? SEAL : 'rgba(22,16,14,0.6)'; g.font = `${gd.hyper ? 700 : 500} 17px Inter, system-ui, sans-serif`;
-      g.fillText(gd.fox ? `FOXFIRE · ${gd.fox.left} s · everything counts x${gd.fox.mult} · eat another to chain` : gd.hyper ? `HYPER SOW · ${gd.hyper} s · fly low and draw with flowers` : gd.charge >= 1 ? 'F: HYPER SOW READY · SPACE plant · Q/E seed · X clear' : `SPACE plant · Q/E seed · X clear · hyper sow ${Math.round(gd.charge * 100)}%`, 26, 187, c.width - 150);
+      const QUEST = { source: 'to the Source', hand: 'fly it there', cousin: 'to its cousin', foxfire: 'eat a mushroom', sow: 'sow', water: 'water', speed: 'FASTER', high: 'HIGHER', cloud: 'a seed cloud', river: 'skim the river' };
+      const gq = gd.gnome && !gd.gnome.done ? `${gd.gnome.name.toUpperCase()} WANTS: ${QUEST[gd.gnome.kind] ?? 'a favour'}${gd.gnome.need > 1 ? ` ${gd.gnome.have}/${gd.gnome.need}` : ''} · ${Math.floor(gd.gnome.left / 60)}:${String(gd.gnome.left % 60).padStart(2, '0')} · G sets it down` : null;
+      g.fillText(gq ?? (gd.fox ? `FOXFIRE · ${gd.fox.left} s · everything counts x${gd.fox.mult} · eat another to chain` : gd.hyper ? `HYPER SOW · ${gd.hyper} s · fly low and draw with flowers` : gd.charge >= 1 ? 'F: HYPER SOW READY · SPACE plant · Q/E seed · X clear' : `SPACE plant · Q/E seed · X clear · hyper sow ${Math.round(gd.charge * 100)}%`), 26, 187, c.width - 150);
     } else { g.fillStyle = 'rgba(22,16,14,0.6)'; g.font = '500 20px Inter, system-ui, sans-serif'; g.fillText(gd.wet ? 'ON THE RIVER: WATER FILLED' : 'FLY OVER A HAND TO PLANT', 26, 142); }
     garden.tex.needsUpdate = true;
   }
@@ -138,6 +140,7 @@ export function createHud() {
     g.textAlign = 'left'; g.fillStyle = SEAL; g.font = '700 18px Inter, system-ui, sans-serif'; g.fillText('TOP GARDENERS', 28, 128);
     g.textAlign = 'right'; g.fillText(`YOU ${w.planted}`, c.width - 28, 128);
     w.top.slice(0, 4).forEach((t, i) => { const y = 160 + i * 32; g.textAlign = 'left'; g.fillStyle = INK; g.font = '600 24px Georgia, serif'; g.fillText(`${i + 1}. ${t.name}`, 28, y, 380); g.textAlign = 'right'; g.font = '700 22px Inter, system-ui, sans-serif'; g.fillText(Number(t.n).toLocaleString('en'), c.width - 28, y); });
+    g.textAlign = 'left'; g.fillStyle = SEAL; g.font = '700 16px Inter, system-ui, sans-serif'; g.fillText(`GNOMES ON YOUR TEAM ${w.team ?? 0} · CONVERTED ${w.converted ?? 0}`, 28, 286);
     if (!w.top.length) { g.textAlign = 'left'; g.fillStyle = 'rgba(22,16,14,0.6)'; g.font = 'italic 400 24px Georgia, serif'; g.fillText('nobody has planted yet: be the first', 28, 166); }
     stats.tex.needsUpdate = true;
   }
@@ -157,7 +160,7 @@ export function createHud() {
       paintRibbon(yaw, bearings(pos, yaw, markers));
       const key = JSON.stringify([p, spans(altitude)]);
       if (key !== lastKey) { lastKey = key; paintPlace(p, altitude); }
-      if (gd) { const k = JSON.stringify([gd.selected?.id, gd.selected?.n, gd.seeds, gd.water, gd.wet, gd.level, gd.found, gd.plot, gd.hyper, Math.round(gd.charge * 20), gd.fox]); if (k !== gardenKey) { gardenKey = k; paintGarden(gd); } }
+      if (gd) { const k = JSON.stringify([gd.selected?.id, gd.selected?.n, gd.seeds, gd.water, gd.wet, gd.level, gd.found, gd.plot, gd.hyper, Math.round(gd.charge * 20), gd.fox, gd.gnome]); if (k !== gardenKey) { gardenKey = k; paintGarden(gd); } }
       if (rd) paintRadar(rd, yaw, pos);
       if (wd) { const k = JSON.stringify(wd); if (k !== statsKey) { statsKey = k; paintStats(wd); } }
     },

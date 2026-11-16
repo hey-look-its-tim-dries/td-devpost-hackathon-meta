@@ -1,0 +1,47 @@
+[
+  {
+    "file": "assets/music/neon-laser-horizon.mp3",
+    "title": "Neon Laser Horizon",
+    "artist": "Kevin MacLeod",
+    "licence": "CC-BY 4.0",
+    "seconds": 179,
+    "bpm": 160,
+    "startAt": 0
+  },
+  {
+    "file": "assets/music/cyberpunk-beauty.mp3",
+    "title": "Cyberpunk Beauty",
+    "artist": "Tarush Singhal",
+    "licence": "CC0",
+    "seconds": 94,
+    "bpm": 123,
+    "startAt": 31
+  },
+  {
+    "file": "assets/music/going-undercover-loop.ogg",
+    "title": "Going Undercover (loop)",
+    "artist": "Tomasz Kucza",
+    "licence": "CC-BY 4.0",
+    "seconds": 36,
+    "bpm": 123,
+    "startAt": 0
+  },
+  {
+    "file": "assets/music/future-travel.ogg",
+    "title": "Future Travel",
+    "artist": "Zodik",
+    "licence": "CC-BY 3.0",
+    "seconds": 188,
+    "bpm": 93,
+    "startAt": 0
+  },
+  {
+    "file": "assets/music/midnight-drive.ogg",
+    "title": "Midnight Drive",
+    "artist": "congusbongus",
+    "licence": "CC0",
+    "seconds": 204,
+    "bpm": 160,
+    "startAt": 26
+  }
+]

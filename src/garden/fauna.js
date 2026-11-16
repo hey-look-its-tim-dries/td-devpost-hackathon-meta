@@ -34,6 +34,7 @@ const ANIMALS = [
   { v: 1.1, amp: 0.35, stride: 2.1, half: 3.7, turn: 0.45, room: 11, hop: 0 },
   { v: 9, amp: 0.7, stride: 9, half: 2.4, turn: 2.4, room: 8, hop: 2.2 },
 ];
+const SEAT = [9.5, 5.5, 13.5, 14, 5.5, 4.5]; // how high a rider sits on each body plan (m, at size 1): antelope, fox, camel, giraffe, tortoise, hare
 const BP = 17, IP = 17, FP = 6, AP = 6; // numbers per individual that never change (see the init functions)
 const GS = 4, FS = 6, AS = 10, HS = 6; // numbers per individual, and per herd, that do
 
@@ -417,6 +418,7 @@ export function createFauna(species, { max = DEFAULT_MAX } = {}) {
     for (let i = 1; land && i < 9 && !land(herd.S[ho], herd.S[ho + 1]); i++) { const b = rnd(G, 300 + 9 * k + i) * TAU, e = herd.S[ho + 4] * Math.sqrt(rnd(G, 400 + 9 * k + i)); herd.S[ho] = p.x + Math.cos(b) * e; herd.S[ho + 1] = p.z + Math.sin(b) * e; }
   }
   let land = null;
+  const seat = { animals: new Float32Array(80), na: 0, birds: new Float32Array(80), nb: 0 };
   const INIT = { bird: initBird, insect: initInsect, fish: initFish, animal: initAnimal };
 
   function set(list) {
@@ -522,12 +524,14 @@ export function createFauna(species, { max = DEFAULT_MAX } = {}) {
           }
         }
         const g = ground(S, i * GS, i, p, x, z, t, dt, f === HUMMER ? 0.4 : 1, groundAt);
+        if (n < 16) { const q = n * 5; seat.birds[q] = x; seat.birds[q + 1] = g + h + 1.2 * P[o + 13] * k; seat.birds[q + 2] = z; seat.birds[q + 3] = Math.atan2(sy, cy); seat.birds[q + 4] = P[o + 13] * k; } // a place for a gnome
         put(M, n * 16, x - ox, g + h, z - oz, sy, cy, sp, cp, Math.sin(roll), Math.cos(roll), P[o + 13] * k);
         AN[n * 4] = a; AN[n * 4 + 1] = b; AN[n * 4 + 2] = f;
         tint(B, n++, B.sp[i]);
       }
     }
     flush(B, n);
+    seat.nb = Math.min(16, n);
   }
 
   function insects(dt, t, groundAt) {
@@ -654,12 +658,14 @@ export function createFauna(species, { max = DEFAULT_MAX } = {}) {
         const go = Math.min(1, v / (0.35 * P[o + 3]));
         let y = S[so + 5] + (S[so + 6] - S[so + 5]) * Math.min(1, (t - S[so + 7]) / 0.25), pitch = S[so + 8];
         if (K.hop) { y += K.hop * sc * go * Math.max(0, Math.sin(S[so + 4])); pitch += 0.28 * go * Math.cos(S[so + 4]); }
+        if (n < 16) { const q = n * 5; seat.animals[q] = S[so]; seat.animals[q + 1] = y + SEAT[f] * sc * k; seat.animals[q + 2] = S[so + 1]; seat.animals[q + 3] = Math.atan2(sy, cy); seat.animals[q + 4] = sc * k; } // a place for a gnome, on its back
         put(M, n * 16, S[so] - ox, y, S[so + 1] - oz, sy, cy, Math.sin(pitch), Math.cos(pitch), 0, 1, sc * k);
         AN[n * 4] = K.amp * go; AN[n * 4 + 1] = S[so + 4]; AN[n * 4 + 2] = f;
         tint(A, n++, A.sp[i]);
       }
     }
     flush(A, n);
+    seat.na = Math.min(16, n);
   }
 
   function update(dt, t, eye, groundAt) {
@@ -678,5 +684,6 @@ export function createFauna(species, { max = DEFAULT_MAX } = {}) {
     animals(dt, t, groundAt);
   }
 
-  return { group, set, update, setLand(fn) { land = fn; }, get count() { return B.n + I.n + F.n + A.n; } };
+  return { group, set, update, setLand(fn) { land = fn; }, seats: seat, // the first sixteen birds and animals in sight, as x, y, z, heading, size: gnomes ride them
+    get count() { return B.n + I.n + F.n + A.n; } };
 }

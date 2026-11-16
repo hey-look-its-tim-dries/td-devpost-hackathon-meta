@@ -6,7 +6,7 @@
 // roar past and you annoy it. A gnome on board gives you a side quest. Do it and it joins your team, or
 // grows more loyal, or, if it was someone else's, wavers and then converts. Annoy another gardener's gnome
 // often enough and it deserts them. Pure: the map's server applies the same team rules.
-export const GNOME = { chance: 38, max: 3, pickup: { r: 80, alt: 220, speed: 280 }, buzz: { r: 110, speed: 320 }, questMs: 180000, loyal: 5 };
+export const GNOME = { chance: 38, max: 3, pickup: { r: 90, alt: 240, speed: 400 }, buzz: { r: 120, speed: 460 }, questMs: 180000, loyal: 5 };
 const mix = (a) => { a = Math.imul(a ^ (a >>> 16), 2246822507); a = Math.imul(a ^ (a >>> 13), 3266489909); return (a ^ (a >>> 16)) >>> 0; };
 const pick = (list, h) => list[mix(h) % list.length];
 
@@ -44,10 +44,12 @@ const LINES = {
 export const shout = (kind, seed, n = 0) => pick(LINES[kind] ?? LINES.greet, seed * 13 + n * 7 + kind.length);
 
 // ---- side quests: one per gnome per day, from what the world has ----
-// world: { hands: [{ name, x, z }], homes: [{ id, name, x, z }] } (other gnomes' mushrooms). Returns { kind, text, need, have, x?, z?, r? }
+// world: { from: { x, z } (the gnome's own mushroom), hands: [{ name, x, z }], homes: [{ id, name, x, z }] } (other gnomes' mushrooms). Returns { kind, text, need, have, x?, z?, r? }
 export function questFor(gnome, day, world = {}) {
-  const h = mix(gnome.seed + day * 977), hands = world.hands ?? [], cousins = (world.homes ?? []).filter((q) => q.id !== gnome.id);
-  const kinds = ['source', 'foxfire', 'sow', 'water', 'speed', 'high', 'cloud', 'river', ...(hands.length ? ['hand', 'hand'] : []), ...(cousins.length ? ['cousin', 'cousin'] : [])];
+  // somewhere to go must be a real trip: not the Hand it lives on, not the gnome next door, not the Source from the Source
+  const from = world.from ?? { x: 1e9, z: 1e9 }, far = (q, d) => Math.hypot(q.x - from.x, q.z - from.z) > d;
+  const h = mix(gnome.seed + day * 977), hands = (world.hands ?? []).filter((q) => far(q, 2600)), cousins = (world.homes ?? []).filter((q) => q.id !== gnome.id && far(q, 900));
+  const kinds = ['foxfire', 'sow', 'water', 'speed', 'high', 'cloud', 'river', ...(far({ x: 0, z: 0 }, 1500) ? ['source'] : []), ...(hands.length ? ['hand', 'hand'] : []), ...(cousins.length ? ['cousin', 'cousin'] : [])];
   const kind = kinds[h % kinds.length], q = (text, need, extra = {}) => ({ kind, text, need, have: 0, ...extra });
   if (kind === 'source') return q('Take me to the Source! I want to see the shiny spire.', 1, { x: 0, z: 0, r: 500 });
   if (kind === 'hand') { const t = hands[mix(h + 1) % hands.length]; return q(`Fly me to ${t.name}. My cousin there owes me a button.`, 1, { x: t.x, z: t.z, r: 900 }); }

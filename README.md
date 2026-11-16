@@ -47,6 +47,33 @@ On top of the flying, everyone gardens the desert together.
 - **Atlas:** the new Garden tab is your herbarium (every species by kind, found ones in colour, tap one you carry to
   sow it); the World map has a bloom layer with every blooming plot and the storm.
 
+### Mushrooms and the foxfire
+
+Fungi feed on what died: every dead grove grows wild mushrooms, and 24 real species (several of them truly
+bioluminescent) are in the index to plant yourself. Fly low through a mushroom and you eat it. For 25 seconds
+the world turns to **foxfire**, a second look laid over the calm one (nothing is replaced): dark land drawn in
+contour and grid light, a striped sun, stars, neon rivers, plants dark with glowing edges, violet HUD panels,
+and on a screen a bloom. You fly a third faster, everything you earn counts double, and openly licensed
+synthwave plays (`assets/music/CREDITS.md`; **N** mutes). Each further mushroom chains: more time, a higher
+multiplier. You get two spores of what you ate. `?fox` holds the look on, for screenshots.
+The calm look before this was added is kept as the tag `look-desert-ink`.
+
+### Gnomes
+
+About four mushrooms in ten house a gnome (`assets/gnome.glb`, built by `tools/blender/gnome.py`, posed in code).
+Who lives where, its name, its hat and what it is doing right now come from the mushroom and the clock, so
+every player sees the same gnome asleep on the same cap, pottering about, or out riding the animals.
+
+- Fly over one low and it **waves and shouts**. Dive past at full speed and it shakes its fists: you annoyed it.
+- Pass low at ordinary speed and it **jumps and grabs your whorl** (three at most). Other players see your
+  gnomes hanging on, and you see theirs.
+- A gnome on board has a **side quest** (ten kinds: take it to the Source, to a far Hand or a distant cousin,
+  eat a mushroom with it, sow, water, go faster, go higher, catch a seed cloud, skim a river). Three minutes.
+- Do it and the gnome **joins your team** and gives you seeds. Another gardener's gnome first wavers, then
+  **converts**; annoy another gardener's gnome often enough and it deserts them. The HUD counts your team
+  and your converted gnomes; the map keeps the teams.
+- **G** sets down the gnome that grabbed on last. Over water it gets a ducking and is cross with you.
+
 ### How the garden is kept
 
 - Groves are rows in the map's database, indexed by Hand and plot. A plot holds 400 units (a grove 5, a hyper-sown

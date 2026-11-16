@@ -48,6 +48,9 @@ import { bouquet, fromSignature } from './garden/bouquet.js';
 import { drawGarland } from './garden/garland.js';
 import { FB_APP_ID } from './config.js';
 import { look as hudLook } from './ui/themed.js';
+import { createMusic } from './music.js';
+import { createGnomes } from './gnomes/game.js';
+import { withRiders, splitRiders } from './gnomes/gnomes.js';
 import { dialogUrl, fromFragment } from './net/facebook.js';
 
 // Palm Whorl Cities, first milestone: the First Ten. Ten founding hands lie in a ring around the
@@ -199,8 +202,8 @@ net.fetchWorld().then(({ hands: list, online: ok }) => {
   if (mine) { if (ok && (!mine.id || mine.pending)) retryLay(); else bake(mine); }
   if (ok) { refreshNames(); forgetGone([...list.map((h) => h.id), mine?.id].filter(Boolean), chart, pins); } // Hands washed while you were away
 
-  if (ok) bloom.load();
-  if (ok) roomLink = net.openRoom({ name: mine?.name ?? null, deco: bloom.pouch.signature(), onGarden: bloom.onGarden, onDecos: (m) => { for (const [id, sig] of Object.entries(m)) bouquets.set(+id, bouquet(fromSignature(sig), { strands: 5, max: 80 })); }, onHello: (id) => (me = id), onNames: (m) => others.setNames(m), onSnapshot: (s) => others.apply(s, me, glide.pos), onLaid: applyLaid, onLeft: removeHand, onState: (st) => (roomState = st), onCommunity: (m) => { if (m.donated) community.add(m.donated); if (m.sealed) { stamp(`Community Hand ${m.sealed}`, 'all 22 handbits given · the next one begins'); net.community().then((c) => community.set(c)); } } });
+  if (ok) { bloom.load(); gnomes.load(); }
+  if (ok) roomLink = net.openRoom({ name: mine?.name ?? null, deco: withRiders(bloom.pouch.signature(), myGnomes), onGarden: bloom.onGarden, onDecos: (m) => { for (const [id, raw] of Object.entries(m)) { const { sig, hats } = splitRiders(raw); bouquets.set(+id, bouquet(fromSignature(sig), { strands: 5, max: 80 })); theirGnomes.set(+id, hats); } }, onGnome: (g) => gnomes.onGnome(g), onHello: (id) => (me = id), onNames: (m) => others.setNames(m), onSnapshot: (s) => others.apply(s, me, glide.pos), onLaid: applyLaid, onLeft: removeHand, onState: (st) => (roomState = st), onCommunity: (m) => { if (m.donated) community.add(m.donated); if (m.sealed) { stamp(`Community Hand ${m.sealed}`, 'all 22 handbits given · the next one begins'); net.community().then((c) => community.set(c)); } } });
   else panel.say('Playing alone: the map could not be reached', 6);
 });
 const others = createOthers({ max: 60 }); // the other players in your room, as lighter creatures
@@ -253,12 +256,14 @@ function hudContents() {
   const sandNow = bloom.storm();
   if (sandNow) marks.push({ label: 'Sandstorm', x: sandNow.x, z: sandNow.z, color: '#8a6a44' });
   const pl = place && !place.handbit ? { code: 'WATER', name: 'on the rivers', hand: place.hand.name, owner: !place.hand.founder, charted: true, count: chart.count(place.hand.id), total: place.hand.data.handbits.length } : place && { code: place.handbit.code, name: summitOf(place.hand, place.handbit) ?? nameOf(place.hand, place.handbit), hand: place.hand.name, owner: !place.hand.founder, charted: chart.has(place.hand.id, place.index), count: chart.count(place.hand.id), total: place.hand.data.handbits.length };
-  const g = bloom.hud(place), radar = { range: 6000, others: [], hands: [], clouds: [], blooms: bloom.plots(), gold, storm: sandNow };
+  const g = bloom.hud(place), gn = gnomes.hud();
+  g.gnome = gn.quest;
+  const radar = { range: 6000, others: [], hands: [], clouds: [], blooms: bloom.plots(), gold, storm: sandNow };
   others.each((c, id, pos) => radar.others.push({ x: pos[0], z: pos[2], name: others.nameOf(id) }));
   for (const h of hands) { const [x, z] = toWorld(h.pose, 0, 230); radar.hands.push({ x, z, name: h.name }); }
   for (const c of bloom.clouds()) if (!bloom.taken(c.id)) radar.clouds.push({ x: c.x, z: c.z, color: bloom.species[c.sp].color });
   return { show: false, yaw: glide.yaw, pos: glide.pos, altitude: glide.pos[1] - groundAt(glide.pos[0], glide.pos[2]), place: pl, markers: marks, active: false, garden: g, radar,
-    world: { flying: others.count + 1, hands: hands.length, plants: g.plants, planted: g.planted, top: g.top } };
+    world: { flying: others.count + 1, hands: hands.length, plants: g.plants, planted: g.planted, top: g.top, team: gn.team, converted: gn.converted } };
 }
 function updateTags() { // no allocation per frame: one set, one callback
   camera.getWorldPosition(eyeW);
@@ -302,7 +307,10 @@ scene.add(ink.mesh);
 
 // ---------- Bloom: the garden game (src/garden/game.js) ----------
 const bouquets = new Map(); // room id -> that player's bouquet, from the signature they told the room
-const bloom = createBloom({ scene, shared: world.shared, storage, net, hands, groundAt, say: (text, s) => panel.say(text, s), stamp: (a, b, k) => stamp(a, b, k), online: () => online, onDeco: (d) => roomLink?.deco(d) });
+const theirGnomes = new Map(); // room id -> the hats of the gnomes on that player's whorl
+let myGnomes = []; // the hats of the gnomes on yours
+const sendDeco = (sig) => roomLink?.deco(withRiders(sig, myGnomes)); // your bouquet and your gnomes, in one signature
+const bloom = createBloom({ scene, shared: world.shared, storage, net, hands, groundAt, say: (text, s) => panel.say(text, s), stamp: (a, b, k) => stamp(a, b, k), online: () => online, onDeco: (d) => sendDeco(d) });
 const fauna = createFauna(bloom.species);
 scene.add(fauna.group);
 bloom.setFauna(fauna);
@@ -330,6 +338,17 @@ const dustCap = new THREE.Mesh(new THREE.SphereGeometry(900, 24, 10, 0, Math.PI 
 dustCap.position.y = 450; dustCap.scale.y = 0.35;
 dust.add(dustCap); dust.visible = false;
 scene.add(dust); // the sandstorm: a wall of dust that crosses the world (src/garden/drift.js)
+// ---------- gnomes (src/gnomes): they live in the mushrooms, ride the animals and your whorl, and have side quests ----------
+const NO_GNOMES = [];
+const gnomes = createGnomes({
+  scene, bloom, net, groundAt, creature, others, fauna, makeLabel: createLabel,
+  say: (text, s) => panel.say(text, s), stamp: (a, b, k) => stamp(a, b, k), online: () => online,
+  hands: () => hands.filter((h) => h.pose).map((h) => { const [x, z] = toWorld(h.pose, 0, 230); return { name: h.name, x, z }; }),
+  onRiders: (hats) => { myGnomes = hats; sendDeco(bloom.pouch.signature()); }, ridersOf: (id) => theirGnomes.get(id) ?? NO_GNOMES,
+});
+const gnomeCtx = { pos: glide.pos, yaw: 0, speed: 0, alt: 0, flying: false, wet: false, place: null, eye: eyeW, burst: () => creature.burst() };
+addEventListener('keydown', (e) => { if ((e.key === 'g' || e.key === 'G') && mode === 'fly' && started && !e.repeat) { gnomeCtx.place = place; gnomes.act('drop', gnomeCtx); } });
+
 // ---------- foxfire: the glowing state mushrooms bring (src/garden/foxfire.js) ----------
 // One number, 0 calm .. 1 foxfire, turns every look: the land, sky and water (uTrip in their shaders), the garden,
 // the ink, the lights, the haze, the HUD (src/ui/themed.js), and on a screen a heavy bloom. ?fox holds it at 1.
@@ -338,8 +357,12 @@ const C = (hex) => new THREE.Color(hex);
 const DAY = { fog: C(HORIZON), ink: C('#16100e'), sun: C(0xfff1e0), sky: C(0xc9d6e2), ground: C(0x9a6a50) };
 const NIGHT = { fog: C('#14052b'), ink: C('#eaffff'), streak: C('#3fd8ff'), hand: C('#00e5ff'), sun: C('#ff5ad6'), sky: C('#66e8ff'), ground: C('#7a1fff') };
 let trip = 0, tripWas = -1, composer = null, bloomPass = null;
+// the foxfire has music (openly licensed synthwave, assets/music/CREDITS.md); the calm world stays silent. N mutes it.
+const music = createMusic({ storage, onPlay: (tr) => panel.say(`♪ ${tr.title} · ${tr.artist}${tr.licence ? ` · ${tr.licence}` : ''}`, 6) });
+addEventListener('keydown', (e) => { if ((e.key === 'n' || e.key === 'N') && mode === 'fly' && !e.repeat) panel.say(music.toggle() ? 'Music off' : 'Music on', 2); });
 function foxfire(dt) {
   trip = FOX ?? bloom.foxfire.level(Date.now());
+  music.update(trip, dt);
   if (trip > 0 && mode === 'fly' && glide.speed < CRUISE * 1.35) glide.speed += 110 * dt * trip; // it carries you a third faster than cruise
   if (trip === tripWas) return;
   tripWas = trip;
@@ -824,6 +847,9 @@ function frame() {
   bloomCtx.place = place; bloomCtx.braiding = braiding; bloomCtx.flying = started && mode === 'fly';
   bloom.frame(dt, bloomCtx);
   foxfire(dt);
+  gnomeCtx.yaw = glide.yaw + Math.PI; gnomeCtx.speed = glide.speed; gnomeCtx.alt = glide.pos[1] - groundAt(glide.pos[0], glide.pos[2]);
+  gnomeCtx.flying = started && mode === 'fly'; gnomeCtx.place = place; gnomeCtx.wet = !!place && !place.handbit && gnomeCtx.alt < 140;
+  gnomes.frame(dt, gnomeCtx);
   if (invite && mode === 'fly' && (t > invite.at || bloom.pouch.plantedTotal >= invite.planted)) { invite = null; openAtelier(); }
   fauna.update(dt, t, glide.pos, groundAt);
   creature.grow(Math.min(1, (bloom.pouch.level - 1) / 8 + bloom.pouch.plantedTotal / 500));
@@ -958,6 +984,7 @@ function frame() {
 const banner = document.getElementById('banner');
 function start() {
   started = true;
+  music.arm(); // sound may only begin after a press: this is it
   banner.classList.add('hidden');
   panel.say('Palm Whorl Cities', 4);
   // fly and garden first; the invitation to lay a Hand of your own comes once you have planted a little (or after a while)
@@ -1015,7 +1042,7 @@ showStats();
 
 // read-only peek for tests and curious players
 window.__pwc = {
-  bloom, fauna, glide, hands, groundAt, atlasTab: (tab) => { atlas.setTab(tab); atlasPaint = 0; },
+  bloom, fauna, gnomes, gnomeDraw: gnomes.draw, glide, hands, groundAt, atlasTab: (tab) => { atlas.setTab(tab); atlasPaint = 0; },
   get state() {
     return { hands: hands.length, pos: glide.pos.map(Math.round), yaw: +glide.yaw.toFixed(2), fps: Math.round(fps), scribbles: knots.length + 9, /* the Hands' knots and a constant: tests wait on knots hatching */ started, webcam: webcam ? webcam.update().map((q) => q.handedness) : null, steering: xrHands.some((q) => q.engaged), palm: xrHands.map((q) => q.frame && q.frame.normal.map((v) => +v.toFixed(2))), hand: xrHands.map((q) => q.frame && { point: q.frame.forward.map((v) => +v.toFixed(2)), open: +q.frame.extension.toFixed(2), height: +q.frame.center[1].toFixed(2) }), speed: Math.round(glide.speed), calls: renderer.info.render.calls, xr: renderer.xr.isPresenting, lod: surface.centre.map(Math.round), patches: surface.patches, mode, mine: mine?.name ?? null, braid: braiding, atlas: { tab: atlas.tab, selected: selected?.name ?? null }, pairCode: atelier.route?.code ?? null, flowStep: flow?.step ?? null, online, others: others.count, pending: !!mine?.pending, room: roomState };
   },

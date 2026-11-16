@@ -173,6 +173,11 @@ export function createNet({ api = API, storage = null, fetchFn = globalThis.fetc
     async claimGolden(epoch) {
       try { const { status, body } = await call('/golden', { method: 'POST', body: JSON.stringify({ token, epoch }) }); return status === 200 ? body : null; } catch { return null; }
     },
+    // ---- gnome teams ----
+    async gnomes() { try { const { status, body } = await call('/gnomes'); return status === 200 && Array.isArray(body?.gnomes) ? body : null; } catch { return null; } },
+    async gnomeMe() { try { const { status, body } = await call('/gnomes/me', { method: 'POST', body: JSON.stringify({ token }) }); return status === 200 ? body : null; } catch { return null; } },
+    // 'quest' (you did its side quest) or 'annoy': { event, tag, loyalty, converted, team } or { error }
+    async gnomeDo(id, what) { try { const { status, body } = await call(`/gnomes/${id}/${what}`, { method: 'POST', body: JSON.stringify({ token }) }); return status === 200 ? body : { error: body?.error ?? String(status) }; } catch { return { error: 'offline' }; } },
     // ---- the pouch on the map, and signing in ----
     async profileGet() { try { const { status, body } = await call('/profile/get', { method: 'POST', body: JSON.stringify({ token }) }); return status === 200 ? body : null; } catch { return null; } },
     async profilePut(data) { try { return (await call('/profile', { method: 'POST', body: JSON.stringify({ token, data }) })).status === 204; } catch { return false; } },
@@ -180,7 +185,7 @@ export function createNet({ api = API, storage = null, fetchFn = globalThis.fetc
     // { ok, data } or { error }: the map checks the token with Facebook itself
     async loginFacebook(accessToken) { try { const { status, body } = await call('/login/facebook', { method: 'POST', body: JSON.stringify({ token, access_token: accessToken }) }); return status === 200 ? body : { error: body?.error ?? String(status) }; } catch { return { error: 'offline' }; } },
     // the live room: poses out (at most 5 a second), snapshots and lay events in; reconnects by itself
-    openRoom({ name = null, deco = null, onHello, onNames, onSnapshot, onLaid, onLeft, onState, onCommunity, onGarden, onDecos } = {}) {
+    openRoom({ name = null, deco = null, onHello, onNames, onSnapshot, onLaid, onLeft, onState, onCommunity, onGarden, onDecos, onGnome } = {}) {
       let ws = null, closed = false, wait = 1000, lastSent = 0, shard = 0, followed = false;
       const retry = () => { if (closed) return; setTimeout(connect, followed ? 0 : wait); wait = Math.min(30000, wait * 2); };
       function connect() {
@@ -194,6 +199,7 @@ export function createNet({ api = API, storage = null, fetchFn = globalThis.fetc
           try { m = JSON.parse(e.data); } catch { return; }
           if (m.names) onNames?.(m.names);
           if (m.decos) onDecos?.(m.decos);
+          if (m.gnome) onGnome?.(m.gnome);
           if (m.planted || m.plantedMany || m.tended || m.uprooted !== undefined || m.golden || m.bloomed) onGarden?.({ ...m, ...(m.planted ? { planted: rowToGrove(m.planted) } : {}), ...(m.plantedMany ? { plantedMany: m.plantedMany.map(rowToGrove) } : {}) });
           if (m.hello !== undefined) onHello?.(m.hello);
           else if (m.laid) onLaid?.(rowToHand(m.laid));
