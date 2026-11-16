@@ -82,8 +82,9 @@ and held for 0.4 seconds, so resting hands never steer. A card fixed in view sho
 is missing. The head steers when no hand is engaged. Gardening uses the oldest sowing movements: pinch and
 hold drills seed along your path (and slows you), an open hand swept to a side broadcasts five groves that
 way, thrown forward it casts them far ahead, a flat palm pressed down pours water, a short left pinch picks
-the next seed and a held one starts the hyper sow, and an open hand tossed upward sets a gnome down. One
-hand steers (the first one raised) and the other is free for all of these. Hand data is used live only and never stored or
+the next seed and a held one starts the hyper sow, a fist pulled up clears a grove, and an open hand tossed
+upward sets a gnome down. One hand steers (the first one raised) and the other is free for all of these. The
+atlas has a How page with every move, and in the headset no hint ever names a key. Hand data is used live only and never stored or
 sent.
 
 ## Built With

@@ -29,7 +29,7 @@ On top of the flying, everyone gardens the desert together.
 - **Grow:** a handbit is a plot of up to 80 groves. Its bloom has four levels; insects come first, then birds and fish,
   then animals, and the rarest only to a full bloom. Your whorl grows more strands with your gardener level, splits in
   two at full speed, and wears the flowers you planted most. Other players see them too.
-- **Destroy:** groves nobody tends dry out after 36 hours and die after 96. **X** clears a grove: your own, any on your
+- **Destroy:** groves nobody tends dry out after 36 hours and die after 96. **X** (in the headset: make a fist and pull it up) clears a grove: your own, any on your
   own Hand, or anyone's once it is dead (the compost gives two seeds back).
 - **Together:** groves are on the shared map and appear live for everyone. Planting while your whorl is braided with
   another player's makes a double grove. Every four minutes one golden seed appears for the whole world, marked on
@@ -44,6 +44,8 @@ On top of the flying, everyone gardens the desert together.
   to tail; what you sowed most has more and larger flowers; a day's plantings share strands. Others see it too.
 - **Sandstorm:** every ten minutes a turning column of dust crosses the world for four. Groves under its path are parched until
   someone waters them. It shows on the compass, the radar and the atlas, and is the same storm for every player.
+- **How to play:** the atlas's How tab lists every move both ways, hand movements and keys. In the headset every hint
+  on screen speaks of hands; no key is ever named there.
 - **Atlas:** the new Garden tab is your herbarium (every species by kind, found ones in colour, tap one you carry to
   sow it); the World map has a bloom layer with every blooming plot and the storm.
 
@@ -68,7 +70,7 @@ every player sees the same gnome asleep on the same cap, pottering about, or out
 - Pass low at anything short of a roar and it **jumps and grabs your whorl** (three at most). Other players see
   your gnomes hanging on and their mushrooms empty, and you see theirs.
 - A gnome on board has a **side quest** (ten kinds: take it to the Source, to a far Hand or a distant cousin,
-  eat a mushroom with it, sow, water, go faster, go higher, catch a seed cloud, skim a river). Three minutes.
+  eat a mushroom with it on board, sow, water, go faster, go higher, catch a seed cloud, skim a river). Three minutes.
 - Do it and the gnome **joins your team** and gives you seeds. Another gardener's fresh recruit **converts**
   at once, a loyal one wavers first; annoy another gardener's gnome often enough and it deserts them. You are
   told when one of yours is converted. The HUD counts your team and your converted gnomes, and its board takes

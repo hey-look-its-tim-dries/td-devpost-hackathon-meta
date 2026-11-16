@@ -29,10 +29,10 @@ await friend.waitForFunction(() => window.__pwc && __pwc.state.started && __pwc.
 await friend.keyboard.press('m'); // their atlas is open, so they hover where you will find them
 await friend.waitForFunction(() => __pwc.hands.filter((h) => h.data?.cells).length >= 10, { timeout: 60000 });
 // the garden the film flies over, grown by the second player on Marrow, the Hand north of the start (a local map only;
-// planted afresh for every take): flowers in drifts along two lanes (x = 1000 northbound, x = -350 back), trees further
+// planted afresh for every take, and the Hands earlier takes laid are washed away): flowers in drifts along two lanes (x = 1000 northbound, x = -350 back), trees further
 // out, and mushrooms beside the first lane until three of them house a gnome. Every plot keeps room for the film's own sowing.
 const LOCAL = /localhost|127\.0\.0\.1/.test(API);
-if (LOCAL) try { execFileSync('npx', ['wrangler', 'd1', 'execute', 'pwc', '--local', '--command', 'delete from plant; delete from gnome; delete from gnome_score'], { cwd: new URL('../server', import.meta.url).pathname, stdio: 'ignore' }); } catch (e) { console.log('the local map was not cleared:', e.message); }
+if (LOCAL) try { execFileSync('npx', ['wrangler', 'd1', 'execute', 'pwc', '--local', '--command', 'delete from plant; delete from gnome; delete from gnome_score; delete from hand where founder = 0'], { cwd: new URL('../server', import.meta.url).pathname, stdio: 'ignore' }); } catch (e) { console.log('the local map was not cleared:', e.message); }
 const garden = !LOCAL ? null : await friend.evaluate(async () => {
   const p = window.__pwc, { whereAt } = await import('/src/world/where.js'), { toHand, toWorld } = await import('/src/world/founders.js'), { gnomeAt } = await import('/src/gnomes/gnomes.js');
   const S = p.bloom.species, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), hand = whereAt(p.hands, 1000, 4600).hand;
