@@ -6,7 +6,7 @@ import { createGestureCard } from './gesturecard.js';
 import { createPanel } from './panel.js';
 import { createInk } from './ink.js';
 import { createGlide } from './glide.js';
-import { createCreature } from './creature.js';
+import { createCreature, seedClasses } from './creature.js';
 import { createScribble, createKnot } from './scribble.js';
 import { unpackPrint, unpackPalm } from './hand/dna.js';
 import { toHand, toWorld } from './world/founders.js';
@@ -395,7 +395,11 @@ const WORDS = { arch: 'arch', tented: 'tented arch', ulnar: 'loop', radial: 'loo
 const whorlFrom = (hand, tell) => { const cls = classesOf(hand); creature.style(cls); if (cls && tell) setTimeout(() => tuft('own-hand', 1), 2500);
   if (cls && tell) stamp('Your whorl takes its shape', cls.map((c) => WORDS[c] ?? c).join(' · '), 'FROM YOUR FINGERPRINTS'); };
 if (mine) whorlFrom(mine, false);
-setInterval(() => others.each((c, id) => { if (c.styled) return; const name = others.nameOf(id), h = name && hands.find((q) => q.name === name && q.prints); if (h) c.style(classesOf(h)); }), 2000); // other players' whorls, from their Hands
+/* no Hand yet: a whorl of your own all the same, from your username or your account (the same on every visit) */
+const ownSeed = () => { try { return userName ?? storage?.getItem('pwc.account.v1') ?? storage?.getItem('pwc.token.v1') ?? null; } catch { return null; } };
+const seedWhorl = () => { const s = ownSeed(); if (!mine && s) creature.style(seedClasses(s)); };
+seedWhorl();
+setInterval(() => others.each((c, id) => { const name = others.nameOf(id), h = name && hands.find((q) => q.name === name && q.prints); c.style(h ? classesOf(h) : seedClasses(name ?? `traveller ${id}`)); /* a Hand's own prints, else a whorl from their name */ }), 2000); // other players' whorls, from their Hands
 const CHASE = { back: 190, up: 40 }; // further back than the creature is long, so all of it is in front of you
 const chase = { pos: new THREE.Vector3(glide.pos[0], glide.pos[1] + CHASE.up, glide.pos[2] + CHASE.back), yaw: glide.yaw };
 const ink = createInk(MAX_LAYERS * 5 * (LINE.points + 1) + creature.strands * 71 + 60 * 5 * 41, { width: 1.1, color: '#16100e' }); // every Hand's five, you, and up to 60 others
@@ -1355,7 +1359,7 @@ document.getElementById('previewButton').addEventListener('click', openLobby);
   el.value = userName ?? '';
   el.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') el.blur(); });
   el.addEventListener('keyup', (e) => e.stopPropagation());
-  el.addEventListener('change', () => { userName = cleanName(el.value); el.value = userName ?? ''; try { userName ? storage?.setItem('pwc.name.v1', userName) : storage?.removeItem('pwc.name.v1'); } catch {} const n = myName(); if (n) roomLink?.rename(n); lobby.update(lobbyData()); }); }
+  el.addEventListener('change', () => { userName = cleanName(el.value); el.value = userName ?? ''; try { userName ? storage?.setItem('pwc.name.v1', userName) : storage?.removeItem('pwc.name.v1'); } catch {} const n = myName(); if (n) roomLink?.rename(n); seedWhorl(); lobby.update(lobbyData()); }); }
 // "Explain this game to me": the whole game from A to Z, from the title and from the lobby (src/guide.js)
 const guideEl = document.getElementById('guide');
 const openGuide = () => { document.getElementById('guideBody').innerHTML = guideHtml(!document.getElementById('xrButton').classList.contains('hidden')); guideEl.classList.remove('hidden'); guideEl.scrollTop = 0; };

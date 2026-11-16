@@ -158,3 +158,13 @@ test('the hanging gnome moves with the flight: it swings to the side, streams ou
   const kick = (m) => { let lo = 9, hi = -9; for (let t = 0; t < 2; t += 0.02) { const p = gnomePose('hang', t, 5, m); lo = Math.min(lo, p.legL); hi = Math.max(hi, p.legL); } return hi - lo; };
   assert.ok(kick({ swing: 0, lift: 0, joy: 1 }) > kick({ swing: 0, lift: 0, joy: 0 }) * 1.5, 'joy kicks its legs');
 });
+
+test('a whorl of your own before a Hand: five print classes from a text, the same every time, different for different players', async () => {
+  const { seedClasses, STYLES } = await import('../src/creature.js');
+  const a = seedClasses('account-one'), b = seedClasses('account-two');
+  assert.equal(a.length, 5); for (const c of a) assert.ok(STYLES[c]);
+  assert.deepEqual(a, seedClasses('account-one'));
+  assert.notDeepEqual(a, b);
+  const seen = new Set(Array.from({ length: 40 }, (_, i) => seedClasses(`player ${i}`).join()));
+  assert.ok(seen.size >= 35, 'forty players, (nearly) forty whorls');
+});

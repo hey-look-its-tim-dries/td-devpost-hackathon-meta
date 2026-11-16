@@ -22,6 +22,14 @@ export const STYLES = {
 };
 const PLAIN = { spin: 1, reach: 1, side: 0, peak: 0 };
 
+// a whorl of your own before you have laid a Hand: five print classes drawn from any text about you (your account,
+// your username), always the same for the same text, so no two players start out alike
+export function seedClasses(text) {
+  const names = Object.keys(STYLES);
+  let h = 2166136261;
+  for (const ch of String(text)) h = Math.imul(h ^ ch.codePointAt(0), 16777619) >>> 0;
+  return Array.from({ length: 5 }, () => { h = Math.imul(h ^ (h >>> 13), 2654435761) >>> 0; return names[h % names.length]; });
+}
 export function createCreature({ strands = 5, points = 40, spacing = 5, radius = 18 } = {}) {
   const trail = new Float32Array(points * 3), spine = new Float32Array((points + 1) * 3);
   const lines = Array.from({ length: strands }, () => new Float32Array((points + 1) * 3));
