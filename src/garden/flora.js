@@ -255,6 +255,31 @@ export function createFlora(species, flora, shared) {
     meshFlowers.forEach((id, i) => { if (i % 3 === n) info.get(id).mesh = key; });
     last.x = Infinity; // draw again with the new shapes
   }, undefined, () => {}));
+  // Real mushroom shapes from openly licensed models (assets/fungi, see its CREDITS.md): six of them give the
+  // mushroom species their forms, one species in seven keeping the generated cap. Geometry only, as above:
+  // the stem below takes the pale stem colour, the cap above the species' own.
+  fetch(new URL('../../assets/fungi/manifest.json', import.meta.url)).then((r) => (r.ok ? r.json() : [])).then((list) => {
+    const picks = list.filter((e) => (e.kind ?? 'mushroom') === 'mushroom' && (e.bytes ?? 0) < 300000 && (e.triangles ?? 0) <= 2000 && /\.glb$/.test(e.file)).slice(0, 6); // light ones: each is drawn hundreds of times
+    picks.forEach((e, n) => new GLTFLoader().load(new URL(`../../${e.file}`, import.meta.url).href, (gltf) => {
+      const parts = [];
+      gltf.scene.updateMatrixWorld(true);
+      gltf.scene.traverse((o) => { if (!o.isMesh || o.isSkinnedMesh) return; const q = (o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone()).applyMatrix4(o.matrixWorld); for (const k of Object.keys(q.attributes)) if (k !== 'position' && k !== 'normal') q.deleteAttribute(k); if (!q.attributes.normal) q.computeVertexNormals(); parts.push(q); });
+      if (!parts.length) return;
+      const geo = mergeGeometries(parts);
+      if (!geo) return;
+      geo.computeBoundingBox();
+      const bb = geo.boundingBox, h = bb.max.y - bb.min.y || 1;
+      geo.translate(-(bb.min.x + bb.max.x) / 2, -bb.min.y, -(bb.min.z + bb.max.z) / 2).scale(1 / h, 1 / h, 1 / h);
+      const pos = geo.attributes.position, partOf = new Float32Array(pos.count);
+      for (let i = 0; i < pos.count; i += 3) partOf.fill((pos.getY(i) + pos.getY(i + 1) + pos.getY(i + 2)) / 3 > 0.45 ? 1 : 0, i, i + 3);
+      geo.setAttribute('aPart', new THREE.BufferAttribute(partOf, 1));
+      const key = `fungus${n}`;
+      B[key] = batch(geo, MSH, meshMat(), 2500);
+      group.add(B[key].mesh);
+      fungi.forEach((id, i) => { if (i % (picks.length + 1) === n) info.get(id).mesh = key; });
+      last.x = Infinity;
+    }, undefined, () => {}));
+  }).catch(() => {});
   let shown = 0;
 
   return {
