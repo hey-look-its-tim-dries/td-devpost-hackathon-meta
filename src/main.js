@@ -337,6 +337,7 @@ function hudContents() {
   let near = null, nd = Infinity;
   others.each((c, id, pos) => { const d = Math.hypot(pos[0] - glide.pos[0], pos[2] - glide.pos[2]); if (d < nd) { nd = d; near = { label: `PLAYER · ${others.nameOf(id) ?? 'traveller'}`, x: pos[0], z: pos[2], color: '#16100e' }; } });
   if (near) marks.push(near);
+  if (!gnomes.riders().length) { let best = null, bd = Infinity; for (const h of gnomes.homes()) { if (!gnomes.atHome(h.gn.id)) continue; const d = Math.hypot(h.x - glide.pos[0], h.z - glide.pos[2]); if (d < bd) { bd = d; best = h; } } if (best) marks.push({ label: `Gnome ${best.gn.name}`, x: best.x, z: best.z, color: '#d23a2a' }); } /* the nearest gnome waiting at home, on the compass */
   if (!place) { // over the wilderness: which way the nearest Hand lies
     let best = null, bd = Infinity;
     for (const h of hands) { if (!h.pose) continue; const [x, z] = toWorld(h.pose, 0, 230), d = Math.hypot(x - glide.pos[0], z - glide.pos[2]); if (d < bd) { bd = d; best = { label: 'Nearest Hand', x, z, color: '#3f7d3a' }; } }
@@ -355,6 +356,7 @@ function hudContents() {
   const radar = { range: 6000, others: [], hands: [], clouds: [], blooms: bloom.plots(), gold, storm: sandNow };
   others.each((c, id, pos) => radar.others.push({ x: pos[0], z: pos[2], name: others.nameOf(id) }));
   for (const h of hands) { if (!h.pose) continue; const [x, z] = toWorld(h.pose, 0, 230); radar.hands.push({ x, z, name: h.name, ...lobbyShape(h) }); } // each Hand with its real outline, fingers and rivers
+  radar.gnomes = gnomes.homes().filter((h) => gnomes.atHome(h.gn.id)).map((h) => ({ x: h.x, z: h.z }));
   for (const c of bloom.clouds()) if (!bloom.taken(c.id)) radar.clouds.push({ x: c.x, z: c.z, color: bloom.species[c.sp].color });
   return { show: false, yaw: glide.yaw, pos: glide.pos, altitude: glide.pos[1] - groundAt(glide.pos[0], glide.pos[2]), place: pl, markers: marks, active: false, garden: g, radar,
     // the board on the stats card: the top gardeners, taking turns with the top gnome converters once there are any

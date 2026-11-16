@@ -158,6 +158,12 @@ export function createHud() {
     if (r.storm) { const [x, y, edge] = at(r.storm.x, r.storm.z); if (!edge) { g.fillStyle = 'rgba(150,110,60,0.4)'; g.beginPath(); g.arc(x, y, (r.storm.r / r.range) * R, 0, Math.PI * 2); g.fill(); } }
     for (const p of r.blooms) { const [x, y, edge] = at(p.x, p.z); if (!edge) { g.fillStyle = LEAF; g.beginPath(); g.arc(x, y, 3 + p.level * 1.5, 0, Math.PI * 2); g.fill(); } }
     for (const q of r.clouds) { const [x, y, edge] = at(q.x, q.z); if (!edge) { g.fillStyle = q.color; g.beginPath(); g.arc(x, y, 6, 0, Math.PI * 2); g.fill(); g.strokeStyle = INK; g.lineWidth = 1.5; g.stroke(); } }
+    for (const q of r.gnomes ?? []) { // a gnome at home, waiting to be picked up: its red hat (out of range: a hat on the rim)
+      const [x, y, edge] = at(q.x, q.z), k = (edge ? 1.1 : 1.6) * (1 + 0.12 * Math.sin(performance.now() / 300 + q.x));
+      g.fillStyle = 'rgba(255,255,255,0.85)'; g.beginPath(); g.arc(x, y - 2 * k, 11 * k, 0, Math.PI * 2); g.fill(); /* a white disc behind it: readable on skin and sand */
+      g.fillStyle = '#d23a2a'; g.strokeStyle = INK; g.lineWidth = 1.5; g.beginPath(); g.moveTo(x, y - 14 * k); g.lineTo(x + 7 * k, y + 4 * k); g.lineTo(x - 7 * k, y + 4 * k); g.closePath(); g.fill(); g.stroke();
+      g.fillStyle = '#f5f1e6'; g.beginPath(); g.arc(x, y + 6 * k, 5 * k, 0, Math.PI); g.fill(); // the beard
+    }
     if (r.gold) { const [x, y] = at(r.gold.x, r.gold.z); g.fillStyle = GILT; g.strokeStyle = INK; g.lineWidth = 2; g.beginPath(); for (let i = 0; i < 10; i++) { const a = i * Math.PI / 5 - Math.PI / 2, q = i % 2 ? 6 : 14; g.lineTo(x + Math.cos(a) * q, y + Math.sin(a) * q); } g.closePath(); g.fill(); g.stroke(); }
     for (const o of r.others) { // other players: the loudest thing on the radar. A bright dot in a breathing ring, the name and how far; out of range, an arrow on the rim
       const [x, y, edge] = at(o.x, o.z), km = Math.hypot(o.x - pos[0], o.z - pos[2]) / 1000, beat = (performance.now() / 900) % 1, label = `${o.name ?? 'player'} · ${km < 10 ? km.toFixed(1) : Math.round(km)} km`;
