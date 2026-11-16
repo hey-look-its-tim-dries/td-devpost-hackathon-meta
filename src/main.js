@@ -406,7 +406,7 @@ const ownSeed = () => { try { return userName ?? storage?.getItem('pwc.account.v
 const seedWhorl = () => { const s = ownSeed(); if (!mine && s) creature.style(seedClasses(s)); };
 seedWhorl();
 setInterval(() => others.each((c, id) => { const name = others.nameOf(id), h = name && hands.find((q) => q.name === name && q.prints); c.style(h ? classesOf(h) : seedClasses(name ?? `traveller ${id}`)); /* a Hand's own prints, else a whorl from their name */ }), 2000); // other players' whorls, from their Hands
-const CHASE = { back: 126, up: 27 }; /* a fifth nearer than before: the whorl is the prettiest thing on screen, let it be seen */ // further back than the creature is long, so all of it is in front of you
+const CHASE = { back: 133, up: 28 }; /* a fifth nearer than before: the whorl is the prettiest thing on screen, let it be seen */ // further back than the creature is long, so all of it is in front of you
 const chase = { pos: new THREE.Vector3(glide.pos[0], glide.pos[1] + CHASE.up, glide.pos[2] + CHASE.back), yaw: glide.yaw };
 const ink = createInk(MAX_LAYERS * 5 * (LINE.points + 1) + creature.strands * 71 + 60 * 5 * 41, { width: 1.1, color: '#16100e' }); // every Hand's five, you, and up to 60 others
 // speed lines: ink streaks hanging in the air that rush past when you are fast
@@ -467,7 +467,7 @@ const gnomes = createGnomes({
   scene, bloom, net, groundAt, creature, others, fauna, makeLabel: createLabel,
   say: (text, s) => panel.say(text, s), stamp: (a, b, k) => stamp(a, b, k), online: () => online,
   hands: () => hands.filter((h) => h.pose).map((h) => { const [x, z] = toWorld(h.pose, 0, 230); return { name: h.name, x, z }; }),
-  onRiders: (on) => { myGnomes = on; sendDeco(bloom.pouch.signature()); }, ridersOf: (id) => theirGnomes.get(id) ?? NO_GNOMES, quest: params.get('quest'), sfx, squeal: (n) => { if (!music.muted) { const a = new Audio(new URL(`../assets/voice/joy-${n}.mp3`, import.meta.url).href); a.volume = 0.8; a.play().catch(() => {}); } }, onMet: (name) => passport.note('gnome', name), onRival: (name) => passport.note('rival', name),
+  onRiders: (on) => { myGnomes = on; sendDeco(bloom.pouch.signature()); }, ridersOf: (id) => theirGnomes.get(id) ?? NO_GNOMES, quest: params.get('quest'), sfx, scream: (n) => { if (!music.muted) { const a = new Audio(new URL(`../assets/voice/scream-${n}.mp3`, import.meta.url).href); a.volume = 1; a.play().catch(() => {}); } }, squeal: (n) => { if (!music.muted) { const a = new Audio(new URL(`../assets/voice/joy-${n}.mp3`, import.meta.url).href); a.volume = 0.8; a.play().catch(() => {}); } }, onMet: (name) => passport.note('gnome', name), onRival: (name) => passport.note('rival', name),
 });
 const gnomeCtx = { pos: glide.pos, yaw: 0, speed: 0, alt: 0, flying: false, wet: false, place: null, eye: eyeW, burst: () => creature.burst() };
 addEventListener('keydown', (e) => { if ((e.key === 'g' || e.key === 'G') && mode === 'fly' && started && !e.repeat) { gnomeCtx.place = place; gnomes.act('drop', gnomeCtx); } });

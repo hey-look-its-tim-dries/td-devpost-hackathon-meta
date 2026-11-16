@@ -181,3 +181,12 @@ test('gnomes dance: four dances on the beat, each its own, with knees and elbows
   const a = pose(DANCES[0], 0.3, 3), b = pose(DANCES[0], 0.3 + 2, 3); // 120 beats a minute: the same step every two seconds (four beats)
   assert.ok(Math.abs(a.kneeL - b.kneeL) < 1e-6 && Math.abs(a.armRz - b.armRz) < 1e-6);
 });
+
+test('a dropped gnome falls flailing and tumbling, and screams one of eight screams the voice tool makes', async () => {
+  const { pose } = await import('../src/gnomes/pose.js'), { SCREAMS } = await import('../src/gnomes/gnomes.js'), { SCREAM_LINES } = await import('../src/garden/voice.js');
+  assert.deepEqual(SCREAMS, SCREAM_LINES); assert.equal(new Set(SCREAMS).size, 8);
+  let arms = 0, legs = 0;
+  for (let t = 0.02; t < 1; t += 0.02) { const a = pose('fall', t, 1), b = pose('fall', t - 0.02, 1); arms += Math.abs(a.armLz - b.armLz); legs += Math.abs(a.legL - b.legL); }
+  assert.ok(arms > 5 && legs > 5, 'its arms and legs never stop');
+  assert.equal(pose('fall', 0.5, 1, { tumble: 2 }).tilt, 2, 'it tumbles as far as it is told');
+});

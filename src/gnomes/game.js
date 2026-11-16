@@ -4,13 +4,13 @@
 // gently. A gnome on board has a side quest for you; do it and it joins your team (or wavers, or converts
 // from another gardener's). The rules are in gnomes.js, the looks in render.js; this wires them to the
 // garden, the map, your flight and the other players. main.js calls frame() and act().
-import { GNOME, gnomeAt, activity, shout, questFor, advance, questEvents, seedOf, lostGnome, gainedGnome, dangle, JOYS } from './gnomes.js';
+import { GNOME, gnomeAt, activity, shout, questFor, advance, questEvents, seedOf, lostGnome, gainedGnome, dangle, JOYS, SCREAMS } from './gnomes.js';
 import { DANCES } from './pose.js';
 import { createGnomeRenderer } from './render.js';
 
 const SIZE = 20, RIDER = 129, CAP = 27; // metres per gnome unit at home and on a whorl (a passenger is a big, proud thing to carry: you see it from across a Hand); how high a mushroom's cap sits
 
-export function createGnomes({ scene, bloom, net, say, stamp, groundAt, creature, others, fauna, online, makeLabel, hands, onRiders, ridersOf, quest = null, onMet = null, onRival = null, sfx = () => {}, squeal = () => {} }) { // squeal(n): a gnome's cry of joy, clip n (assets/voice/joy-n) // quest: a kind to ask for (?quest=, for the film and the checks)
+export function createGnomes({ scene, bloom, net, say, stamp, groundAt, creature, others, fauna, online, makeLabel, hands, onRiders, ridersOf, quest = null, onMet = null, onRival = null, sfx = () => {}, squeal = () => {}, scream = () => {} }) { // squeal(n): a gnome's cry of joy, clip n (assets/voice/joy-n) // quest: a kind to ask for (?quest=, for the film and the checks)
   const draw = createGnomeRenderer();
   scene.add(draw.group);
   const records = new Map(); // gnome id -> { tag, owner, loyalty }: whose team it is on (wild gnomes have none)
@@ -60,7 +60,11 @@ export function createGnomes({ scene, bloom, net, say, stamp, groundAt, creature
     else if (r.event === 'wavering') say(`${gn.name} is wavering: one more quest and it is yours`, 5);
     else if (r.event === 'deserted') say(`${gn.name} deserted its team: “${shout('deserted', gn.seed)}”`, 5);
   }
-  const drop = (i, line) => { sfx('drop'); const [r] = riders.splice(i, 1); away.delete(r.gn.id); moodOf(r.gn.id).dropped = t; if (line) say(`${r.gn.name}: “${shout(line, r.gn.seed, t | 0)}”`, 4); };
+  // a dropped gnome falls: flung off with the whorl's speed, tumbling and flailing, screaming all the way down; it
+  // lands with a bounce and a squash, then stomps off home (its mushroom has it back). Drawn for a few seconds only.
+  const fallers = [];
+  const drop = (i, line, fall = true) => { sfx('drop'); const [r] = riders.splice(i, 1);
+    if (fall && r.at) { const k = (r.gn.seed + fallers.length) % 8; fallers.push({ gn: r.gn, x: r.at[0], y: r.at[1], z: r.at[2], vx: r.at[3] * 0.6, vy: 60, vz: r.at[4] * 0.6, t0: t, landed: 0, spin: (r.gn.seed % 2 ? 1 : -1) * (2.5 + (r.gn.seed % 5) * 0.4) }); scream(k); speak(SCREAMS[k], r.at[0], r.at[1] + RIDER * 0.4, r.at[2]); } away.delete(r.gn.id); moodOf(r.gn.id).dropped = t; if (line) say(`${r.gn.name}: “${shout(line, r.gn.seed, t | 0)}”`, 4); };
 
   function frame(dt, ctx) {
     t += dt;
@@ -118,10 +122,11 @@ export function createGnomes({ scene, bloom, net, say, stamp, groundAt, creature
           ctx.burst?.();
           if (online()) net.gnomeDo(r.gn.id, 'quest').then((q) => settled(r.gn, q)); else { me.team++; stamp(`${r.gn.name} joined your team`, 'the map will hear of it when it is back', 'GNOME'); }
         } else if (now - r.since > GNOME.questMs) { drop(i, 'bored'); continue; }
-      } else if (t - r.doneAt > 4 && alt < 320 && homes.some((h) => Math.hypot(h.x - pos[0], h.z - pos[2]) < 160)) { drop(i, 'home'); continue; } // set down at a mushroom
+      } else if (t - r.doneAt > 4 && alt < 320 && homes.some((h) => Math.hypot(h.x - pos[0], h.z - pos[2]) < 160)) { drop(i, 'home', false); continue; } // set down at a mushroom (gently: no fall)
       // it dangles: thrown out by your turns, streaming behind at speed, and it squeals when the flying gets wild
       const dg = dangle(r.d ?? { swing: 0, vel: 0, joy: 0, quiet: 2 }, { turn: ctx.turn ?? 0, speed, climb: climbing }, Math.min(dt, 0.05));
       r.d = dg.state;
+      r.at = [l.xyz[j], l.xyz[j + 1] - RIDER * 1.1, l.xyz[j + 2], (l.xyz[j] - (r.at?.[0] ?? l.xyz[j])) / Math.max(dt, 1e-3), (l.xyz[j + 2] - (r.at?.[2] ?? l.xyz[j + 2])) / Math.max(dt, 1e-3)]; /* where its body is, and how fast it goes (it keeps that when it falls) */
       if (dg.squeal) { const k = (r.gn.seed + (r.n = (r.n ?? 0) + 1)) % JOYS.length; speak(JOYS[k], l.xyz[j], l.xyz[j + 1] + RIDER * 0.6, l.xyz[j + 2]); squeal(k); }
       draw.add({ x: l.xyz[j], y: l.xyz[j + 1], z: l.xyz[j + 2], yaw, s: RIDER, grip: 1.55, /* it hangs wholly under the whorl, hat and all, on two lines: a parachutist steering */ clip: t - r.grabbed < 0.5 ? 'jump' : 'hang', t: r.doneAt ? t : t - r.grabbed < 0.5 ? (t - r.grabbed) * 2 : t + i, hat: r.gn.hat, seed: r.gn.seed, motion: { swing: r.d.swing, lift: Math.min(1, speed / 700), joy: r.d.joy } });
     }
@@ -145,6 +150,14 @@ export function createGnomes({ scene, bloom, net, say, stamp, groundAt, creature
         const x = (gx + (hash(gz, gx) - 0.5) * 0.7) * C, z = (gz + (hash(gx + 7, gz - 3) - 0.5) * 0.7) * C, y = ctx.groundAt(x, z), d = Math.hypot(x - pos[0], z - pos[2]), seed = Math.floor(h * 1e5);
         draw.add({ x, y, z, yaw: Math.atan2(pos[0] - x, pos[2] - z), s: (140 + 1500 * h) * ctx.fox * Math.max(0.22, Math.min(1, (d - 200) / 700)), /* giants from afar, smaller as you come near: never in your way */ clip: d < 300 ? 'cheer' : seed % 5 < 2 ? 'gaze' : DANCES[seed % DANCES.length], t: seed % 5 < 2 ? t + seed % 9 : t, /* two in five watch and wave; the rest dance, all on one beat */ hat: seed, seed, motion: { up: Math.atan2(pos[1] - y, Math.max(1, d)) } });
       }
+    }
+    for (let n = fallers.length - 1; n >= 0; n--) { // the falling: gravity, a tumble, the ground, a bounce, a squash, gone
+      const f = fallers[n], ft = t - f.t0, ground = groundAt(f.x, f.z);
+      if (!f.landed) { f.vy -= 260 * dt; f.x += f.vx * dt; f.y += f.vy * dt; f.z += f.vz * dt; f.vx *= 1 - 0.3 * dt; f.vz *= 1 - 0.3 * dt; if (f.y <= ground) { f.y = ground; f.landed = t; f.vx *= 0.2; f.vz *= 0.2; sfx('drop'); } }
+      const lt = f.landed ? t - f.landed : 0;
+      if ((f.landed && lt > 1.6) || ft > 12) { fallers.splice(n, 1); continue; }
+      const bounce = f.landed ? Math.max(0, Math.sin(lt * 7) * Math.exp(-lt * 4)) * 90 : 0, squash = f.landed ? 1 - 0.35 * Math.exp(-lt * 6) : 1;
+      draw.add({ x: f.x, y: f.y + bounce, z: f.z, yaw: f.landed ? 0 : ft * f.spin, s: RIDER * 0.8 * squash, clip: f.landed ? (lt < 0.5 ? 'sulk' : 'potter') : 'fall', t: ft, hat: f.gn.hat, seed: f.gn.seed, motion: { tumble: f.landed ? 0 : ft * f.spin * 0.8 } });
     }
     draw.end();
     const on = riders.map((r) => ({ hat: r.gn.hat, id: r.gn.id })), key = on.map((r) => r.id).join(',');

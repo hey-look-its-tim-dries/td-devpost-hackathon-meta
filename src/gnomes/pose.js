@@ -4,7 +4,7 @@
 // angle lifts an arm sideways (left arm: negative lifts it; right arm: positive). headX nods forward,
 // headY turns. y is a bob in gnome heights, tilt leans the whole gnome forward, roll leans it sideways.
 // Pure: the renderer turns a pose into matrices (render.js).
-export const CLIPS = ['sit', 'sleep', 'potter', 'wave', 'shout', 'hang', 'cheer', 'ride', 'sulk', 'swim', 'jump', 'gaze', 'twist', 'disco', 'cancan', 'whirl', 'stomp'];
+export const CLIPS = ['sit', 'sleep', 'potter', 'wave', 'shout', 'hang', 'cheer', 'ride', 'sulk', 'swim', 'jump', 'gaze', 'twist', 'disco', 'cancan', 'whirl', 'stomp', 'fall'];
 // elbowL/R bend the forearm forward (negative, like an arm's x), kneeL/R bend the shin back (positive); spin turns the whole gnome
 const rest = () => ({ y: 0, tilt: 0, roll: 0, spin: 0, headX: 0, headY: 0, armLx: 0, armLz: -0.12, armRx: 0, armRz: 0.12, elbowL: 0, elbowR: 0, legL: 0, legR: 0, kneeL: 0, kneeR: 0 });
 export const DANCES = ['twist', 'disco', 'cancan', 'whirl', 'stomp'];
@@ -70,6 +70,12 @@ export function pose(clip, t, seed = 0, m = null) {
       const b = t * BEAT / 2, l = Math.max(0, s(b)), r = Math.max(0, -s(b));
       p.legL = -1.2 * l; p.kneeL = 1.4 * l; p.legR = -1.2 * r; p.kneeR = 1.4 * r; p.roll = 0.22 * (r - l); p.y = 0.04 * Math.abs(Math.cos(b)); p.tilt = 0.12;
       p.armLx = -1.0 + 0.9 * r; p.armRx = -1.0 + 0.9 * l; p.elbowL = -1.7 + 0.8 * r; p.elbowR = -1.7 + 0.8 * l; p.armLz = -0.3; p.armRz = 0.3; p.headX = 0.1 - 0.35 * Math.abs(s(b)); p.headY = 0.3 * s(b);
+      break; }
+    case 'fall': { // dropped: arms windmilling over its head, legs bicycling, the whole gnome tumbling head over heels (m.tumble, rad)
+      const w = t * 19;
+      p.armLz = -2.3 + 0.7 * s(w); p.armRz = 2.3 + 0.7 * s(w + 1.7); p.armLx = 0.8 * s(w * 0.9); p.armRx = -0.8 * s(w * 0.9 + 1); p.elbowL = -0.6 - 0.5 * s(w + 2); p.elbowR = -0.6 - 0.5 * s(w + 3);
+      p.legL = -0.9 + 0.8 * s(w * 0.8); p.legR = -0.9 - 0.8 * s(w * 0.8); p.kneeL = 0.9 + 0.6 * s(w * 0.8 + 1); p.kneeR = 0.9 - 0.6 * s(w * 0.8 + 1);
+      p.tilt = m?.tumble ?? t * 3; p.roll = 0.3 * s(t * 5); p.headX = -0.5; p.headY = 0.5 * s(w * 0.5);
       break; }
     case 'cheer': // arms up, jumping
       p.armLz = -2.6 + 0.3 * s(t * 13); p.armRz = 2.6 - 0.3 * s(t * 13); p.y = 0.16 * Math.abs(s(t * 7)); p.legL = -0.5 * Math.max(0, s(t * 7)); p.legR = -0.5 * Math.max(0, s(t * 7)); p.headX = -0.3;

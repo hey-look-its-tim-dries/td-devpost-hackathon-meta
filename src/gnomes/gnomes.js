@@ -31,6 +31,8 @@ export function activity(id, now) {
 // input: { turn (-1..1, how hard you turn), speed (m/s), climb (m/s up or down) }
 // A pendulum on a short string: a turn throws it outward, and it swings back and past. Flying fast, steep or
 // suddenly is joy; joy squeals, a few seconds apart. Returns { state, squeal (true the moment it squeals) }
+// what a gnome screams when it is dropped (the same words, in the same order, as SCREAM_LINES in src/garden/voice.js)
+export const SCREAMS = ['Aaaaaaaaah!', 'Noooooooo!', 'Waaaaaaaah!', 'Eeeeeeeeek!', 'Help meeeee!', 'Not like thiiiis!', 'Yaaaaaargh!', 'Mummyyyyyy!'];
 export const JOYS = ['Wheee!', 'Woohoo!', 'Yippee!', 'Again! Again!', 'Hee hee hee!', 'Faster! Faster!', 'Whoa-ho-ho!', 'Eeeee!', 'Best. Day. Ever!', 'Loop it! Loop it!'];
 export function dangle(state, input, dt) {
   const want = -Math.max(-1, Math.min(1, input.turn)) * 0.95;

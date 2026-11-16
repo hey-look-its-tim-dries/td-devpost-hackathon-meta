@@ -139,6 +139,7 @@ export function pickLine(id, was = null, rand = Math.random) {
 }
 // the squeals of a gnome dangling from your whorl (the same words, in the same order, as JOYS in src/gnomes/gnomes.js):
 // tools/voice.mjs makes joy-0 .. joy-9 of them, in a small high voice
+export const SCREAM_LINES = ['Aaaaaaaaah!', 'Noooooooo!', 'Waaaaaaaah!', 'Eeeeeeeeek!', 'Help meeeee!', 'Not like thiiiis!', 'Yaaaaaargh!', 'Mummyyyyyy!'];
 export const JOY_LINES = ['Wheee!', 'Woohoo!', 'Yippee!', 'Again! Again!', 'Hee hee hee!', 'Faster! Faster!', 'Whoa ho ho!', 'Eeeee!', 'Best. Day. Ever!', 'Loop it! Loop it!'];
 // where (x, z) lies from a flyer at (px, pz) heading yaw (0 looks along -z, as the glider does): ahead | right | behind | left
 export function relDir(px, pz, yaw, x, z) {
