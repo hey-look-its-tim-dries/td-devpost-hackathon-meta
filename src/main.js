@@ -269,7 +269,7 @@ function hudContents() {
   for (const pin of pins.list()) marks.push({ ...pin, color: '#c9a35a' });
   if (flyTo) marks.push({ label: flyTo.label, x: flyTo.x, z: flyTo.z, color: '#b8442e' });
   let near = null, nd = Infinity;
-  others.each((c, id, pos) => { const d = Math.hypot(pos[0] - glide.pos[0], pos[2] - glide.pos[2]); if (d < nd) { nd = d; near = { label: others.nameOf(id) ?? 'traveller', x: pos[0], z: pos[2], color: '#16100e' }; } });
+  others.each((c, id, pos) => { const d = Math.hypot(pos[0] - glide.pos[0], pos[2] - glide.pos[2]); if (d < nd) { nd = d; near = { label: `PLAYER · ${others.nameOf(id) ?? 'traveller'}`, x: pos[0], z: pos[2], color: '#16100e' }; } });
   if (near) marks.push(near);
   if (!place) { // over the wilderness: which way the nearest Hand lies
     let best = null, bd = Infinity;
@@ -375,6 +375,8 @@ addEventListener('resize', () => drawGarland(document.getElementById('garland'))
 fauna.setLand((x, z) => !!whereAt(hands, x, z)?.handbit); // herds keep out of the rivers
 const goldBeam = new THREE.Mesh(new THREE.CylinderGeometry(7, 7, 2400, 8, 1, true), new THREE.MeshBasicMaterial({ color: 0xe9c46a, transparent: true, opacity: 0.55, depthWrite: false, fog: false }));
 goldBeam.visible = false;
+// every other player stands under a tall beam of light, so you can find them from far off
+const beams = Array.from({ length: 24 }, () => { const m = new THREE.Mesh(new THREE.CylinderGeometry(9, 9, 3000, 8, 1, true), new THREE.MeshBasicMaterial({ color: 0x35c8ff, transparent: true, opacity: 0.5, depthWrite: false, fog: false, blending: THREE.AdditiveBlending })); m.visible = false; scene.add(m); return m; });
 scene.add(goldBeam);
 const sandstorm = createSandstorm(world.shared.uTrip, STORM.r); // a turning column of dust that crosses the world (where: src/garden/drift.js)
 scene.add(sandstorm.group);
@@ -1051,6 +1053,7 @@ function frame() {
   for (const c of bloom.clouds()) if (!bloom.taken(c.id)) for (let i = 0; i < 10; i++) { const a = t * (0.5 + 0.07 * i) + i * 0.63, r = 30 + 50 * ((i * 0.618) % 1); fl.deco(c.x + Math.cos(a) * r, c.y + Math.sin(a * 1.3 + i) * 25, c.z + Math.sin(a) * r, 30, c.sp); }
   sandstorm.update(t, bloom.storm(), groundAt);
   const gold = bloom.gold();
+  { let n = 0; others.each((c, id, pos) => { const b = beams[n++]; if (!b) return; b.visible = true; b.position.set(pos[0], pos[1] + 1500, pos[2]); b.material.opacity = 0.35 + 0.2 * Math.sin(t * 3 + n); }); for (; n < beams.length; n++) beams[n].visible = false; }
   goldBeam.visible = !!gold;
   if (gold) { goldBeam.position.set(gold.x, gold.y, gold.z); for (let i = 0; i < 16; i++) { const a = t * 1.4 + i * 0.3927, r = 60 + 20 * Math.sin(t * 2 + i); fl.deco(gold.x + Math.cos(a) * r, gold.y + Math.sin(a * 2) * 30, gold.z + Math.sin(a) * r, 40, gold.sp); } }
   fl.decoEnd();

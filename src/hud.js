@@ -125,7 +125,15 @@ export function createHud() {
     for (const p of r.blooms) { const [x, y, edge] = at(p.x, p.z); if (!edge) { g.fillStyle = LEAF; g.beginPath(); g.arc(x, y, 3 + p.level * 1.5, 0, Math.PI * 2); g.fill(); } }
     for (const q of r.clouds) { const [x, y, edge] = at(q.x, q.z); if (!edge) { g.fillStyle = q.color; g.beginPath(); g.arc(x, y, 6, 0, Math.PI * 2); g.fill(); g.strokeStyle = INK; g.lineWidth = 1.5; g.stroke(); } }
     if (r.gold) { const [x, y] = at(r.gold.x, r.gold.z); g.fillStyle = GILT; g.strokeStyle = INK; g.lineWidth = 2; g.beginPath(); for (let i = 0; i < 10; i++) { const a = i * Math.PI / 5 - Math.PI / 2, q = i % 2 ? 6 : 14; g.lineTo(x + Math.cos(a) * q, y + Math.sin(a) * q); } g.closePath(); g.fill(); g.stroke(); }
-    for (const o of r.others) { const [x, y] = at(o.x, o.z); g.fillStyle = INK; g.beginPath(); g.arc(x, y, 7, 0, Math.PI * 2); g.fill(); g.strokeStyle = PAPER; g.lineWidth = 2; g.stroke(); if (o.name) { g.fillStyle = INK; g.font = '600 15px Inter, system-ui, sans-serif'; g.fillText(o.name, x, y - 15); } }
+    for (const o of r.others) { // other players: the loudest thing on the radar. A bright dot in a breathing ring, the name and how far; out of range, an arrow on the rim
+      const [x, y, edge] = at(o.x, o.z), km = Math.hypot(o.x - pos[0], o.z - pos[2]) / 1000, beat = (performance.now() / 900) % 1, label = `${o.name ?? 'player'} · ${km < 10 ? km.toFixed(1) : Math.round(km)} km`;
+      g.strokeStyle = `rgba(0,150,220,${1 - beat})`; g.lineWidth = 3; g.beginPath(); g.arc(x, y, 9 + beat * 16, 0, Math.PI * 2); g.stroke();
+      g.fillStyle = '#0aa4e8'; g.beginPath();
+      if (edge) { const a = Math.atan2(y - cy, x - cx); g.moveTo(x + Math.cos(a) * 12, y + Math.sin(a) * 12); g.lineTo(x + Math.cos(a + 2.4) * 12, y + Math.sin(a + 2.4) * 12); g.lineTo(x + Math.cos(a - 2.4) * 12, y + Math.sin(a - 2.4) * 12); g.closePath(); } else g.arc(x, y, 9, 0, Math.PI * 2);
+      g.fill(); g.strokeStyle = '#ffffff'; g.lineWidth = 2.5; g.stroke();
+      const lx = cx + (x - cx) * (edge ? 0.78 : 1), ly = cy + (y - cy) * (edge ? 0.78 : 1) - (edge ? 0 : 20);
+      g.font = '700 17px Inter, system-ui, sans-serif'; g.lineWidth = 4; g.strokeStyle = 'rgba(243,228,210,0.95)'; g.strokeText(label, lx, ly); g.fillStyle = '#075a85'; g.fillText(label, lx, ly);
+    }
     g.fillStyle = SEAL; g.beginPath(); g.moveTo(cx, cy - 13); g.lineTo(cx - 9, cy + 9); g.lineTo(cx + 9, cy + 9); g.closePath(); g.fill(); // you, heading up
     radar.tex.needsUpdate = true;
   }

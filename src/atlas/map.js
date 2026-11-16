@@ -92,7 +92,12 @@ export function drawMap(g, o) {
     for (const b of blooms) { const [px, py] = M(b.x, b.z); g.fillStyle = ['', 'rgba(111,160,74,0.55)', 'rgba(79,143,58,0.7)', 'rgba(52,122,52,0.8)', 'rgba(184,68,46,0.85)'][b.level]; g.beginPath(); g.arc(px, py, 3 + 2.5 * b.level, 0, Math.PI * 2); g.fill(); }
     if (storm) { const [px, py] = M(storm.x, storm.z), [qx] = M(storm.x + storm.r, storm.z); g.fillStyle = 'rgba(160,120,70,0.35)'; g.strokeStyle = 'rgba(120,80,40,0.8)'; g.lineWidth = 2; g.beginPath(); g.arc(px, py, Math.max(6, Math.abs(qx - px)), 0, Math.PI * 2); g.fill(); g.stroke(); }
   }
-  if (L.players) for (const o2 of others) { const [px, py] = M(o2.pos[0], o2.pos[2]); g.fillStyle = INK; g.beginPath(); g.arc(px, py, 4, 0, Math.PI * 2); g.fill(); }
+  if (L.players) for (const o2 of others) { // other players: a bright dot in a ring, with the name, impossible to miss
+    const [px, py] = M(o2.pos[0], o2.pos[2]);
+    g.strokeStyle = 'rgba(10,164,232,0.55)'; g.lineWidth = 3; g.beginPath(); g.arc(px, py, 17, 0, Math.PI * 2); g.stroke();
+    g.fillStyle = '#0aa4e8'; g.beginPath(); g.arc(px, py, 9, 0, Math.PI * 2); g.fill(); g.strokeStyle = '#ffffff'; g.lineWidth = 2.5; g.stroke();
+    g.font = '700 20px Inter, system-ui, sans-serif'; g.textAlign = 'center'; g.lineWidth = 5; g.strokeStyle = 'rgba(246,234,214,0.95)'; g.strokeText(o2.name ?? 'player', px, py - 24); g.fillStyle = '#075a85'; g.fillText(o2.name ?? 'player', px, py - 24);
+  }
   // you: an arrow along your heading (yaw 0 is north, -z)
   const [mx, my] = M(me.pos[0], me.pos[2]);
   g.save(); g.translate(mx, my); g.rotate(-me.yaw);
