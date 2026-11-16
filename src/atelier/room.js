@@ -77,9 +77,12 @@ export function createAtelierRoom() {
   return {
     group,
     // headY: your head's height in the rig; the floor goes 1.55 m under it unless the room already knows where its floor is
-    update(dt, on, headY = 1.6) {
+    // sky: false in passthrough, where your own room is the sky and walls; the palm floor, the flowers and the seeds
+    // are then laid into your real room
+    update(dt, on, headY = 1.6, sky = true) {
       group.visible = on;
       if (!on) return;
+      dome.visible = sky;
       group.position.y = headY > 1 ? 0 : headY - 1.55;
       uTime.value += dt;
       for (const f of ring.children) f.rotation.z = 0.06 * Math.sin(uTime.value * 1.3 + f.userData.ph);

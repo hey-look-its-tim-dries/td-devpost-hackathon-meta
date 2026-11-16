@@ -15,7 +15,7 @@ import puppeteer from '/Users/timdries/Desktop/Projects/TD-GAME-LINKSAWAKENING/t
 const OUT = process.argv[2] ?? 'media/palm-whorl-cities-demo.mp4', SHOTS = process.env.SHOTS;
 const [W, H] = (process.env.SIZE ?? '1280x720').split('x').map(Number);
 const API = process.env.API ?? 'http://localhost:8787';
-const URL_ = process.env.URL_ ?? `http://localhost:8130/?emulate&nodevui&atelier&notutorial&tuft&quest=sow&at=0,1100,11800&api=${API}`; // ?atelier: the hand card at once
+const URL_ = process.env.URL_ ?? `http://localhost:8130/?emulate&nodevui&atelier&notutorial&tuft&dome&quest=sow&at=0,1100,11800&api=${API}`; // ?atelier: the hand card at once
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const browser = await puppeteer.launch({ headless: 'new', executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', args: ['--use-angle=metal', '--enable-gpu', `--window-size=${W},${H}`] });

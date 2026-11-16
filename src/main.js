@@ -1250,7 +1250,7 @@ function frame() {
   surface.meshes.forEach((m) => (m.visible = !room));
   ink.mesh.visible = streakInk.mesh.visible = !room;
   dim.visible = !inRoom;
-  atelierRoom.update(dt, room || (mode === 'atelier' && renderer.xr.isPresenting), renderer.xr.isPresenting ? renderer.xr.getCamera().position.y : 1.6);
+  atelierRoom.update(dt, room || (mode === 'atelier' && renderer.xr.isPresenting), renderer.xr.isPresenting ? renderer.xr.getCamera().position.y : 1.6, !inRoom || params.has('dome')); /* in passthrough your real room stays: the competition asks that the room matters (?dome: the full sky anyway, for the film) */
   if (mode === 'merge') {
     ghosts.update(camera.getWorldPosition(tmpChase));
     // by hand: a palm held down holds the ghost it points at; push it 8 cm lower to lay your Hand there
