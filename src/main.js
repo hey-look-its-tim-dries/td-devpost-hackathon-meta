@@ -580,15 +580,16 @@ const toggleTuft = () => { tuftQuiet = !tuftQuiet; try { storage?.setItem('pwc.t
 addEventListener('keydown', (e) => { if ((e.key === 'u' || e.key === 'U') && mode === 'fly' && !e.repeat) toggleTuft(); });
 let tuftLine = null, tuftStep = null, tuftNote = null, missFor = 0, wildFor = 0;
 const tuftWas = new Map();
-let museAt = 60, museWas = -1;
+let museAt = 180, museWas = -1, tuftRest = 0; /* a mutter every four to six minutes at most */
 function tuft(ids, again = 45, anyway = false) { // anyway: if he is busy, show the words without the voice (a note that must not be lost)
   if (TUFT_OFF || tuftQuiet || !started) return false;
+  if (!anyway && !tutorial.active && t < tuftRest) return false; /* he is not a chatterbox: after any line, half a minute of peace (the tutorial aside) */
   const list = [].concat(ids), dur = tuftVoice.length(list), ok = speaker.may(t, list, dur + 0.6, again);
   if (!ok && !anyway) return false;
   const said = list.map((id) => { const v = pickLine(id, tuftWas.get(id)); tuftWas.set(id, v); return v; }); /* one of his ways to say it, never the same twice running */
   if (ok) tuftVoice.say(said);
   tuftLine = { text: said.map((id) => LINES[id]).join(' '), until: t + Math.max(tuftVoice.length(said), 4) + 1.5 };
-  museAt = t + 50 + Math.random() * 40;
+  museAt = t + 240 + Math.random() * 120; tuftRest = t + Math.max(dur, 4) + 30;
   return ok;
 }
 const pins = createPins(storage); // up to five pinned places, on the compass
@@ -1061,7 +1062,7 @@ function frame() {
   // lost over the wilderness for a while: he says which way the nearest Hand lies
   wildFor = started && mode === 'fly' && !place ? wildFor + dt : 0;
   for (const m of [lesson.mesh, tuftCard.mesh, card.mesh]) if (m.userData.away) m.visible = false;
-  if (started && mode === 'fly' && !tutorial.active && t > museAt) { let i = Math.floor(Math.random() * MUSINGS.length); if (i === museWas) i = (i + 1) % MUSINGS.length; museWas = i; museAt = t + 50 + Math.random() * 40; tuft(`muse-${i}`, 600); } /* nothing happening: he mutters */
+  if (started && mode === 'fly' && !tutorial.active && t > museAt) { let i = Math.floor(Math.random() * MUSINGS.length); if (i === museWas) i = (i + 1) % MUSINGS.length; museWas = i; museAt = t + 240 + Math.random() * 120; tuft(`muse-${i}`, 600); } /* nothing happening: he mutters */
   tuftCard.update(dt, tuftLine && t < tuftLine.until && !tuftCard.mesh.userData.away && mode !== 'atlas' ? { text: tuftLine.text, talking: tuftVoice.talking } : null);
   placesEl.classList.toggle('hidden', mode !== 'merge' || renderer.xr.isPresenting); // the chooser, on a screen only
   if (tutorial.active && started && (mode === 'fly' || mode === 'atlas')) {
