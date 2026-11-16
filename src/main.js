@@ -64,6 +64,7 @@ import { googleUrl, idFromFragment, cleanPicture, accountTag } from './net/googl
 import { cleanName } from './world/names.js';
 import { createTouch } from './touch.js';
 import { createInventory } from './inventory.js';
+import { createTrail, tingHz } from './garden/trail.js';
 import { look as hudLook } from './ui/themed.js';
 import { createMusic } from './music.js';
 import { createSound } from './sound.js';
@@ -268,6 +269,8 @@ function charting() {
   else sfx('chart'), panel.say(`Charted: ${handbit.name} · ${hand.name} (${chart.count(hand.id)} of ${total})`, 3.5);
 }
 const braid = createBraid({ radius: 450, hold: 2 }), braidList = [], CALM = params.has('calm'); // the greeting, within 450 m (at this speed you turn in a 340 m circle: any closer and you could not circle a friend); ?calm: reduced motion, no braiding
+const trail = createTrail(); /* the foxfire's rows of seeds: fly the line, ting ting ting (src/garden/trail.js) */
+let trailAt = -99, trailSp = 0, trailN = 0;
 const flybys = []; /* what others just sowed, drifting past you: { sp, t0, seed, dir } */
 let metAt = -99, livePill = '', missionKey = '', invTick = 0, worldTick = 3, readWorld = false;
 const inventory = createInventory(document.getElementById('inventory'), { onPick: (id) => { bloom.pouch.select(id); invTick = 0; sfx('seed'); } }); /* the right side of a screen: all you carry and know */
@@ -1044,7 +1047,7 @@ function frame() {
   bloom.frame(dt, bloomCtx);
   foxfire(dt);
   gnomeCtx.yaw = glide.yaw + Math.PI; gnomeCtx.speed = glide.speed; gnomeCtx.alt = glide.pos[1] - groundAt(glide.pos[0], glide.pos[2]);
-  gnomeCtx.turn = steer.turn;
+  gnomeCtx.turn = steer.turn; gnomeCtx.fox = trip; gnomeCtx.groundAt = groundAt;
   gnomeCtx.flying = started && mode === 'fly'; gnomeCtx.place = place; gnomeCtx.wet = !!place && !place.handbit && gnomeCtx.alt < 140;
   gnomes.frame(dt, gnomeCtx);
   // the tutorial: fed with what you are doing; the hand card waits until it is over
@@ -1083,6 +1086,19 @@ function frame() {
     lesson.update(dt, { index: tutorial.index, step: tutorial.step, progress: tutorial.progress, hands: renderer.xr.isPresenting, coach: miss, ready: !miss && ['sow', 'scatter', 'pour', 'hyper', 'water'].includes(tutorial.step.id) });
   }
   if ((invTick -= dt) <= 0) { invTick = 0.5; const on = started && mode === 'fly' && !renderer.xr.isPresenting; inventory.show(on); if (on) { const d = bloom.pouch.dump(); inventory.update({ species: bloom.species, seeds: d.seeds, planted: d.planted ?? {}, found: bloom.pouch.found, selected: bloom.pouch.selected }, bloom.flora.icon, (id) => bloom.flora.styleOf?.(id) === 'pixel'); } }
+  if (started && mode === 'fly' && trip > 0.5) { /* in the foxfire: a winding row of seeds ahead, a new one when this one is flown or lost */
+    const pts = trail.points(), end = pts.at(-1);
+    if (!pts.length || trail.done || t - trailAt > 22 || (end && Math.hypot(end[0] - glide.pos[0], end[2] - glide.pos[2]) > 2600)) {
+      trail.begin(glide.pos, glide.yaw, ++trailN + Math.floor(t)); trail.lift(groundAt); trailAt = t;
+      const kinds = bloom.pouch.carried(); trailSp = kinds.length ? kinds[trailN % kinds.length] : 0;
+    }
+    for (const hit of trail.update(glide.pos, dt)) {
+      sound.ting(tingHz(hit.streak));
+      bloom.pouch.gather(trailSp, 1); invTick = 0;
+      if (hit.streak === 9 || hit.streak === 19) panel.say(`${hit.streak + 1} in a row!`, 2);
+      if (hit.last) { sfx('quest'); bloom.pouch.gather(trailSp, 10); stamp('A perfect line', `every seed of it: ten more ${bloom.species[trailSp].name}`, 'FOXFIRE'); }
+    }
+  }
   if (started && communityOn && (worldTick -= dt) <= 0) { worldTick = 5; if (!readWorld && online) { readWorld = true; bloom.readAll(); } community.sown(bloom.sowings()); } /* the Community Hand: the whole world's sowings in pixels */
   { /* the gnome's wish is always on screen while one rides: CURRENT MISSION, how far along, how long is left */
     const q = started && mode === 'fly' ? gnomes.hud().quest : null, el = document.getElementById('mission');
@@ -1185,6 +1201,7 @@ function frame() {
       fl.deco(A[0] + (B[0] - A[0]) * u + Math.cos(a) * r, A[1] + (B[1] - A[1]) * u + Math.sin(Math.PI * k) * 30 + Math.sin(a) * r, A[2] + (B[2] - A[2]) * u + Math.sin(a) * r, 10 * braiding.k * (0.6 + 0.4 * Math.sin(Math.PI * k)), sp);
     }
   }
+  if (trip > 0.5) { const pts = trail.points(); for (let i = 0; i < pts.length; i++) if (!trail.isTaken(i)) fl.deco(pts[i][0], pts[i][1] + 5 * Math.sin(t * 4 + i), pts[i][2], 38 + 10 * Math.sin(t * 6 + i * 0.9), trailSp); } /* the row of seeds, breathing */
   if (t - metAt < 1.4) { const k = (t - metAt) / 1.4, mineB = bloom.bouquet(); for (let i = 0; i < 16; i++) { const a = i * Math.PI / 8 + k * 2; fl.deco(glide.pos[0] + Math.cos(a) * 160 * k, glide.pos[1] + 20 + 60 * Math.sin(Math.PI * k), glide.pos[2] + Math.sin(a) * 160 * k, 14 * (1 - k), mineB[i % (mineB.length || 1)]?.sp ?? i % 3); } }
   { const f = glide.forward(); /* somebody sowed somewhere: a few of their petals drift across your view */
     for (let n = flybys.length - 1; n >= 0; n--) {

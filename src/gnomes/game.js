@@ -134,6 +134,17 @@ export function createGnomes({ scene, bloom, net, say, stamp, groundAt, creature
         draw.add({ x: l.xyz[j], y: l.xyz[j + 1], z: l.xyz[j + 2], yaw: 0, s: RIDER * 0.7, grip: 0.8, clip: 'hang', t: t + i * 1.7, hat: on[i].hat, seed: on[i].id ? seedOf(on[i].id) : id * 31 + i });
       }
     });
+    // The foxfire shows what is to come: giants of the gnome folk standing all over the desert, turning to look up
+    // at you as you fly over, cheering when you pass right above. (They are a vision: gone when the glow is.)
+    if ((ctx.fox ?? 0) > 0.05 && ctx.groundAt) {
+      const C = 520, cx = Math.round(pos[0] / C), cz = Math.round(pos[2] / C), hash = (a, b) => { const v = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return v - Math.floor(v); };
+      for (let i = -3; i <= 3; i++) for (let j = -3; j <= 3; j++) {
+        const gx = cx + i, gz = cz + j, h = hash(gx, gz);
+        if (h > 0.3) continue;
+        const x = (gx + (hash(gz, gx) - 0.5) * 0.7) * C, z = (gz + (hash(gx + 7, gz - 3) - 0.5) * 0.7) * C, y = ctx.groundAt(x, z), d = Math.hypot(x - pos[0], z - pos[2]), seed = Math.floor(h * 1e5);
+        draw.add({ x, y, z, yaw: Math.atan2(pos[0] - x, pos[2] - z), s: (140 + 1500 * h) * ctx.fox * Math.max(0.22, Math.min(1, (d - 200) / 700)), /* giants from afar, smaller as you come near: never in your way */ clip: d < 300 ? 'cheer' : 'gaze', t: t + seed % 9, hat: seed, seed, motion: { up: Math.atan2(pos[1] - y, Math.max(1, d)) } });
+      }
+    }
     draw.end();
     const on = riders.map((r) => ({ hat: r.gn.hat, id: r.gn.id })), key = on.map((r) => r.id).join(',');
     if (key !== told) { told = key; onRiders(on); } // the room hears who is on board, so others see them

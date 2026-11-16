@@ -4,7 +4,7 @@
 // angle lifts an arm sideways (left arm: negative lifts it; right arm: positive). headX nods forward,
 // headY turns. y is a bob in gnome heights, tilt leans the whole gnome forward, roll leans it sideways.
 // Pure: the renderer turns a pose into matrices (render.js).
-export const CLIPS = ['sit', 'sleep', 'potter', 'wave', 'shout', 'hang', 'cheer', 'ride', 'sulk', 'swim', 'jump'];
+export const CLIPS = ['sit', 'sleep', 'potter', 'wave', 'shout', 'hang', 'cheer', 'ride', 'sulk', 'swim', 'jump', 'gaze'];
 const rest = () => ({ y: 0, tilt: 0, roll: 0, headX: 0, headY: 0, armLx: 0, armLz: -0.12, armRx: 0, armRz: 0.12, legL: 0, legR: 0 });
 const s = Math.sin;
 
@@ -32,6 +32,11 @@ export function pose(clip, t, seed = 0, m = null) {
         p.armLz = -3.0; p.armRz = 3.0; p.armLx = 0.1 * joy * s(t * 11 + ph); p.armRx = -p.armLx; // both arms straight up, both hands on the strand, always
         p.legL = 0.55 + 0.6 * lift + (0.35 + 0.55 * joy) * s(t * rate + ph); p.legR = 0.55 + 0.6 * lift + (0.35 + 0.55 * joy) * s(t * rate + ph + 2);
         p.tilt = 0.25 + 0.75 * lift + 0.08 * joy * s(t * 6); p.roll = swing + 0.18 * s(t * 2.2 + ph); p.headX = -0.35 - 0.3 * lift; p.headY = 0.5 * swing + 0.25 * joy * s(t * 3.1); p.y = 0.04 * joy * s(t * 12); }
+      break;
+    case 'gaze': // standing, head thrown back to watch something pass overhead (m.up: how steeply, rad); one in three waves
+      { const up = Math.min(1.15, Math.max(0, m?.up ?? 0.5));
+        p.headX = -up; p.tilt = -0.18 * up; p.headY = 0.12 * s(t * 0.7 + ph); p.y = 0.012 * s(t * 1.6 + ph);
+        if (seed % 3 === 0) { p.armRz = 2.4 + 0.4 * s(t * 7 + ph); p.armLz = -0.3; } else if (seed % 3 === 1) { p.armLz = -2.2; p.armLx = -0.5; } } // (a wave, or a hand shading the eyes)
       break;
     case 'cheer': // arms up, jumping
       p.armLz = -2.6 + 0.3 * s(t * 13); p.armRz = 2.6 - 0.3 * s(t * 13); p.y = 0.16 * Math.abs(s(t * 7)); p.legL = -0.5 * Math.max(0, s(t * 7)); p.legR = -0.5 * Math.max(0, s(t * 7)); p.headX = -0.3;

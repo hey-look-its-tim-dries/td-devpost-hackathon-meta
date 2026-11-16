@@ -79,6 +79,17 @@ export function createSound({ storage = null } = {}) {
       windGain.gain.value = level * gust;
       windFilter.frequency.value += (w.hz - windFilter.frequency.value) * Math.min(1, dt * 2.5);
     },
+    // a small glass bell at `hz`: the seeds of a foxfire trail, one note each
+    ting(hz) {
+      if (!ctx || muted) return;
+      const now = ctx.currentTime;
+      for (const [mul, vol, d, type] of [[1, 0.5, 0.9, 'sine'], [2, 0.2, 0.6, 'sine'], [3.01, 0.08, 0.3, 'triangle'], [0.5, 0.12, 0.5, 'sine']]) {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.type = type; o.frequency.setValueAtTime(hz * mul, now);
+        g.gain.setValueAtTime(0.0001, now); g.gain.exponentialRampToValueAtTime(vol * 0.5, now + 0.006); g.gain.exponentialRampToValueAtTime(0.0001, now + d);
+        o.connect(g); g.connect(out); o.start(now); o.stop(now + d + 0.05);
+      }
+    },
     // a sound by name; `gap` seconds at least between two of the same (a held key must not machine-gun)
     play(name, gap = 0.05) {
       if (!ctx || muted) return;
