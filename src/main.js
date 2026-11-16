@@ -53,7 +53,7 @@ import { createFauna } from './garden/fauna.js';
 import { bouquet, fromSignature } from './garden/bouquet.js';
 import { drawGarland } from './garden/garland.js';
 import { FB_APP_ID, GOOGLE_CLIENT_ID } from './config.js';
-import { googleUrl, idFromFragment } from './net/google.js';
+import { googleUrl, idFromFragment, cleanPicture } from './net/google.js';
 import { look as hudLook } from './ui/themed.js';
 import { createMusic } from './music.js';
 import { createSound } from './sound.js';
@@ -350,7 +350,7 @@ bloom.setFauna(fauna);
   try { came = fromFragment(location.hash, sessionStorage.getItem(KEY)); sessionStorage.removeItem(KEY); } catch {}
   let cameG = null; // ... or back from Google, with an identity token
   try { cameG = idFromFragment(location.hash, sessionStorage.getItem('pwc.g.state')); sessionStorage.removeItem('pwc.g.state'); } catch {}
-  if (came || cameG) { history.replaceState(null, '', location.pathname + location.search); const wait = setInterval(() => { if (online) { clearInterval(wait); if (cameG) bloom.signIn(cameG.idToken, 'Google'); else bloom.signIn(came.token); } }, 500); }
+  if (came || cameG) { history.replaceState(null, '', location.pathname + location.search); const wait = setInterval(() => { if (online) { clearInterval(wait); if (cameG) bloom.signIn(cameG.idToken, 'Google').then((r) => { if (r?.picture) setFace(r.picture); }); else bloom.signIn(came.token); } }, 500); }
   const gButton = document.getElementById('gButton');
   if (GOOGLE_CLIENT_ID && gButton) {
     gButton.classList.remove('hidden');
@@ -468,6 +468,10 @@ const card = createGestureCard(); // what your hand is commanding, fixed at the 
 camera.add(card.mesh);
 // the tutorial (src/garden/tutorial.js): for whoever has not done it, one move at a time on a card until it is done.
 // ?notutorial: never; ?atelier (the hand card at once: the checks) leaves it out too
+// your own profile picture, once you have signed in with Google: kept on this device, drawn on your Me page and in the lobby
+let myPic = null, myFace = null;
+function setFace(url) { myPic = cleanPicture(url); if (!myPic) return; try { storage?.setItem('pwc.avatar.v1', myPic); } catch {} myFace = new Image(); myFace.crossOrigin = 'anonymous'; myFace.referrerPolicy = 'no-referrer'; myFace.src = myPic; }
+try { setFace(storage?.getItem('pwc.avatar.v1')); } catch {}
 const passport = createPassport(storage); // who you met and what you did (src/garden/passport.js): the Me page of the atlas
 const tutorial = createTutorial({ done: params.has('notutorial') || params.has('atelier') || storage?.getItem('pwc.tutorial.v1') === '1' });
 const lesson = createTutorialCard(), acts = { next: 0, scatter: 0, pour: 0, hyper: 0 }; // acts: what you asked the garden for, counted for the tutorial
@@ -510,7 +514,7 @@ function atlasState() {
   others.each((c, id, pos) => list.push({ pos, name: others.nameOf(id) }));
   const mineHand = mine && hands.find((h) => h.id === mine.id);
   return { hands, chart, me: { pos: glide.pos, yaw: glide.yaw }, others: list, pins: pins.list(), selected: selected?.id ?? null, inspect: selected && inspectOf(selected), mine: mine && { name: mine.name, handbits: mineHand?.data.handbits ?? [] }, names: mine ? placeNames[mine.id] ?? {} : {}, pickName,
-    garden: bloom.herbarium, blooms: bloom.allPlots(), storm: bloom.storm(), byHand: renderer.xr.isPresenting, tutorial: tutorial.active, muted: music.muted, icon: bloom.flora.icon, style: bloom.flora.styleOf, whorl: creature.styled?.map((c) => WORDS[c] ?? c).join(' · ') ?? null,
+    garden: bloom.herbarium, blooms: bloom.allPlots(), storm: bloom.storm(), byHand: renderer.xr.isPresenting, tutorial: tutorial.active, muted: music.muted, icon: bloom.flora.icon, style: bloom.flora.styleOf, face: myFace?.complete && myFace.naturalWidth ? myFace : null, whorl: creature.styled?.map((c) => WORDS[c] ?? c).join(' · ') ?? null,
     profile: profile({ pass: passport.data, species: bloom.species, found: bloom.pouch.found, level: bloom.pouch.level, xp: bloom.pouch.xp, planted: bloom.pouch.dump().planted ?? {}, seeds: bloom.pouch.total, charted: hands.reduce((n, h) => n + chart.count(h.id), 0), sealed: chart.sealedCount(), ...(({ team, converted }) => ({ team, converted }))(gnomes.hud()), hand: mine && { name: mine.name } }),
     journal: events && events.map((e) => ({ when: when(e.at), text: journalText(e) })).filter((e) => e.text),
     timeline: timelineOf(), until: timelineAt,
@@ -1110,6 +1114,7 @@ const xrButton = document.getElementById('xrButton');
 xrButton.addEventListener('click', () => enterHeadset().catch((e) => console.error(e)));
 // ---------- the lobby: between the title and the game, the world as it is right now (src/lobby.js) ----------
 const lobby = createLobby(document.getElementById('lobby'));
+let pics = {}; // the pictures of signed-in players, by name (the map's /avatars)
 let lobbyTimer = null, worldFlying = 0;
 // a Hand as the lobby's map draws it: its real outline, fingers and palm lines, in world metres, in its own skin tone (made once per Hand)
 const lobbyShapes = new Map();
@@ -1134,14 +1139,15 @@ function lobbyData() {
       hands: hands.filter((h) => h.pose).map((h) => { const [x, z] = toWorld(h.pose, 0, 230); return { name: h.name, x, z, founder: !!h.founder, mine: !!mine && h.id === mine.id, ...lobbyShape(h) }; }),
       blooms: bloom.allPlots(), players: [{ name: 'you', x: glide.pos[0], z: glide.pos[2], you: true }, ...flying.map((p) => ({ ...p, name: p.name ?? 'traveller' }))],
     },
-    me: { name: mine?.name ?? 'A traveller', status: STATUS[Math.min(STATUS.length - 1, Math.floor((lv - 1) / 2))], level: lv },
+    pics,
+    me: { pic: myPic, name: mine?.name ?? 'A traveller', status: STATUS[Math.min(STATUS.length - 1, Math.floor((lv - 1) / 2))], level: lv },
   };
 }
 function openLobby() {
   banner.classList.add('hidden');
   document.getElementById('lobbyXr').classList.toggle('hidden', document.getElementById('xrButton').classList.contains('hidden'));
   lobby.show();
-  const ask = () => { refreshNames(); bloom.refreshTop(); net.stats().then((s) => { if (s) worldFlying = s.flying; }); }; // the news, the boards, how many fly in all rooms
+  const ask = () => { net.avatars().then((a) => { if (a) pics = a; }); refreshNames(); bloom.refreshTop(); net.stats().then((s) => { if (s) worldFlying = s.flying; }); }; // the news, the boards, how many fly in all rooms
   ask();
   let n = 0;
   clearInterval(lobbyTimer);

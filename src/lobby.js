@@ -3,7 +3,11 @@
 // who is away, a live map with the players moving on it, the boards, the latest news, and a way in. It is there
 // to show that this is one world with other people in it, before you dive in. lobbyFacts() and esc() are pure;
 // createLobby() draws them into the page (#lobby in index.html) and paints the map.
+import { cleanPicture } from './net/google.js';
+
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+// the picture of a signed-in player, as markup, or nothing: pics is { name: address }, and only Google's own picture host passes
+export const face = (name, pics) => { const u = cleanPicture(pics?.[name]); return u ? `<img class="face" src="${esc(u)}" alt="" referrerpolicy="no-referrer" loading="lazy">` : ''; };
 // in: hands [{ name, founder }], flying [{ name, x, z }] (the others in your room), me (your Hand's name or null),
 // groves, worldFlying (the map's count, all rooms), gardeners / converters [{ name, n }], news [{ when, text }]
 export function lobbyFacts({ hands, flying, me, groves, worldFlying, gardeners, converters, news }) {
@@ -71,13 +75,13 @@ export function createLobby(root) {
       paint(d);
       const html = {
         lobbyCounts: d.counts.map(([n, label]) => `<div><b>${esc(n)}</b><span>${esc(label)}</span></div>`).join(''),
-        lobbyOnline: list(d.online.map((p) => `<li class="${p.you ? 'you' : ''}"><i></i>${esc(p.name)}</li>`), ''),
-        lobbyAway: list(d.away.slice(0, 14).map((n) => `<li>${esc(n)}</li>`), 'everyone with a Hand is here'),
-        lobbyGardeners: list(d.gardeners.map((r, i) => `<li><span>${i + 1}. ${esc(r.name)}</span><b>${esc(Number(r.n).toLocaleString('en'))}</b></li>`), 'nobody has planted yet: be the first'),
-        lobbyConverters: list(d.converters.map((r, i) => `<li><span>${i + 1}. ${esc(r.name)}</span><b>${esc(r.n)}</b></li>`), 'no gnome has changed sides yet'),
+        lobbyOnline: list(d.online.map((p) => `<li class="${p.you ? 'you' : ''}"><i></i>${p.you ? face('', { '': d.me.pic }) : face(p.name, d.pics)}${esc(p.name)}</li>`), ''),
+        lobbyAway: list(d.away.slice(0, 14).map((n) => `<li>${face(n, d.pics)}${esc(n)}</li>`), 'everyone with a Hand is here'),
+        lobbyGardeners: list(d.gardeners.map((r, i) => `<li><span>${i + 1}. ${face(r.name, d.pics)}${esc(r.name)}</span><b>${esc(Number(r.n).toLocaleString('en'))}</b></li>`), 'nobody has planted yet: be the first'),
+        lobbyConverters: list(d.converters.map((r, i) => `<li><span>${i + 1}. ${face(r.name, d.pics)}${esc(r.name)}</span><b>${esc(r.n)}</b></li>`), 'no gnome has changed sides yet'),
         lobbyNews: list(d.news.map((e) => `<li><span>${esc(e.text)}</span><em>${esc(e.when)}</em></li>`), 'the world is quiet: make some news'),
         lobbyCall: esc(d.call),
-        lobbyMe: `<b>${esc(d.me.name)}</b><span>${esc(d.me.status)} · level ${esc(d.me.level)}</span>`,
+        lobbyMe: `${face('', { '': d.me.pic })}<b>${esc(d.me.name)}</b><span>${esc(d.me.status)} · level ${esc(d.me.level)}</span>`,
       };
       const key = JSON.stringify(html);
       if (key === shown) return;

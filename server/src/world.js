@@ -11,7 +11,7 @@ import { handShape } from '../../src/hand/shape.js';
 import { unpackPalm, toB64, fromB64 } from '../../src/hand/dna.js';
 import { cleanName, HANDBIT_FEATURE, SUMMIT_FEATURE } from '../../src/world/names.js';
 import { verifyFacebook } from '../../src/net/facebook.js';
-import { verifyGoogle } from '../../src/net/google.js';
+import { verifyGoogle, cleanPicture } from '../../src/net/google.js';
 import { afterQuest, afterAnnoy } from '../../src/gnomes/gnomes.js';
 import { slotFor, isSealed } from '../../src/world/community.js';
 import { toWorld } from '../../src/world/founders.js';
@@ -97,6 +97,10 @@ export class World extends DurableObject {
     const gnomeM = url.pathname.match(/^\/gnomes\/(me|\d{1,12})(?:\/(quest|annoy))?$/);
     if (gnomeM && req.method === 'POST') { const out = this.chain.then(() => this.gnome(gnomeM[1], gnomeM[2], req)); this.chain = out.catch(() => {}); return out; }
     if ((url.pathname.startsWith('/profile') || url.pathname === '/login/facebook' || url.pathname === '/login/google') && req.method === 'POST') return this.profile(url.pathname, req);
+    if (url.pathname === '/avatars' && req.method === 'GET') { // the pictures of signed-in players who have a name (a Hand), by that name
+      const { results } = await this.env.DB.prepare('select p.name as name, a.url as url from avatar a join player p on p.token_hash = a.token_hash where p.name is not null order by a.at desc limit 500').all();
+      return Response.json({ avatars: results.map((r) => [r.name, r.url]) });
+    }
     if (url.pathname === '/stats') {
       const now = Date.now();
       let flying = 0;
@@ -331,7 +335,7 @@ export class World extends DurableObject {
     const read = async (key) => { const r = await this.env.DB.prepare('select data from profile where id = ?').bind(key).first(); try { return r ? JSON.parse(r.data) : null; } catch { return null; } };
     if (path === '/profile/get') return Response.json({ data: await read(id), linked: !!link });
     if (path === '/profile/delete') {
-      await this.env.DB.batch([this.env.DB.prepare('delete from profile where id = ? or id = ?').bind(id, `dev:${dev}`), this.env.DB.prepare('delete from account where token_hash = ?').bind(dev)]);
+      await this.env.DB.batch([this.env.DB.prepare('delete from profile where id = ? or id = ?').bind(id, `dev:${dev}`), this.env.DB.prepare('delete from account where token_hash = ?').bind(dev), this.env.DB.prepare('delete from avatar where token_hash = ?').bind(dev)]);
       return new Response(null, { status: 204 });
     }
     if (path === '/profile') {
@@ -345,13 +349,15 @@ export class World extends DurableObject {
     if (path === '/login/facebook' || path === '/login/google') { // only a hash of the provider's own user id is kept: no name, no e-mail
       const g = path === '/login/google', who = g ? 'Google' : 'Facebook';
       if (g ? !this.env.GOOGLE_CLIENT_ID : !this.env.FB_APP_ID || !this.env.FB_APP_SECRET) return Response.json({ error: `${who} login is not set up on this map` }, { status: 501 });
-      const user = g ? await verifyGoogle(fetch, this.env.GOOGLE_CLIENT_ID, b.id_token) : await verifyFacebook(fetch, this.env.FB_APP_ID, this.env.FB_APP_SECRET, b.access_token);
+      const seen = g ? await verifyGoogle(fetch, this.env.GOOGLE_CLIENT_ID, b.id_token) : await verifyFacebook(fetch, this.env.FB_APP_ID, this.env.FB_APP_SECRET, b.access_token);
+      const user = g ? seen?.id : seen, picture = g ? cleanPicture(seen?.picture) : null;
       if (!user) return Response.json({ error: `${who} did not vouch for that sign-in` }, { status: 403 });
       const tag = g ? 'g' : 'fb', account = `${tag}:${await sha(`${tag}:${user}`)}`, mine = await read(`dev:${dev}`), theirs = await read(account);
       await this.env.DB.prepare('insert into account (token_hash, account, at) values (?, ?, ?) on conflict (token_hash) do update set account = excluded.account, at = excluded.at').bind(dev, account, Date.now()).run();
       // the first sign-in brings this device's pouch along; later ones find the account's own (the client keeps the richer)
       if (!theirs && mine) await this.env.DB.prepare('insert or ignore into profile (id, data, updated) values (?, ?, ?)').bind(account, JSON.stringify(mine), Date.now()).run();
-      return Response.json({ ok: true, data: theirs ?? mine });
+      if (picture) await this.env.DB.prepare('insert into avatar (token_hash, url, at) values (?, ?, ?) on conflict (token_hash) do update set url = excluded.url, at = excluded.at').bind(dev, picture, Date.now()).run(); // shown beside your name
+      return Response.json({ ok: true, data: theirs ?? mine, picture });
     }
     return Response.json({ error: 'not found' }, { status: 404 });
   }

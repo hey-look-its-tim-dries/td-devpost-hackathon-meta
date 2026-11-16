@@ -137,6 +137,7 @@ export function createAtlas() {
     const p = s.profile;
     if (!p) return myHand(s);
     if (places) { myHand(s); button('places', 840, 464, 320, 72, 'Back to me'); return; }
+    if (s.face) { g.save(); g.beginPath(); g.arc(1092, 162, 52, 0, Math.PI * 2); g.clip(); g.drawImage(s.face, 1040, 110, 104, 104); g.restore(); g.strokeStyle = INK; g.lineWidth = 3; g.beginPath(); g.arc(1092, 162, 52, 0, Math.PI * 2); g.stroke(); } // your picture, if you signed in
     text(p.name, 60, 168, { font: `600 64px ${SERIF}`, max: 700 });
     text(`${p.status.toUpperCase()} · LEVEL ${p.level} · ${p.xp} XP`, 60, 212, { font: `700 24px ${SANS}`, color: SEAL });
     // your whorl: ink strands in a spiral, wearing what you sowed, most sown largest and nearest the heart

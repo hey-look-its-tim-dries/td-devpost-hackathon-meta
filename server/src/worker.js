@@ -39,6 +39,7 @@ export default {
     if ((path === '/events' || path === '/watersheds') && req.method === 'GET') return passWorld(path + new URL(req.url).search);
     if (/^\/pair\/[A-Z2-9]{6}$/.test(path) && req.method === 'POST' && !cameraAllowed(req.cf?.country, req.cf?.regionCode)) return json(req, env, { error: 'The phone route is not available in your state yet: read your hand by eye in the headset.' }, 451); // spec 8.5
     if (/^\/pair(\/[A-Z2-9]{6})?$/.test(path) && (req.method === 'GET' || req.method === 'POST')) return passWorld(path);
+    if (path === '/avatars' && req.method === 'GET') return passWorld(path);
     if (path === '/stats' && req.method === 'GET') {
       const r = await world.fetch(new Request('https://world/stats'));
       return new Response(r.body, { status: r.status, headers: cors(req, env, { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=10' }) });

@@ -90,6 +90,13 @@ create table if not exists account (
   at integer not null
 );
 
+-- the profile picture of a signed-in player (its address on Google's picture host), shown beside their name
+create table if not exists avatar (
+  token_hash text primary key,
+  url text not null,
+  at integer not null
+);
+
 -- gnome teams: a gnome is the id of the mushroom grove it lives in; wild gnomes have no row
 create table if not exists gnome (
   id integer primary key,

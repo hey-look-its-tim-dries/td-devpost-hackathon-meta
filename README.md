@@ -125,8 +125,8 @@ The code is in place and off until an App ID is set. The owner does this once:
 an OAuth client ID of type *Web application*, with the site's address (`https://hey-look-its-tim-dries.github.io`) under
 *Authorised JavaScript origins* and the game's page (`https://hey-look-its-tim-dries.github.io/td-devpost-hackathon-meta/`)
 under *Authorised redirect URIs*. Put that ID in `GOOGLE_CLIENT_ID` in `src/config.js` and in `server/wrangler.toml`, then
-`npx wrangler deploy` and push. There is no secret. The game asks Google for `openid` only (no name, no e-mail) and keeps
-a hash of the account's id.
+`npx wrangler deploy` and push. There is no secret. The game asks Google for `openid profile` and keeps a hash of the account's
+id and the address of the profile picture, which is shown beside the player's name (lobby, boards, Me page). No e-mail.
 
 The game asks for the public profile only and keeps a hash of the app-scoped user id, nothing else. Meta offers no
 sign-in with the headset's own Meta account to a page opened by URL (only to apps installed from the Horizon Store);

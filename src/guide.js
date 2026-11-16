@@ -19,7 +19,7 @@ export const GUIDE = [
   { title: 'Other players', text: ['Everyone you see is a real player. Fly close to one and your whorls braid: that is the greeting, and it makes you friends in each other\'s passport. The boards show who planted most and who converted most gnomes.'] },
   { title: 'Your own Hand', text: ['After a little gardening the game offers you a Hand of your own. You read your hand by eye: pick the pattern of each fingertip and trace your palm lines. No photo is taken. The world then shows three places where it fits; choose one and your Hand rises out of the wilderness, for everyone.'] },
   { title: 'The atlas', text: ['Your atlas holds the world map, your own page (Me), your herbarium (Garden), the Community Hand that everyone builds together at the Source, the journal of what happened, and a page with every move (How).'] },
-  { title: 'Signing in', text: ['You can play as a guest: your garden is then kept on this device. Sign in and it follows you to every device. Only an anonymous account id is kept: no name, no e-mail.'] },
+  { title: 'Signing in', text: ['You can play as a guest: your garden is then kept on this device. Sign in and it follows you to every device. With Google your profile picture is shown beside your name to other players. Your e-mail address is never read.'] },
 ];
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 // hands: true for hand movements (the headset), false for keys (a screen)

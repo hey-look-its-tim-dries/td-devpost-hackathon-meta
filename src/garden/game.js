@@ -96,10 +96,11 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
   const load = () => { ready = true; refreshTop(); net.profileGet().then((r) => { if (r) took(r.data, 'Your garden came back from the map'); }); };
   async function signIn(token, who = 'Facebook') { // who: 'Facebook' (an access token) or 'Google' (an identity token)
     const r = who === 'Google' ? await net.loginGoogle(token) : await net.loginFacebook(token);
-    if (r.error) return say(`${who} sign-in failed: ${r.error}`, 6);
+    if (r.error) { say(`${who} sign-in failed: ${r.error}`, 6); return r; }
     took(r.data, 'Signed in: the garden of your account came with you');
     say(`Signed in with ${who}: your garden follows you to every device`, 6);
     synced = ''; // and what this device holds goes up
+    return r;
   }
   async function readHand(h) {
     const asked = Date.now();

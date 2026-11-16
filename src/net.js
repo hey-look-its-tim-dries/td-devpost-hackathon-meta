@@ -183,6 +183,7 @@ export function createNet({ api = API, storage = null, fetchFn = globalThis.fetc
     async profilePut(data) { try { return (await call('/profile', { method: 'POST', body: JSON.stringify({ token, data }) })).status === 204; } catch { return false; } },
     async profileDelete() { try { return (await call('/profile/delete', { method: 'POST', body: JSON.stringify({ token }) })).status === 204; } catch { return false; } },
     // { ok, data } or { error }: the map checks the token with Facebook itself
+    async avatars() { try { const { status, body } = await call('/avatars'); return status === 200 && Array.isArray(body?.avatars) ? Object.fromEntries(body.avatars) : null; } catch { return null; } }, // { name: picture address }
     async loginGoogle(idToken) { try { const { status, body } = await call('/login/google', { method: 'POST', body: JSON.stringify({ token, id_token: idToken }) }); return status === 200 ? body : { error: body?.error ?? String(status) }; } catch { return { error: 'offline' }; } },
     async loginFacebook(accessToken) { try { const { status, body } = await call('/login/facebook', { method: 'POST', body: JSON.stringify({ token, access_token: accessToken }) }); return status === 200 ? body : { error: body?.error ?? String(status) }; } catch { return { error: 'offline' }; } },
     // the live room: poses out (at most 5 a second), snapshots and lay events in; reconnects by itself
