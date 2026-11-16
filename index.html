@@ -27,14 +27,15 @@
           whorl, gather seed from the wind and sow 403 real flowers and trees with everyone else.
           What you sow grows on you: your whorl becomes a flying bouquet.
         </p>
+        <ul class="features"><li data-icon="fly">Fly</li><li data-icon="sow">Sow</li><li data-icon="water">Water</li><li data-icon="player">Meet</li><li data-icon="mushroom">Foxfire</li><li data-icon="gnome">Gnomes</li></ul>
         <p id="status" class="small">Loading the world…</p>
         <p id="live" class="live"></p>
-        <button id="xrButton" class="hidden">Enter in headset</button>
-        <button id="previewButton" class="quiet">Preview in the browser</button>
-        <button id="webcamButton" class="quiet">Use my webcam as hands</button>
-        <button id="explainButton" class="quiet">Explain this game to me</button>
+        <button id="xrButton" class="hidden" data-icon="headset">Enter in headset</button>
+        <button id="previewButton" class="quiet" data-icon="dive">Play in the browser</button>
+        <button id="webcamButton" class="quiet" data-icon="camera">Use my webcam as hands</button>
+        <button id="explainButton" class="quiet" data-icon="explain">Explain this game to me</button>
         <button id="fbButton" class="quiet hidden">Continue with Facebook</button>
-        <button id="gButton" class="quiet hidden">Continue with Google</button>
+        <button id="gButton" class="quiet hidden" data-icon="sign">Continue with Google</button>
         <p class="small">
           Hands only, no controller needed. Only your Hand's map DNA, its place on the shared map and a
           random device token are kept: never images or tracking data. <a href="privacy.html">Privacy and deleting your data</a> Credits: <a href="assets/flora/CREDITS.md">flowers</a>, <a href="assets/fungi/CREDITS.md">mushrooms</a>, <a href="assets/music/CREDITS.md">music</a>. <a href="#" id="export" class="hidden">Export my data</a> <a href="#" id="forget" class="hidden">Forget my Hand and garden</a>
@@ -42,7 +43,7 @@
       </div>
     </div>
     <!-- on a screen: the three places your Hand fits, as buttons (in the headset you look at one and pinch) -->
-    <div class="places hidden" id="places"><p>Three places fit your Hand. Pick one to fly there and see it.</p><div id="placeList"></div><button id="placeLay" disabled>Lay my Hand here</button></div>
+    <div class="places hidden" id="places"><p>Three places fit your Hand. Pick one to fly there and see it.</p><div id="placeList"></div><button id="placeLay" disabled data-icon="hand">Lay my Hand here</button></div>
     <!-- "Explain this game to me": the whole game from A to Z (src/guide.js) -->
     <div class="guide hidden" id="guide"><div class="guide-inner"><button id="guideClose">Close</button><p class="eyebrow">Explained from A to Z</p><h2>How this game works</h2><div id="guideBody"></div></div></div>
     <!-- the lobby: between the title and the game, the world as it is right now (src/lobby.js) -->
@@ -55,14 +56,14 @@
         <section class="lobby-map"><canvas id="lobbyMap" width="1200" height="900" aria-label="A live map of the Hands and the players flying now"></canvas><p class="call" id="lobbyCall"></p></section>
         <aside>
           <div class="me" id="lobbyMe"></div>
-          <h3>Flying now</h3><ul class="online" id="lobbyOnline"></ul>
-          <h3>Away</h3><ul class="away" id="lobbyAway"></ul>
-          <h3>Top gardeners</h3><ul class="board" id="lobbyGardeners"></ul>
-          <h3>Gnome converters</h3><ul class="board" id="lobbyConverters"></ul>
-          <h3>Latest in the world</h3><ul class="news" id="lobbyNews"></ul>
+          <h3 data-icon="fly">Flying now</h3><ul class="online" id="lobbyOnline"></ul>
+          <h3 data-icon="away">Away</h3><ul class="away" id="lobbyAway"></ul>
+          <h3 data-icon="trophy">Top gardeners</h3><ul class="board" id="lobbyGardeners"></ul>
+          <h3 data-icon="gnome">Gnome converters</h3><ul class="board" id="lobbyConverters"></ul>
+          <h3 data-icon="news">Latest in the world</h3><ul class="news" id="lobbyNews"></ul>
         </aside>
       </div>
-      <footer><button id="diveButton">Dive in</button><button id="lobbyXr" class="quiet hidden">Enter in headset</button><button id="lobbyExplain" class="quiet">Explain this game to me</button><button id="lobbyBack" class="quiet">Back</button></footer>
+      <footer><button id="diveButton" data-icon="dive">Dive in</button><button id="lobbyXr" class="quiet hidden" data-icon="headset">Enter in headset</button><button id="lobbyExplain" class="quiet" data-icon="explain">Explain this game to me</button><button id="lobbyBack" class="quiet" data-icon="back">Back</button></footer>
     </div>
     <script>
       // the buttons wait for the world; if the game cannot load (offline, a blocked CDN, a crash), say so

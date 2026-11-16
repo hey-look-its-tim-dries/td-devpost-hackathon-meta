@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { bearings, spans } from './compass.js';
 import { themed, look } from './ui/themed.js';
 import { hintLine } from './garden/hints.js';
+import { drawIcon } from './ui/icons.js';
 
 const PUN = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']; // -z is north
 
@@ -135,7 +136,7 @@ export function createHud() {
     g.strokeStyle = 'rgba(22,16,14,0.5)'; g.lineWidth = 2; g.stroke();
     g.textBaseline = 'alphabetic';
     const cols = [[w.flying, 'FLYING NOW'], [w.hands, 'HANDS'], [w.plants, 'GROVES']];
-    cols.forEach(([n, label], i) => { const x = 100 + i * 180; g.textAlign = 'center'; g.fillStyle = INK; g.font = '700 44px Inter, system-ui, sans-serif'; g.fillText(Number(n).toLocaleString('en'), x, 62); g.fillStyle = 'rgba(22,16,14,0.6)'; g.font = '500 17px Inter, system-ui, sans-serif'; g.fillText(label, x, 86); });
+    cols.forEach(([n, label], i) => { const x = 100 + i * 180; drawIcon(g, ['fly', 'hand', 'sow'][i], x - 88, 30, 34, SEAL); g.textAlign = 'center'; g.fillStyle = INK; g.font = '700 44px Inter, system-ui, sans-serif'; g.fillText(Number(n).toLocaleString('en'), x, 62); g.fillStyle = 'rgba(22,16,14,0.6)'; g.font = '500 17px Inter, system-ui, sans-serif'; g.fillText(label, x, 86); });
     g.textAlign = 'left'; g.fillStyle = SEAL; g.font = '700 18px Inter, system-ui, sans-serif'; g.fillText(w.board.title, 28, 128);
     g.textAlign = 'right'; g.fillText(`YOU ${w.board.you}`, c.width - 28, 128);
     w.board.rows.slice(0, 4).forEach((t, i) => { const y = 160 + i * 32; g.textAlign = 'left'; g.fillStyle = INK; g.font = '600 24px Georgia, serif'; g.fillText(`${i + 1}. ${t.name}`, 28, y, 380); g.textAlign = 'right'; g.font = '700 22px Inter, system-ui, sans-serif'; g.fillText(Number(t.n).toLocaleString('en'), c.width - 28, y); });

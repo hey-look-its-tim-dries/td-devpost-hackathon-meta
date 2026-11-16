@@ -15,6 +15,7 @@ export const MOVES = [ // what, by hand, on a screen (null: the same either way)
   ['Set a gnome down', 'Toss an open hand upward', 'G'],
   ['Atlas', 'Turn your left palm up', 'M'],
 ];
+export const MOVE_ICONS = ['fly', 'sow', 'seed', 'scatter', 'water', 'pour', 'hyper', 'clear', 'mushroom', 'gnome', 'gnome', 'atlas']; // one for each of MOVES, in order
 const QUEST = { source: 'to the Source', hand: 'fly it there', cousin: 'to its cousin', foxfire: 'eat a mushroom', sow: 'sow', water: 'water', speed: 'FASTER', high: 'HIGHER', cloud: 'a seed cloud', river: 'skim the river' };
 // the garden card's last line. gd: { gnome: { name, kind, have, need, left, done } | null, fox: { left, mult } | null,
 // hyper (seconds left), charge 0..1 }; hands: true in the headset

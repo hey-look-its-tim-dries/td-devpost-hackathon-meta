@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { themed, look } from './ui/themed.js';
 import { STEPS } from './garden/tutorial.js';
+import { drawIcon } from './ui/icons.js';
 
 const W = 1024, H = 300, INK = '#16100e', SEAL = '#b8442e';
 export function createTutorialCard(y = 0.125) { // y: how high in your view
@@ -35,7 +36,8 @@ export function createTutorialCard(y = 0.125) { // y: how high in your view
     }
     g.fillStyle = SEAL; g.font = '700 28px Inter, system-ui, sans-serif'; g.fillText(`TUTORIAL · ${s.index + 1} OF ${STEPS.length} · ${s.step.title.toUpperCase()}`, 40, 62);
     g.textAlign = 'right'; g.fillStyle = 'rgba(22,16,14,0.6)'; g.font = '500 22px Inter, system-ui, sans-serif'; g.fillText(s.hands ? 'skip: left palm up, How' : 'Esc skips', W - 40, 62);
-    g.textAlign = 'left'; g.fillStyle = INK; g.font = '600 52px Georgia, serif'; g.fillText(s.hands ? s.step.hand : s.step.keys, 40, 144, W - 80);
+    drawIcon(g, s.step.icon, 40, 92, 64, SEAL); // what the step is about
+    g.textAlign = 'left'; g.fillStyle = INK; g.font = '600 52px Georgia, serif'; g.fillText(s.hands ? s.step.hand : s.step.keys, 124, 144, W - 164);
     g.fillStyle = 'rgba(22,16,14,0.15)'; g.beginPath(); g.roundRect(40, 186, W - 80, 22, 11); g.fill();
     g.fillStyle = s.coach ? SEAL : '#3f7d3a'; g.font = '700 30px Inter, system-ui, sans-serif'; g.fillText(s.coach ?? (s.ready ? 'You are in the right place: do it now' : ''), 40, 258, W - 80); // what is still missing, or the go-ahead
     if (s.progress > 0.01) { g.fillStyle = '#3f7d3a'; g.beginPath(); g.roundRect(40, 186, Math.max(22, (W - 80) * s.progress), 22, 11); g.fill(); }

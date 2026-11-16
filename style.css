@@ -230,3 +230,9 @@ button:focus-visible {
 
 /* the menus' text a tenth larger (the title, the lobby, the guide, the place chooser) */
 .banner-inner, .lobby header, .lobby aside, .lobby footer, .guide-inner, .places { zoom: 1.1; }
+
+/* icons: ink lines, in the colour of the text beside them */
+svg.icon { vertical-align: -0.2em; margin-right: 0.4em; flex: none; }
+.features { list-style: none; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 20px; margin: 14px 0 6px; padding: 0; color: var(--accent); font: 600 14px Inter, system-ui, sans-serif; letter-spacing: 0.08em; text-transform: uppercase; }
+.features svg.icon { width: 1.6em; height: 1.6em; }
+.lobby .counts svg.icon { width: 20px; height: 20px; margin: 0 0 2px; color: var(--muted); display: block; margin-inline: auto; }

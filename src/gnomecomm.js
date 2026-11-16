@@ -15,17 +15,14 @@ export function createGnomeComm() {
   mesh.visible = false;
   mesh.position.set(-0.185, -0.045, -0.65); // left of your view, between the world's numbers and the place card
   let drawn = '', clock = 0;
-  function face(g, cx, cy, open) { // an old gnome: red hat, bushy brows, a big nose, a long white beard; `open` 0..1 is his mouth
+  // his face: 16 frames rendered in Blender (tools/blender/tuft.py), 8 x 2 of 256 px: frame 0 at rest, 1..15 talking
+  const sheet = new Image();
+  sheet.src = new URL('../assets/tuft.png', import.meta.url).href;
+  function face(g, cx, cy, frame) {
     g.save(); g.beginPath(); g.roundRect(cx - 150, cy - 160, 300, 320, 40); g.clip();
-    g.fillStyle = '#3f6a4a'; g.fillRect(cx - 150, cy - 160, 300, 320);
-    g.fillStyle = '#e9b99a'; g.beginPath(); g.ellipse(cx, cy + 10, 92, 100, 0, 0, Math.PI * 2); g.fill(); // the face
-    g.fillStyle = '#f4f1ea'; g.beginPath(); g.moveTo(cx - 104, cy + 20); g.quadraticCurveTo(cx - 120, cy + 150, cx, cy + 200); g.quadraticCurveTo(cx + 120, cy + 150, cx + 104, cy + 20); g.quadraticCurveTo(cx, cy + 70, cx - 104, cy + 20); g.fill(); // the beard
-    g.fillStyle = '#5a2c22'; g.beginPath(); g.ellipse(cx, cy + 78, 26, 5 + 20 * open, 0, 0, Math.PI * 2); g.fill(); // the mouth
-    g.fillStyle = '#f4f1ea'; g.beginPath(); g.ellipse(cx - 34, cy + 58, 44, 17, 0.25, 0, Math.PI * 2); g.ellipse(cx + 34, cy + 58, 44, 17, -0.25, 0, Math.PI * 2); g.fill(); // the moustache
-    g.fillStyle = '#d99a7c'; g.beginPath(); g.ellipse(cx, cy + 30, 30, 26, 0, 0, Math.PI * 2); g.fill(); // the nose
-    g.fillStyle = INK; g.beginPath(); g.arc(cx - 38, cy - 12, 8, 0, Math.PI * 2); g.arc(cx + 38, cy - 12, 8, 0, Math.PI * 2); g.fill(); // the eyes
-    g.strokeStyle = '#f4f1ea'; g.lineWidth = 12; g.lineCap = 'round'; g.beginPath(); g.moveTo(cx - 64, cy - 34 - 6 * open); g.lineTo(cx - 20, cy - 30); g.moveTo(cx + 64, cy - 34 - 6 * open); g.lineTo(cx + 20, cy - 30); g.stroke(); // the brows
-    g.fillStyle = '#c8362c'; g.beginPath(); g.moveTo(cx - 118, cy - 44); g.quadraticCurveTo(cx - 30, cy - 150, cx + 60, cy - 230); g.quadraticCurveTo(cx + 80, cy - 110, cx + 118, cy - 44); g.quadraticCurveTo(cx, cy - 78, cx - 118, cy - 44); g.fill(); // the hat
+    const sky = g.createLinearGradient(0, cy - 160, 0, cy + 160); sky.addColorStop(0, '#f1d9bd'); sky.addColorStop(1, '#d9a57e');
+    g.fillStyle = sky; g.fillRect(cx - 150, cy - 160, 300, 320);
+    if (sheet.complete && sheet.naturalWidth) g.drawImage(sheet, (frame % 8) * 256, Math.floor(frame / 8) * 256, 256, 256, cx - 212, cy - 178, 424, 424); // close on his face
     g.restore();
     g.strokeStyle = SEAL; g.lineWidth = 6; g.beginPath(); g.roundRect(cx - 150, cy - 160, 300, 320, 40); g.stroke();
   }
@@ -50,8 +47,8 @@ export function createGnomeComm() {
       mesh.material.opacity += ((s ? 1 : 0) - mesh.material.opacity) * (1 - Math.exp(-dt * 10));
       mesh.visible = mesh.material.opacity > 0.02;
       if (!s) return;
-      const open = s.talking ? Math.round((0.5 + 0.5 * Math.sin(clock * 17) * Math.sin(clock * 5.3 + 1)) * 3) / 3 : 0;
-      const key = `${look.neon}|${s.text}|${open}`;
+      const open = s.talking ? 1 + (Math.floor(clock * 11) % 15) : 0; // which frame of his face
+      const key = `${look.neon}|${s.text}|${open}|${sheet.complete}`;
       if (key !== drawn) { drawn = key; paint(s, open); tex.needsUpdate = true; }
     },
   };

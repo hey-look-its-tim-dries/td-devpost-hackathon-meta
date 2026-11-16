@@ -41,6 +41,8 @@ import { createGnomeComm } from './gnomecomm.js';
 import { createPassport, profile, STATUS } from './garden/passport.js';
 import { createLobby, lobbyFacts } from './lobby.js';
 import { guideHtml } from './guide.js';
+import { icon } from './ui/icons.js';
+for (const el of document.querySelectorAll('[data-icon]')) el.insertAdjacentHTML('afterbegin', icon(el.dataset.icon)); // the pages' icons (index.html names them)
 import { createTutorialCard } from './tutorialcard.js';
 import { createPins, address } from './world/pins.js';
 import { placeName } from './world/names.js';
@@ -1127,7 +1129,7 @@ function start() {
   document.activeElement?.blur?.(); // the start button keeps the focus otherwise, and the space bar would press it again
   started = true;
   music.arm(); sound.arm(); tuftVoice.arm(); tuftVoice.set(music.muted); // sound may only begin after a press: this is it
-  setTimeout(() => tuft(mine || bloom.pouch.xp > 0 ? 'back' : 'welcome', 1), 0); // his greeting comes first; the tutorial's first line waits for it
+  tuft(mine || bloom.pouch.xp > 0 ? 'back' : 'welcome', 1); // his greeting comes first; the tutorial's first line waits for it
   if (music.muted) setTimeout(() => panel.say('Sound is off: press N, or the atlas, How, Sound', 6), 1200);
   banner.classList.add('hidden');
   panel.say('Palm Whorl Cities', 4);

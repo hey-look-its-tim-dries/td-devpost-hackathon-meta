@@ -6,7 +6,8 @@
 import * as THREE from 'three';
 import { drawMap, mapView, fromMap } from './map.js';
 import { W, H, TABS, TAB_LABELS, TAB, MAP, LAYERS, layout, hitAt } from './layout.js';
-import { MOVES } from '../garden/hints.js';
+import { MOVES, MOVE_ICONS } from '../garden/hints.js';
+import { drawIcon } from '../ui/icons.js';
 import { TONES } from '../world/scene.js';
 import { themed, look } from '../ui/themed.js';
 
@@ -115,7 +116,8 @@ export function createAtlas() {
     text(s.byHand ? 'ON A SCREEN' : 'IN THE HEADSET', 880, 200, { font: `700 20px ${SANS}`, color: SEAL });
     MOVES.forEach(([what, hand, screen], i) => {
       const y = 262 + i * 51;
-      text(what, 60, y, { font: `700 26px ${SANS}`, color: SEAL, max: 250 });
+      drawIcon(g, MOVE_ICONS[i], 56, y - 27, 32, SEAL);
+      text(what, 100, y, { font: `700 25px ${SANS}`, color: SEAL, max: 212 });
       text(s.byHand ? hand : screen ?? hand, 320, y, { font: `400 28px ${SERIF}`, max: 540 });
       if (i === 0) { button('tutorial', 700, 112, 250, 56, s.tutorial ? 'Skip the tutorial' : 'Play the tutorial'); button('music', 965, 112, 200, 56, s.muted ? 'Sound: off' : 'Sound: on'); }
       if (screen) text(s.byHand ? screen : hand, 880, y, { font: `400 21px ${SANS}`, color: 'rgba(22,16,14,0.6)', max: 290 }); // (nothing to add where it is the same either way)

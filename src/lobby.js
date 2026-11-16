@@ -4,6 +4,9 @@
 // to show that this is one world with other people in it, before you dive in. lobbyFacts() and esc() are pure;
 // createLobby() draws them into the page (#lobby in index.html) and paints the map.
 import { cleanPicture } from './net/google.js';
+import { icon } from './ui/icons.js';
+
+const COUNT_ICONS = { 'FLYING NOW': 'fly', HANDS: 'hand', GROVES: 'sow', AWAY: 'away' };
 
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 // the picture of a signed-in player, as markup, or nothing: pics is { name: address }, and only Google's own picture host passes
@@ -74,7 +77,7 @@ export function createLobby(root) {
     update(d) {
       paint(d);
       const html = {
-        lobbyCounts: d.counts.map(([n, label]) => `<div><b>${esc(n)}</b><span>${esc(label)}</span></div>`).join(''),
+        lobbyCounts: d.counts.map(([n, label]) => `<div>${icon(COUNT_ICONS[label])}<b>${esc(n)}</b><span>${esc(label)}</span></div>`).join(''),
         lobbyOnline: list(d.online.map((p) => `<li class="${p.you ? 'you' : ''}"><i></i>${p.you ? face('', { '': d.me.pic }) : face(p.name, d.pics)}${esc(p.name)}</li>`), ''),
         lobbyAway: list(d.away.slice(0, 14).map((n) => `<li>${face(n, d.pics)}${esc(n)}</li>`), 'everyone with a Hand is here'),
         lobbyGardeners: list(d.gardeners.map((r, i) => `<li><span>${i + 1}. ${face(r.name, d.pics)}${esc(r.name)}</span><b>${esc(Number(r.n).toLocaleString('en'))}</b></li>`), 'nobody has planted yet: be the first'),

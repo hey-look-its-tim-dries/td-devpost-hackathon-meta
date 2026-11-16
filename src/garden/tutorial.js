@@ -6,15 +6,15 @@
 const held = (pick, seconds) => (sig, st, dt) => { st.t = (st.t ?? 0) + (Math.abs(pick(sig)) > 0.3 ? dt : 0); return st.t / seconds; };
 const count = (pick, n) => (sig, st) => { st.from ??= pick(sig); return (pick(sig) - st.from) / n; };
 export const STEPS = [
-  { id: 'turn', title: 'Turn', hand: 'Raise a hand and point left or right', keys: 'Press A and D to turn', test: held((s) => s.turn, 1.5) },
-  { id: 'climb', title: 'Climb and dive', hand: 'Point your fingers up to climb, down to dive', keys: 'Press W to climb, S to dive', test: held((s) => s.climb, 1.5) },
-  { id: 'sow', title: 'Sow', hand: 'Fly low over a Hand, then pinch and hold', keys: 'Fly low over a Hand, then hold SPACE', test: count((s) => s.sown, 3) },
-  { id: 'seed', title: 'Choose a seed', hand: 'A short pinch of your left hand: the next seed', keys: 'Press Q or E for another seed', test: count((s) => s.acts.next, 1) },
-  { id: 'scatter', title: 'Scatter', hand: 'Low over a Hand, sweep an open hand to the side', keys: 'Low over a Hand, press Z or C', test: count((s) => s.acts.scatter, 1) },
-  { id: 'water', title: 'Fetch water', hand: 'Skim low over a river', keys: 'Skim low over a river', test: (s) => (s.water > 0 ? 1 : 0) },
-  { id: 'pour', title: 'Pour', hand: 'Over young groves, press a flat palm down', keys: 'Over young groves, press T', test: count((s) => s.acts.pour, 1) },
-  { id: 'hyper', title: 'Hyper sow', hand: 'Hold a left pinch for a second, then fly low', keys: 'Press F, then fly low over a Hand', test: count((s) => s.acts.hyper, 1) },
-  { id: 'atlas', title: 'The atlas', hand: 'Turn your left palm up', keys: 'Press M', test: (s) => (s.atlas ? 1 : 0) },
+  { id: 'turn', icon: 'turn', title: 'Turn', hand: 'Raise a hand and point left or right', keys: 'Press A and D to turn', test: held((s) => s.turn, 1.5) },
+  { id: 'climb', icon: 'climb', title: 'Climb and dive', hand: 'Point your fingers up to climb, down to dive', keys: 'Press W to climb, S to dive', test: held((s) => s.climb, 1.5) },
+  { id: 'sow', icon: 'sow', title: 'Sow', hand: 'Fly low over a Hand, then pinch and hold', keys: 'Fly low over a Hand, then hold SPACE', test: count((s) => s.sown, 3) },
+  { id: 'seed', icon: 'seed', title: 'Choose a seed', hand: 'A short pinch of your left hand: the next seed', keys: 'Press Q or E for another seed', test: count((s) => s.acts.next, 1) },
+  { id: 'scatter', icon: 'scatter', title: 'Scatter', hand: 'Low over a Hand, sweep an open hand to the side', keys: 'Low over a Hand, press Z or C', test: count((s) => s.acts.scatter, 1) },
+  { id: 'water', icon: 'river', title: 'Fetch water', hand: 'Skim low over a river', keys: 'Skim low over a river', test: (s) => (s.water > 0 ? 1 : 0) },
+  { id: 'pour', icon: 'pour', title: 'Pour', hand: 'Over young groves, press a flat palm down', keys: 'Over young groves, press T', test: count((s) => s.acts.pour, 1) },
+  { id: 'hyper', icon: 'hyper', title: 'Hyper sow', hand: 'Hold a left pinch for a second, then fly low', keys: 'Press F, then fly low over a Hand', test: count((s) => s.acts.hyper, 1) },
+  { id: 'atlas', icon: 'atlas', title: 'The atlas', hand: 'Turn your left palm up', keys: 'Press M', test: (s) => (s.atlas ? 1 : 0) },
 ];
 export function createTutorial({ done = false } = {}) {
   let i = done ? -1 : 0, st = {}, progress = 0;
