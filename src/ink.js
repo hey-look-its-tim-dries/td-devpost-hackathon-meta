@@ -78,9 +78,14 @@ export function createInk(maxSegments, { width = 0.0016, color = '#15100e' } = {
       }
     },
     end() {
-      geo.attributes.position.needsUpdate = true;
-      geo.attributes.other.needsUpdate = true;
-      geo.attributes.width.needsUpdate = true;
+      // upload only the segments drawn this frame (the buffers are sized for the most there could ever be: whole-buffer
+      // uploads were most of the frame's CPU time, since a typical frame draws a few percent of them)
+      for (const name of ['position', 'other', 'width']) {
+        const a = geo.attributes[name];
+        a.clearUpdateRanges();
+        a.addUpdateRange(0, n * 4 * a.itemSize);
+        a.needsUpdate = true;
+      }
       geo.setDrawRange(0, n * 6);
     },
   };
