@@ -119,7 +119,7 @@ export function createAtlas() {
       drawIcon(g, MOVE_ICONS[i], 56, y - 27, 32, SEAL);
       text(what, 100, y, { font: `700 25px ${SANS}`, color: SEAL, max: 212 });
       text(s.byHand ? hand : screen ?? hand, 320, y, { font: `400 28px ${SERIF}`, max: 540 });
-      if (i === 0) { button('tutorial', 700, 112, 250, 56, s.tutorial ? 'Skip the tutorial' : 'Play the tutorial'); button('music', 965, 112, 200, 56, s.muted ? 'Sound: off' : 'Sound: on'); }
+      if (i === 0) { button('tutorial', 560, 112, 220, 56, s.tutorial ? 'Skip tutorial' : 'Play tutorial'); button('tuft', 790, 112, 200, 56, s.tuftQuiet ? 'Tuft: muted' : 'Mute Tuft'); button('music', 1000, 112, 170, 56, s.muted ? 'Sound: off' : 'Sound: on'); }
       if (screen) text(s.byHand ? screen : hand, 880, y, { font: `400 21px ${SANS}`, color: 'rgba(22,16,14,0.6)', max: 290 }); // (nothing to add where it is the same either way)
     });
   }
@@ -143,11 +143,11 @@ export function createAtlas() {
     text(p.name, 60, 168, { font: `600 64px ${SERIF}`, max: 700 });
     text(`${p.status.toUpperCase()} · LEVEL ${p.level} · ${p.xp} XP`, 60, 212, { font: `700 24px ${SANS}`, color: SEAL });
     // your whorl: ink strands in a spiral, wearing what you sowed, most sown largest and nearest the heart
-    const cx = 215, cy = 400;
+    const cx = 215, cy = 400, T = performance.now() / 1000; /* it turns and breathes, its flowers ride round */
     g.strokeStyle = INK; g.lineWidth = 2.5;
-    for (let k = 0; k < 5; k++) { g.beginPath(); for (let i = 0; i <= 60; i++) { const a = i * 0.21 + k * 1.2566, r = 12 + i * 2.2 + 6 * Math.sin(i * 0.5 + k); const x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r * 0.92; if (i) g.lineTo(x, y); else g.moveTo(x, y); } g.stroke(); }
+    for (let k = 0; k < 5; k++) { g.beginPath(); for (let i = 0; i <= 60; i++) { const a = i * 0.21 + k * 1.2566 + T * 0.45, r = 12 + i * 2.2 + 6 * Math.sin(i * 0.5 + k - T * 2.4); const x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r * 0.92; if (i) g.lineTo(x, y); else g.moveTo(x, y); } g.stroke(); }
     const most = p.sown[0]?.n ?? 1;
-    p.sown.forEach((o, i) => { const ic = s.icon?.(o.sp); if (!ic) return; const a = i * 2.39996, r = 30 + 27 * Math.sqrt(i), size = 46 + 52 * Math.sqrt(o.n / most); g.imageSmoothingEnabled = s.style?.(o.sp) !== 'pixel'; g.drawImage(ic.canvas, ic.x, ic.y, ic.s, ic.s, cx + Math.cos(a) * r - size / 2, cy + Math.sin(a) * r - size / 2, size, size); });
+    p.sown.forEach((o, i) => { const ic = s.icon?.(o.sp); if (!ic) return; const a = i * 2.39996 + T * 0.18, r = 30 + 27 * Math.sqrt(i) + 4 * Math.sin(T * 1.6 + i), size = (46 + 52 * Math.sqrt(o.n / most)) * (1 + 0.07 * Math.sin(T * 2.1 + i * 1.3)); g.imageSmoothingEnabled = s.style?.(o.sp) !== 'pixel'; g.drawImage(ic.canvas, ic.x, ic.y, ic.s, ic.s, cx + Math.cos(a) * r - size / 2, cy + Math.sin(a) * r - size / 2, size, size); });
     g.imageSmoothingEnabled = true;
     if (!p.sown.length) text('sow, and your whorl wears it', cx, cy + 190, { font: `italic 400 24px ${SERIF}`, color: 'rgba(22,16,14,0.6)', align: 'center' });
     text(s.whorl ? `Your whorl: ${s.whorl}` : 'A plain whorl: lay your Hand and it takes its shape from your fingerprints', 60, 590, { font: `italic 400 21px ${SERIF}`, color: 'rgba(22,16,14,0.7)', max: 340 });

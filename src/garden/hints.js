@@ -3,7 +3,7 @@
 // One list for the atlas's How page, and the short lines the garden card and the panel show. Pure.
 export const MOVES = [ // what, by hand, on a screen (null: the same either way)
   ['Fly', 'Raise a hand and point: your fingers are the arrow', 'A D turn · W S climb'],
-  ['Sow', 'Pinch and hold, low over a Hand (it slows you)', 'hold SPACE'],
+  ['Sow', 'Pinch and hold, low over a Hand: seed flies ahead', 'hold SPACE'],
   ['Next seed', 'A short left pinch', 'Q · E'],
   ['Scatter', 'Sweep an open hand to a side, or throw it ahead', 'Z · C · R'],
   ['Water', 'Skim a river, then fly low over thirsty groves', null],
@@ -14,8 +14,9 @@ export const MOVES = [ // what, by hand, on a screen (null: the same either way)
   ['Carry a gnome', 'Fly low and gently over its mushroom', null],
   ['Set a gnome down', 'Toss an open hand upward', 'G'],
   ['Atlas', 'Turn your left palm up', 'M'],
+  ['Tidy your view', 'Open the atlas, How: mute Tuft there', 'Click a card · H back'],
 ];
-export const MOVE_ICONS = ['fly', 'sow', 'seed', 'scatter', 'water', 'pour', 'hyper', 'clear', 'mushroom', 'gnome', 'gnome', 'atlas']; // one for each of MOVES, in order
+export const MOVE_ICONS = ['fly', 'sow', 'seed', 'scatter', 'water', 'pour', 'hyper', 'clear', 'mushroom', 'gnome', 'gnome', 'atlas', 'clear']; // one for each of MOVES, in order
 const QUEST = { source: 'to the Source', hand: 'fly it there', cousin: 'to its cousin', foxfire: 'eat a mushroom', sow: 'sow', water: 'water', speed: 'FASTER', high: 'HIGHER', cloud: 'a seed cloud', river: 'skim the river' };
 // the garden card's last line. gd: { gnome: { name, kind, have, need, left, done } | null, fox: { left, mult } | null,
 // hyper (seconds left), charge 0..1 }; hands: true in the headset

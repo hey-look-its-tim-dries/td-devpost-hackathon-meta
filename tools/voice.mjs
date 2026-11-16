@@ -5,7 +5,7 @@
 //   KOKORO=<path to the kokoro command> (default: the one in ~/projects/td-assistant-jarvis-1/backtalk/.venv/bin)
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { LINES } from '../src/garden/voice.js';
+import { LINES, JOY_LINES } from '../src/garden/voice.js';
 
 import os from 'node:os';
 const OUT = new URL('../assets/voice/', import.meta.url).pathname, only = process.argv.slice(2);
@@ -13,12 +13,14 @@ const kPath = process.env.KOKORO ?? `${os.homedir()}/projects/td-assistant-jarvi
 console.log(KOKORO ? 'voice: Kokoro' : 'voice: espeak-ng (Kokoro not found)');
 fs.mkdirSync(OUT, { recursive: true });
 const seconds = {};
-for (const [id, text] of Object.entries(LINES)) {
+const ALL = { ...LINES, ...Object.fromEntries(JOY_LINES.map((t, i) => [`joy-${i}`, t])) }; // Tuft's lines, and the squeals of a gnome on your whorl
+for (const [id, text] of Object.entries(ALL)) {
   if (only.length && !only.includes(id)) continue;
   const wav = `${OUT}${id}.wav`, mp3 = `${OUT}${id}.mp3`;
   if (KOKORO) {
     execFileSync(KOKORO, ['-m', process.env.VOICE ?? 'bm_george', '-s', '0.9', '-t', text, '-o', wav], { stdio: 'ignore' });
-    execFileSync('ffmpeg', ['-y', '-v', 'error', '-i', wav, '-af', 'asetrate=24000*0.93,aresample=44100,atempo=1.03,highpass=f=90,aecho=0.8:0.5:32:0.16,loudnorm=I=-17:TP=-2', '-ac', '1', '-b:a', '64k', mp3]);
+    const age = id.startsWith('joy-') ? 'asetrate=24000*1.5,aresample=44100,atempo=0.92,highpass=f=200,loudnorm=I=-18:TP=-2' : 'asetrate=24000*0.93,aresample=44100,atempo=1.03,highpass=f=90,aecho=0.8:0.5:32:0.16,loudnorm=I=-17:TP=-2'; // a squeal is small and high; Tuft is old and low
+    execFileSync('ffmpeg', ['-y', '-v', 'error', '-i', wav, '-af', age, '-ac', '1', '-b:a', '64k', mp3]);
   } else {
     execFileSync('espeak-ng', ['-v', 'en-gb+grandpa', '-s', '158', '-p', '30', '-g', '4', '-a', '170', '-w', wav, text]);
     execFileSync('ffmpeg', ['-y', '-v', 'error', '-i', wav, '-af', 'asetrate=22050*0.93,aresample=44100,highpass=f=110,lowpass=f=4800,aecho=0.8:0.6:38:0.22,loudnorm=I=-17:TP=-2', '-ac', '1', '-b:a', '64k', mp3]);

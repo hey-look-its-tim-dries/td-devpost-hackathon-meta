@@ -169,13 +169,14 @@ export function createHud() {
 
   return {
     group,
+    meshes: cards.map((c) => c.mesh), // (on a screen a click on a card puts it away: main.js)
     // show: false in the atelier and on the title; active: the player is steering or something changed
     update(dt, { show, yaw, pos, altitude, place: p, markers, active, garden: gd, radar: rd, world: wd }) {
       clock += dt;
       since = active ? 0 : since + dt;
       const want = show ? (since < 4 ? 1 : 0.85) : 0; // always legible while you fly
       alpha += (want - alpha) * (1 - Math.exp(-dt * 4));
-      for (const { mesh: m } of cards) { m.material.opacity = alpha; m.visible = alpha > 0.02; }
+      for (const { mesh: m } of cards) { m.material.opacity = alpha; m.visible = alpha > 0.02 && !m.userData.away; }
       if (alpha <= 0.02 || clock < 0.1) return;
       clock = 0; // repaint at most 10 times a second
       if (neon !== look.neon) { neon = look.neon; lastKey = gardenKey = statsKey = ''; } // the look changed (foxfire): paint everything again

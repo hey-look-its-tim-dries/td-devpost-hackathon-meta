@@ -74,6 +74,9 @@ export function createLobby(root) {
       for (const l of h.lines) { g.beginPath(); l.forEach(([x, z], i) => (i ? g.lineTo(X(x), Y(z)) : g.moveTo(X(x), Y(z)))); g.stroke(); }
       g.globalAlpha = 1;
     }
+    const px = Math.max(2, Math.round(W / 420)); /* every sowing: a pixel in its flower's colour, twinkling */
+    (d.map.sowings ?? []).forEach(([x, z, c], i) => { g.globalAlpha = 0.65 + 0.35 * Math.sin(t * 2.2 + i * 1.7); g.fillStyle = c; g.fillRect(Math.round(X(x) - px / 2), Math.round(Y(z) - px / 2), px, px); });
+    g.globalAlpha = 1;
     g.textAlign = 'center'; g.lineJoin = 'round';
     for (const h of d.map.hands) { // names over everything, readable on skin and on the dark
       g.font = `${h.mine ? 800 : 600} ${Math.max(11, W / 60)}px Inter, system-ui, sans-serif`;

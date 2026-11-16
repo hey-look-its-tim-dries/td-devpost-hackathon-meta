@@ -25,11 +25,14 @@ export function createTutorialCard(y = 0.125) { // y: how high in your view
     g.strokeStyle = SEAL; g.lineWidth = 6; g.stroke();
     g.textBaseline = 'alphabetic'; g.textAlign = 'left';
     if (s.note) { // a what-is-what note: its name, and two lines of what it is
-      g.fillStyle = SEAL; g.font = '700 28px Inter, system-ui, sans-serif'; g.fillText(`WHAT IS THIS · ${s.note.title.toUpperCase()}`, 40, 62);
+      g.fillStyle = SEAL; g.font = '700 28px Inter, system-ui, sans-serif'; g.fillText(`${s.note.kicker ?? 'WHAT IS THIS'} · ${s.note.title.toUpperCase()}`, 40, 62);
+      if (s.note.corner) { g.textAlign = 'right'; g.fillStyle = INK; g.font = '700 30px Inter, system-ui, sans-serif'; g.fillText(s.note.corner, W - 40, 62); g.textAlign = 'left'; }
+      const left = s.note.icon ? 124 : 40;
+      if (s.note.icon) drawIcon(g, s.note.icon, 40, 96, 68, SEAL);
       g.fillStyle = INK; g.font = '600 38px Georgia, serif';
       const words = s.note.text.split(' '); let line = '', row = 0;
-      for (const w of words) { if (g.measureText(`${line} ${w}`).width > W - 90 && line) { g.fillText(line, 40, 122 + row++ * 50); line = w; } else line = line ? `${line} ${w}` : w; }
-      g.fillText(line, 40, 122 + row * 50);
+      for (const w of words) { if (g.measureText(`${line} ${w}`).width > W - left - 50 && line) { g.fillText(line, left, 122 + row++ * 50); line = w; } else line = line ? `${line} ${w}` : w; }
+      g.fillText(line, left, 122 + row * 50);
       g.fillStyle = 'rgba(22,16,14,0.15)'; g.beginPath(); g.roundRect(40, 262, W - 80, 10, 5); g.fill();
       g.fillStyle = SEAL; g.beginPath(); g.roundRect(40, 262, Math.max(10, (W - 80) * (1 - s.progress)), 10, 5); g.fill(); // how long it stays
       return;
@@ -49,7 +52,7 @@ export function createTutorialCard(y = 0.125) { // y: how high in your view
       mesh.material.opacity += ((s ? 1 : 0) - mesh.material.opacity) * (1 - Math.exp(-dt * 8));
       mesh.visible = mesh.material.opacity > 0.02;
       if (!s) return;
-      const key = `${look.neon}|${s.note?.id}|${s.index}|${s.hands}|${Math.round(s.progress * 40)}|${s.coach}|${s.ready}`;
+      const key = `${look.neon}|${s.note?.id}|${s.note?.corner}|${s.index}|${s.hands}|${Math.round(s.progress * 40)}|${s.coach}|${s.ready}`;
       if (key !== drawn) { drawn = key; paint(s); tex.needsUpdate = true; }
     },
   };

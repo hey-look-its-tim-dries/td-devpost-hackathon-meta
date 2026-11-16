@@ -276,6 +276,7 @@ function hudContents() {
     for (const h of hands) { if (!h.pose) continue; const [x, z] = toWorld(h.pose, 0, 230), d = Math.hypot(x - glide.pos[0], z - glide.pos[2]); if (d < bd) { bd = d; best = { label: 'Nearest Hand', x, z, color: '#3f7d3a' }; } }
     if (best) marks.push(best);
   }
+  { const q = gnomes.hud().quest; if (q && !q.done && q.x !== undefined) marks.push({ label: `${q.name}'s wish`, x: q.x, z: q.z, color: '#b8442e' }); } // where the gnome on board wants to go
   const gold = bloom.gold();
   if (gold) marks.push({ label: 'Golden seed', x: gold.x, z: gold.z, color: '#c9a35a' });
   const sandNow = bloom.storm();
@@ -376,6 +377,8 @@ fauna.setLand((x, z) => !!whereAt(hands, x, z)?.handbit); // herds keep out of t
 const goldBeam = new THREE.Mesh(new THREE.CylinderGeometry(7, 7, 2400, 8, 1, true), new THREE.MeshBasicMaterial({ color: 0xe9c46a, transparent: true, opacity: 0.55, depthWrite: false, fog: false }));
 goldBeam.visible = false;
 // every other player stands under a tall beam of light, so you can find them from far off
+const wishBeam = new THREE.Mesh(new THREE.CylinderGeometry(14, 14, 3000, 8, 1, true), new THREE.MeshBasicMaterial({ color: 0xff4fe0, transparent: true, opacity: 0.5, depthWrite: false, fog: false, blending: THREE.AdditiveBlending })); // where a gnome on board wants to be taken
+wishBeam.visible = false; scene.add(wishBeam);
 const beams = Array.from({ length: 24 }, () => { const m = new THREE.Mesh(new THREE.CylinderGeometry(9, 9, 3000, 8, 1, true), new THREE.MeshBasicMaterial({ color: 0x35c8ff, transparent: true, opacity: 0.5, depthWrite: false, fog: false, blending: THREE.AdditiveBlending })); m.visible = false; scene.add(m); return m; });
 scene.add(goldBeam);
 const sandstorm = createSandstorm(world.shared.uTrip, STORM.r); // a turning column of dust that crosses the world (where: src/garden/drift.js)
@@ -386,7 +389,7 @@ const gnomes = createGnomes({
   scene, bloom, net, groundAt, creature, others, fauna, makeLabel: createLabel,
   say: (text, s) => panel.say(text, s), stamp: (a, b, k) => stamp(a, b, k), online: () => online,
   hands: () => hands.filter((h) => h.pose).map((h) => { const [x, z] = toWorld(h.pose, 0, 230); return { name: h.name, x, z }; }),
-  onRiders: (on) => { myGnomes = on; sendDeco(bloom.pouch.signature()); }, ridersOf: (id) => theirGnomes.get(id) ?? NO_GNOMES, quest: params.get('quest'), sfx, onMet: (name) => passport.note('gnome', name), onRival: (name) => passport.note('rival', name),
+  onRiders: (on) => { myGnomes = on; sendDeco(bloom.pouch.signature()); }, ridersOf: (id) => theirGnomes.get(id) ?? NO_GNOMES, quest: params.get('quest'), sfx, squeal: (n) => { if (!music.muted) { const a = new Audio(new URL(`../assets/voice/joy-${n}.mp3`, import.meta.url).href); a.volume = 0.8; a.play().catch(() => {}); } }, onMet: (name) => passport.note('gnome', name), onRival: (name) => passport.note('rival', name),
 });
 const gnomeCtx = { pos: glide.pos, yaw: 0, speed: 0, alt: 0, flying: false, wet: false, place: null, eye: eyeW, burst: () => creature.burst() };
 addEventListener('keydown', (e) => { if ((e.key === 'g' || e.key === 'G') && mode === 'fly' && started && !e.repeat) { gnomeCtx.place = place; gnomes.act('drop', gnomeCtx); } });
@@ -486,6 +489,7 @@ try { setFace(storage?.getItem('pwc.avatar.v1')); } catch {}
 const passport = createPassport(storage); // who you met and what you did (src/garden/passport.js): the Me page of the atlas
 const tutorial = createTutorial({ done: params.has('notutorial') || params.has('atelier') || storage?.getItem('pwc.tutorial.v1') === '1' });
 const lesson = createTutorialCard(), acts = { next: 0, scatter: 0, pour: 0, hyper: 0 }; // acts: what you asked the garden for, counted for the tutorial
+const WISH_ICON = { source: 'compass', hand: 'hand', cousin: 'gnome', foxfire: 'mushroom', sow: 'sow', water: 'water', speed: 'fly', high: 'climb', cloud: 'seed', river: 'river' };
 const endTutorial = (done) => { tutorial.stop(); try { storage?.setItem('pwc.tutorial.v1', '1'); } catch {} if (done) stamp('You can fly and garden', 'mushrooms and gnomes are yours to find', 'TUTORIAL DONE'); else panel.say('Tutorial skipped: the atlas has a How page', 4); };
 addEventListener('keydown', (e) => { if (e.key === 'Escape' && tutorial.active && mode === 'fly') endTutorial(false); });
 camera.add(seal.mesh);
@@ -499,9 +503,16 @@ const firsts = createFirsts(storage, { off: params.has('notutorial') || params.h
 const tuftVoice = createVoicePlayer(), tuftCard = createGnomeComm(), speaker = createSpeaker(), TUFT_OFF = params.has('notuft') || ((params.has('atelier') || params.has('notutorial')) && !params.has('tuft')); // (?tuft keeps him where the checks' parameters would leave him out: the film)
 hud.group.add(tuftCard.mesh);
 let hudLayered = false;
+const awayable = () => [...hud.meshes, lesson.mesh, tuftCard.mesh, card.mesh]; // the cards a click can put away
+addEventListener('keydown', (e) => { if ((e.key === 'h' || e.key === 'H') && mode === 'fly') { for (const m of awayable()) m.userData.away = false; panel.say('All cards are back', 2); } });
+// Grandfather Tuft can be told to keep quiet (the atlas's How page, or U): no voice, no window. Kept on this device.
+let tuftQuiet = false;
+try { tuftQuiet = storage?.getItem('pwc.tuft.v1') === 'off'; } catch {}
+const toggleTuft = () => { tuftQuiet = !tuftQuiet; try { storage?.setItem('pwc.tuft.v1', tuftQuiet ? 'off' : 'on'); } catch {} if (tuftQuiet) { tuftLine = null; tuftVoice.set(true); } else tuftVoice.set(music.muted); panel.say(tuftQuiet ? 'Grandfather Tuft keeps quiet now' : 'Grandfather Tuft is back', 3); };
+addEventListener('keydown', (e) => { if ((e.key === 'u' || e.key === 'U') && mode === 'fly' && !e.repeat) toggleTuft(); });
 let tuftLine = null, tuftStep = null, tuftNote = null, missFor = 0, wildFor = 0;
 function tuft(ids, again = 45, anyway = false) { // anyway: if he is busy, show the words without the voice (a note that must not be lost)
-  if (TUFT_OFF || !started) return false;
+  if (TUFT_OFF || tuftQuiet || !started) return false;
   const list = [].concat(ids), dur = tuftVoice.length(list), ok = speaker.may(t, list, dur + 0.6, again);
   if (!ok && !anyway) return false;
   if (ok) tuftVoice.say(list);
@@ -541,7 +552,7 @@ function atlasState() {
   others.each((c, id, pos) => list.push({ pos, name: others.nameOf(id) }));
   const mineHand = mine && hands.find((h) => h.id === mine.id);
   return { hands, chart, me: { pos: glide.pos, yaw: glide.yaw }, others: list, pins: pins.list(), selected: selected?.id ?? null, inspect: selected && inspectOf(selected), mine: mine && { name: mine.name, handbits: mineHand?.data.handbits ?? [] }, names: mine ? placeNames[mine.id] ?? {} : {}, pickName,
-    garden: bloom.herbarium, blooms: bloom.allPlots(), storm: bloom.storm(), byHand: renderer.xr.isPresenting, tutorial: tutorial.active, muted: music.muted, icon: bloom.flora.icon, style: bloom.flora.styleOf, face: myFace?.complete && myFace.naturalWidth ? myFace : null, whorl: creature.styled?.map((c) => WORDS[c] ?? c).join(' · ') ?? null,
+    garden: bloom.herbarium, blooms: bloom.allPlots(), storm: bloom.storm(), byHand: renderer.xr.isPresenting, tutorial: tutorial.active, muted: music.muted, tuftQuiet, icon: bloom.flora.icon, style: bloom.flora.styleOf, face: myFace?.complete && myFace.naturalWidth ? myFace : null, whorl: creature.styled?.map((c) => WORDS[c] ?? c).join(' · ') ?? null,
     profile: profile({ pass: passport.data, species: bloom.species, found: bloom.pouch.found, level: bloom.pouch.level, xp: bloom.pouch.xp, planted: bloom.pouch.dump().planted ?? {}, seeds: bloom.pouch.total, charted: hands.reduce((n, h) => n + chart.count(h.id), 0), sealed: chart.sealedCount(), ...(({ team, converted }) => ({ team, converted }))(gnomes.hud()), hand: mine && { name: mine.name } }),
     journal: events && events.map((e) => ({ when: when(e.at), text: journalText(e) })).filter((e) => e.text),
     timeline: timelineOf(), until: timelineAt,
@@ -598,7 +609,8 @@ function atlasDo(a) {
   else if (a.type === 'postcard') postcard();
   else if (a.type === 'places') atlas.places();
   else if (a.type === 'tutorial') { if (tutorial.active) endTutorial(false); else tutorial.start(); closeAtlas(); }
-  else if (a.type === 'music') { const off = music.toggle(); sound.set(off); tuftVoice.set(off); }
+  else if (a.type === 'music') { const off = music.toggle(); sound.set(off); tuftVoice.set(off || tuftQuiet); }
+  else if (a.type === 'tuft') toggleTuft();
   else if (a.type === 'export') exportMine();
   else if (a.type === 'pin' && selected) { const hb = inspectAt?.handbit; pins.add({ handId: selected.id, code: hb?.code ?? null, ...placeOf(selected, hb), label: hb ? `${selected.name} ${hb.code}` : selected.name }); }
   else if (a.type === 'fly' && selected) { const hb = inspectAt?.handbit; flyTo = { ...placeOf(selected, hb), label: hb ? `${selected.name} ${hb.code}` : selected.name }; closeAtlas(); panel.say(`Flying to ${flyTo.label}: steer to take over`, 4); return; }
@@ -615,7 +627,7 @@ function atlasFrame(dt) {
     if (l?.frame) atlas.follow(l.frame.center, headLocal, dt);
   }
   if (renderer.xr.isPresenting) poke(atlas.mesh, (uv) => atlasDo(atlas.down(uv)), (uv) => atlasDo(atlas.move(uv)), () => atlasDo(atlas.up()));
-  if ((atlasPaint -= dt) <= 0) { atlasPaint = 0.2; atlas.paint(atlasState()); } // five times a second, and at once after a tap
+  if ((atlasPaint -= dt) <= 0) { atlasPaint = atlas.tab === 'hand' ? 0.04 : 0.2; atlas.paint(atlasState()); } // five times a second, and at once after a tap
 }
 addEventListener('keydown', (e) => {
   if (e.key === 'm' || e.key === 'M') mode === 'atlas' ? closeAtlas() : openAtlas(false);
@@ -678,6 +690,10 @@ renderer.domElement.addEventListener('pointerdown', (e) => {
   if (mode === 'atlas') { const u = atlasUV(); if (u) { atlasPress = true; return atlasDo(atlas.down(u)); } }
   if (uv) { drawing = true; return act(atelier.down(uv, flow)); }
   if (mode === 'merge') { const i = ghosts.aim(ray.origin, ray.direction); if (i >= 0) return choose(i); }
+  if (mode === 'fly' && started && !renderer.xr.isPresenting) { // on a screen: a click on a card puts it away, for a clearer view (H brings them all back)
+    const hit = raycaster.intersectObjects(awayable().filter((m) => m.visible), false)[0];
+    if (hit) { hit.object.userData.away = true; hit.object.visible = false; if (hit.object === tuftCard.mesh) tuftLine = null; return panel.say('Card put away: press H to bring all cards back', 3); }
+  }
   look.drag = true;
 });
 addEventListener('pointerup', () => {
@@ -929,7 +945,7 @@ function frame() {
   // shown while hands can steer (webcam or headset), even before a hand is seen
   card.update(dt, started && mode !== 'atelier' && mode !== 'atlas' && (webcam || renderer.xr.isPresenting) ? { checks: best?.c ?? null, progress: best?.q.hold.progress ?? 0, steering: steeringNow, turn: steer.turn, climb: steer.climb } : null);
   const sow = started && mode === 'fly' && (sowing || keys.has(' '));
-  steer.brake = sow ? 1 : 0; // you slow down to sow
+  steer.brake = sow ? 0.1 : 0; // sowing barely slows you: seed flies out ahead and a row of groves comes up along your flight
   if (mode !== 'atelier' && mode !== 'atlas') glide.update(dt, steer, groundAt); // the world waits while you read your hand or your atlas
   if (sow) gardenAct('plant');
   // sowing by hand (in the headset): sweep an open hand to scatter seed that way, throw it forward to cast far
@@ -946,6 +962,7 @@ function frame() {
   bloom.frame(dt, bloomCtx);
   foxfire(dt);
   gnomeCtx.yaw = glide.yaw + Math.PI; gnomeCtx.speed = glide.speed; gnomeCtx.alt = glide.pos[1] - groundAt(glide.pos[0], glide.pos[2]);
+  gnomeCtx.turn = steer.turn;
   gnomeCtx.flying = started && mode === 'fly'; gnomeCtx.place = place; gnomeCtx.wet = !!place && !place.handbit && gnomeCtx.alt < 140;
   gnomes.frame(dt, gnomeCtx);
   // the tutorial: fed with what you are doing; the hand card waits until it is over
@@ -966,8 +983,8 @@ function frame() {
   }
   // lost over the wilderness for a while: he says which way the nearest Hand lies
   wildFor = started && mode === 'fly' && !place ? wildFor + dt : 0;
-  if (wildFor > 12) { let best = null, bd = Infinity; for (const h of hands) { if (!h.pose) continue; const [x, z] = toWorld(h.pose, 0, 230), d = Math.hypot(x - glide.pos[0], z - glide.pos[2]); if (d < bd) { bd = d; best = [x, z]; } } if (best && tuft(['over-wild', 'nearest-hand', relDir(glide.pos[0], glide.pos[2], glide.yaw, best[0], best[1])], 30)) wildFor = 0; }
-  tuftCard.update(dt, tuftLine && t < tuftLine.until ? { text: tuftLine.text, talking: tuftVoice.talking } : null);
+  for (const m of [lesson.mesh, tuftCard.mesh, card.mesh]) if (m.userData.away) m.visible = false;
+  tuftCard.update(dt, tuftLine && t < tuftLine.until && !tuftCard.mesh.userData.away && mode !== 'atlas' ? { text: tuftLine.text, talking: tuftVoice.talking } : null);
   placesEl.classList.toggle('hidden', mode !== 'merge' || renderer.xr.isPresenting); // the chooser, on a screen only
   if (tutorial.active && started && (mode === 'fly' || mode === 'atlas')) {
     const r = tutorial.update({ turn: steer.turn, climb: steer.climb, sown: bloom.counts.sown, water: bloom.pouch.water, atlas: mode === 'atlas', acts }, dt);
@@ -981,7 +998,10 @@ function frame() {
     missFor = miss ? missFor + dt : 0;
     if (missFor > 5) tuft(/river/.test(miss) && tutorial.step.id !== 'water' ? 'need-sand' : /Too high|Lower/.test(miss) ? 'need-low' : /Hand/.test(miss) ? 'need-hand' : 'need-water', 18); // stuck for a while: he says what is missing
     lesson.update(dt, { index: tutorial.index, step: tutorial.step, progress: tutorial.progress, hands: renderer.xr.isPresenting, coach: miss, ready: !miss && ['sow', 'scatter', 'pour', 'hyper', 'water'].includes(tutorial.step.id) });
-  } else lesson.update(dt, null);
+  } else { // no tutorial: the card is the gnome's wish while one is on board: what it wants, how far along, how long is left
+    const q = started && mode === 'fly' ? gnomes.hud().quest : null;
+    lesson.update(dt, q && !q.done ? { note: { id: `wish:${q.kind}:${q.have}`, kicker: "A GNOME'S WISH", title: q.name, icon: WISH_ICON[q.kind] ?? 'gnome', text: q.text, corner: `${q.need > 1 ? `${q.have}/${q.need} · ` : ''}${Math.floor(q.left / 60)}:${String(q.left % 60).padStart(2, '0')}` }, progress: 1 - q.left / 180, hands: renderer.xr.isPresenting } : null);
+  }
   if (invite && mode === 'fly' && !tutorial.active && (t > invite.at || bloom.pouch.plantedTotal >= invite.planted)) { invite = null; openAtelier(); }
   fauna.update(dt, t, glide.pos, groundAt);
   creature.grow(Math.min(1, (bloom.pouch.level - 1) / 8 + bloom.pouch.plantedTotal / 500));
@@ -1047,6 +1067,8 @@ function frame() {
     const l = creature.strand(o.strand % creature.active), j = Math.min(l.count - 1, Math.max(1, Math.round(o.at * (l.count - 1)))) * 3;
     fl.deco(l.xyz[j], l.xyz[j + 1], l.xyz[j + 2], (5 + 5 * o.size) * (1 + 0.12 * Math.sin(t * 2.2 + o.phase)), o.sp);
   }
+  // seeds you just threw: a small handful arcing out ahead of you to where the grove will come up
+  for (const q of bloom.throws()) for (let i = 0; i < 4; i++) { const k = Math.min(1, q.k + i * 0.05), up = Math.sin(Math.PI * k) * (70 + i * 14), sx = (i - 1.5) * 9 * k; fl.deco(q.from[0] + (q.to[0] - q.from[0]) * k + sx, q.from[1] + (q.to[1] - q.from[1]) * k + up, q.from[2] + (q.to[2] - q.from[2]) * k + sx * 0.6, 11 - 4 * k, q.sp); }
   // what you carry: tiny flecks of each kind of seed in your pouch, so a seed cloud caught shows on you at once
   for (const o of bloom.motes(creature.active)) { const l = creature.strand(o.strand), j = Math.min(l.count - 1, Math.max(1, Math.round(o.at * (l.count - 1)))) * 3; fl.deco(l.xyz[j], l.xyz[j + 1], l.xyz[j + 2], 4.5 * (1 + 0.25 * Math.sin(t * 3 + o.phase)), o.sp); }
   others.each((c, id) => { const b = bouquets.get(id); if (b) for (const o of b) { const l = c.strand(o.strand % c.strands), j = Math.min(l.count - 1, Math.max(1, Math.round(o.at * (l.count - 1)))) * 3; fl.deco(l.xyz[j], l.xyz[j + 1], l.xyz[j + 2], (5 + 4 * o.size) * (1 + 0.12 * Math.sin(t * 2.2 + o.phase)), o.sp); } });
@@ -1054,6 +1076,7 @@ function frame() {
   sandstorm.update(t, bloom.storm(), groundAt);
   const gold = bloom.gold();
   { let n = 0; others.each((c, id, pos) => { const b = beams[n++]; if (!b) return; b.visible = true; b.position.set(pos[0], pos[1] + 1500, pos[2]); b.material.opacity = 0.35 + 0.2 * Math.sin(t * 3 + n); }); for (; n < beams.length; n++) beams[n].visible = false; }
+  { const q = gnomes.hud().quest, on = !!q && !q.done && q.x !== undefined; wishBeam.visible = on; if (on) wishBeam.position.set(q.x, groundAt(q.x, q.z) + 1500, q.z); }
   goldBeam.visible = !!gold;
   if (gold) { goldBeam.position.set(gold.x, gold.y, gold.z); for (let i = 0; i < 16; i++) { const a = t * 1.4 + i * 0.3927, r = 60 + 20 * Math.sin(t * 2 + i); fl.deco(gold.x + Math.cos(a) * r, gold.y + Math.sin(a * 2) * 30, gold.z + Math.sin(a) * r, 40, gold.sp); } }
   fl.decoEnd();
@@ -1192,7 +1215,7 @@ function lobbyData() {
     ...lobbyFacts({ hands: hands.filter((h) => h.pose).map((h) => ({ name: h.name, founder: !!h.founder })), flying, me: mine?.name ?? null, groves: g.plants, worldFlying, gardeners: g.top ?? [], converters: gnomes.hud().top ?? [], news: (events ?? []).map((e) => ({ when: when(e.at), text: journalText(e) })).filter((e) => e.text) }),
     map: {
       hands: hands.filter((h) => h.pose).map((h) => { const [x, z] = toWorld(h.pose, 0, 230); return { name: h.name, x, z, founder: !!h.founder, mine: !!mine && h.id === mine.id, ...lobbyShape(h) }; }),
-      blooms: bloom.allPlots(), players: [{ name: 'you', x: glide.pos[0], z: glide.pos[2], you: true }, ...flying.map((p) => ({ ...p, name: p.name ?? 'traveller' }))],
+      blooms: bloom.allPlots(), sowings: bloom.sowings(), players: [{ name: 'you', x: glide.pos[0], z: glide.pos[2], you: true }, ...flying.map((p) => ({ ...p, name: p.name ?? 'traveller' }))],
     },
     pics, whorls: Object.fromEntries(hands.filter((h) => h.pose && !h.founder).map((h) => [h.name, classesOf(h)])), // each player's five print classes: their whorl's sign
     me: { whorl: creature.styled, pic: myPic, name: mine?.name ?? 'A traveller', status: STATUS[Math.min(STATUS.length - 1, Math.floor((lv - 1) / 2))], level: lv },
@@ -1204,6 +1227,7 @@ function openLobby() {
   lobby.show();
   const ask = () => { net.avatars().then((a) => { if (a) pics = a; }); refreshNames(); bloom.refreshTop(); net.stats().then((s) => { if (s) worldFlying = s.flying; }); }; // the news, the boards, how many fly in all rooms
   ask();
+  bloom.readAll();
   let n = 0;
   clearInterval(lobbyTimer);
   lobbyTimer = setInterval(() => { if (!lobby.open) return clearInterval(lobbyTimer); if (++n % 25 === 0) ask(); lobby.update(lobbyData()); }, 400);

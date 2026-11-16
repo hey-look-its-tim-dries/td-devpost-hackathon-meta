@@ -39,6 +39,7 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
   let sand = null, sandSaid = -1, anchorsNow = []; // the sandstorm now, the last one announced, the Hands' centres
   const herb = { kind: 'flower', page: 0 }; // what the herbarium tab shows
   let moteKey = '', moteList = [];
+  const flung = []; // seeds thrown ahead and still in the air
   const wilded = new Set(); // the Hands whose wild mushrooms stand
   const counts = { sown: 0, tends: 0, clouds: 0, eaten: 0 }; // what you did, for whoever is counting (the gnomes' side quests)
   const bq = { total: -1, list: [] };
@@ -125,14 +126,17 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
   }
 
   // ---- what you do ----
+  // Sowing is a throw: the seed flies out ahead of you and lands where you can see it come up (230 m on, if there is
+  // sand there; otherwise right under you). You keep your speed: a row of groves along your flight.
   function plant(ctx) {
-    const { place, pos, braiding } = ctx;
+    const { pos, braiding } = ctx, f = ctx.forward ?? [0, 0, -1];
+    const ahead = whereAt(hands, pos[0] + f[0] * 230, pos[2] + f[2] * 230), thrown = !!ahead?.handbit, place = thrown ? ahead : ctx.place, px = thrown ? pos[0] + f[0] * 230 : pos[0], pz = thrown ? pos[2] + f[2] * 230 : pos[2];
     if (!place?.handbit) return say(place ? 'Seeds need sand: plant beside the river, not in it' : 'Plant on a Hand: the wilderness will not hold a seed', 3);
     if (pos[1] - groundAt(pos[0], pos[2]) > PLANT_ALT) return say('Fly lower to plant', 2.5);
     if (garden.full(place.hand.id, place.index)) return say(`${place.handbit.name} is full: water it, or plant the next plot`, 3);
     const sp = pouch.take();
     if (sp === null) return say('Your pouch is empty: fly through a seed cloud', 3);
-    let [x, y] = toHand(place.hand.pose, pos[0], pos[2]);
+    let [x, y] = toHand(place.hand.pose, px, pz);
     if (flora.styleOf(sp) === 'pixel') { // onto the mosaic grid, unless that would put it in the water or on another handbit
       const sx = Math.round(x / GRID) * GRID, sy = Math.round(y / GRID) * GRID, w = whereAt(hands, ...toWorld(place.hand.pose, sx, sy));
       if (w?.handbit && w.index === place.index) { x = sx; y = sy; }
@@ -141,6 +145,7 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
     const nearWater = [0, 1, 2, 3].some((k) => { const w = whereAt(hands, wx + Math.cos(k * 1.57) * 55, wz + Math.sin(k * 1.57) * 55); return w && !w.handbit; });
     const p = { id: tempId--, hand: place.hand.id, bit: place.index, x, y, sp, stage: 0, tended: Date.now(), big: braiding ? 1 : 0, hab: habitatOf(place.handbit.code, nearWater) };
     if (!add(p, true)) { pouch.giveBack(sp); return; }
+    if (thrown) { p.pop = t + 0.55; flung.push({ sp, from: [pos[0], pos[1], pos[2]], to: [wx, groundAt(wx, wz) + 6, wz], at: t }); } // it comes up when the seed lands
     pouch.planted(sp);
     const up = credit('plant'); counts.sown++; sfx(up ? 'level' : 'sow');
     fill(0.03);
@@ -338,7 +343,9 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
     // a gnome's thanks: three seeds of some flower or tree, a boost to the hyper sow, and experience
     gift() { const pool = FLORA.filter((id) => SPECIES[id].rarity <= 3), id = pool[Math.floor(Math.random() * pool.length)]; pouch.gather(id, 3); credit('bloom'); fill(0.5); return { id, name: SPECIES[id].name }; },
     foxfire: fox, // the glowing state mushrooms bring: main.js turns the world by foxfire.level(Date.now())
-    garden, pouch, flora, species: SPECIES, onGarden, load, signIn, handsRead: () => loaded.size, plots: () => near, allPlots: () => every, storm: () => sand,
+    garden, pouch, flora, species: SPECIES, onGarden, load, signIn, handsRead: () => loaded.size, plots: () => near, allPlots: () => every,
+    sowings: () => [...garden.all()].filter((p) => !p.wild && p.wx !== undefined).map((p) => [p.wx, p.wz, SPECIES[p.sp]?.color ?? '#ffffff']),
+    readAll: () => { if (online()) for (const h of hands) if (h.pose && h.data?.cells && Date.now() - (loaded.get(h.id) ?? 0) > 60000) readHand(h); }, storm: () => sand,
     // the atlas's Garden tab: the herbarium; taps choose a kind, a page, or the seed to sow
     herbarium: { paint: (g, regions, tools) => { const r = paintHerbarium(g, regions, tools, { species: SPECIES, found: pouch.found, has: pouch.has, icon: flora.icon, style: flora.styleOf, selected: pouch.selected, ...herb }); herb.page = r.page; } },
     herbariumDo(a) { if (a.type === 'kind') { herb.kind = a.arg; herb.page = 0; } else if (a.type === 'page') herb.page = Math.max(0, herb.page + (a.arg === 'next' ? 1 : -1)); else if (a.type === 'seed') { pouch.select(+a.arg); say(`Sowing ${SPECIES[+a.arg].name}`, 2); } },
@@ -366,6 +373,8 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
     gold: () => (gold && !goldTaken.has(gold.epoch) ? gold : null),
     taken: (id) => taken.has(id),
     refreshTop,
+    // seeds in the air right now, thrown ahead of you: [{ sp, from, to, k (0 thrown .. 1 landed) }]
+    throws() { while (flung.length && t - flung[0].at > 0.6) flung.shift(); for (const q of flung) q.k = Math.min(1, (t - q.at) / 0.55); return flung; },
     // flecks for the seeds you carry, on your whorl (made again only when your pouch changes)
     motes(strands) { const key = `${pouch.total}:${pouch.carried().length}:${strands}`; if (key !== moteKey) { moteKey = key; moteList = motes(pouch.dump().seeds, { strands }); } return moteList; },
     // what the HUD shows of the garden

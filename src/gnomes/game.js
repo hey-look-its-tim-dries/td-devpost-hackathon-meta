@@ -4,18 +4,19 @@
 // gently. A gnome on board has a side quest for you; do it and it joins your team (or wavers, or converts
 // from another gardener's). The rules are in gnomes.js, the looks in render.js; this wires them to the
 // garden, the map, your flight and the other players. main.js calls frame() and act().
-import { GNOME, gnomeAt, activity, shout, questFor, advance, questEvents, seedOf, lostGnome, gainedGnome } from './gnomes.js';
+import { GNOME, gnomeAt, activity, shout, questFor, advance, questEvents, seedOf, lostGnome, gainedGnome, dangle, JOYS } from './gnomes.js';
 import { createGnomeRenderer } from './render.js';
 
-const SIZE = 20, RIDER = 17, CAP = 27; // metres per gnome unit at home and on a whorl (big enough to see on another player's whorl); how high a mushroom's cap sits
+const SIZE = 20, RIDER = 46, CAP = 27; // metres per gnome unit at home and on a whorl (a passenger is a big, proud thing to carry: you see it from across a Hand); how high a mushroom's cap sits
 
-export function createGnomes({ scene, bloom, net, say, stamp, groundAt, creature, others, fauna, online, makeLabel, hands, onRiders, ridersOf, quest = null, onMet = null, onRival = null, sfx = () => {} }) { // quest: a kind to ask for (?quest=, for the film and the checks)
+export function createGnomes({ scene, bloom, net, say, stamp, groundAt, creature, others, fauna, online, makeLabel, hands, onRiders, ridersOf, quest = null, onMet = null, onRival = null, sfx = () => {}, squeal = () => {} }) { // squeal(n): a gnome's cry of joy, clip n (assets/voice/joy-n) // quest: a kind to ask for (?quest=, for the film and the checks)
   const draw = createGnomeRenderer();
   scene.add(draw.group);
   const records = new Map(); // gnome id -> { tag, owner, loyalty }: whose team it is on (wild gnomes have none)
   const me = { tag: null, converted: 0, team: 0 };
   const mood = new Map(), away = new Set(), carried = new Set(), riders = []; // away: on your whorl; carried: on another gardener's
   const bubbles = Array.from({ length: 5 }, () => ({ label: null, until: -1, at: [0, 0, 0] }));
+  let lastY = 0;
   let homes = [], slow = 9, t = 0, told = '', before = { sown: 0, tends: 0, clouds: 0, eaten: 0 };
   const moodOf = (id) => { if (!mood.has(id)) mood.set(id, { angry: -99, greet: -99, buzz: -99, dropped: -99, n: 0 }); return mood.get(id); };
   const whose = (id) => { const r = records.get(id); return !r ? 'a wild gnome' : r.tag === me.tag ? 'one of yours' : `one of ${r.owner}'s`; };
@@ -62,7 +63,8 @@ export function createGnomes({ scene, bloom, net, say, stamp, groundAt, creature
 
   function frame(dt, ctx) {
     t += dt;
-    const { pos, yaw, speed, alt, flying, eye } = ctx, now = Date.now();
+    const { pos, yaw, speed, alt, flying, eye } = ctx, now = Date.now(), climbing = dt > 0 ? (pos[1] - lastY) / dt : 0;
+    lastY = pos[1];
     if ((slow += dt) >= 2) { // who lives near here
       slow = 0;
       homes = [];
@@ -116,7 +118,11 @@ export function createGnomes({ scene, bloom, net, say, stamp, groundAt, creature
           if (online()) net.gnomeDo(r.gn.id, 'quest').then((q) => settled(r.gn, q)); else { me.team++; stamp(`${r.gn.name} joined your team`, 'the map will hear of it when it is back', 'GNOME'); }
         } else if (now - r.since > GNOME.questMs) { drop(i, 'bored'); continue; }
       } else if (t - r.doneAt > 4 && alt < 320 && homes.some((h) => Math.hypot(h.x - pos[0], h.z - pos[2]) < 160)) { drop(i, 'home'); continue; } // set down at a mushroom
-      draw.add({ x: l.xyz[j], y: l.xyz[j + 1] - 0.8 * RIDER, z: l.xyz[j + 2], yaw, s: RIDER, clip: r.doneAt && t - r.doneAt < 3 ? 'cheer' : t - r.grabbed < 0.5 ? 'jump' : 'hang', t: r.doneAt ? t : t - r.grabbed < 0.5 ? (t - r.grabbed) * 2 : t + i, hat: r.gn.hat, seed: r.gn.seed });
+      // it dangles: thrown out by your turns, streaming behind at speed, and it squeals when the flying gets wild
+      const dg = dangle(r.d ?? { swing: 0, vel: 0, joy: 0, quiet: 2 }, { turn: ctx.turn ?? 0, speed, climb: climbing }, Math.min(dt, 0.05));
+      r.d = dg.state;
+      if (dg.squeal) { const k = (r.gn.seed + (r.n = (r.n ?? 0) + 1)) % JOYS.length; speak(JOYS[k], l.xyz[j], l.xyz[j + 1] + RIDER * 0.6, l.xyz[j + 2]); squeal(k); }
+      draw.add({ x: l.xyz[j], y: l.xyz[j + 1] - 0.8 * RIDER, z: l.xyz[j + 2], yaw, s: RIDER, clip: r.doneAt && t - r.doneAt < 3 ? 'cheer' : t - r.grabbed < 0.5 ? 'jump' : 'hang', t: r.doneAt ? t : t - r.grabbed < 0.5 ? (t - r.grabbed) * 2 : t + i, hat: r.gn.hat, seed: r.gn.seed, motion: { swing: r.d.swing, lift: Math.min(1, speed / 700), joy: r.d.joy } });
     }
     // ---- gnomes other gardeners carry ----
     carried.clear(); // found again every frame: whoever leaves the room lets its gnomes go home
@@ -125,7 +131,7 @@ export function createGnomes({ scene, bloom, net, say, stamp, groundAt, creature
       for (let i = 0; i < on.length; i++) {
         if (on[i].id) carried.add(on[i].id);
         const l = oc.strand((i * 2 + 1) % oc.strands), j = Math.min(l.count - 1, Math.max(1, Math.round(l.count * (0.25 + 0.2 * i)))) * 3;
-        draw.add({ x: l.xyz[j], y: l.xyz[j + 1] - 0.8 * RIDER, z: l.xyz[j + 2], yaw: 0, s: RIDER, clip: 'hang', t: t + i * 1.7, hat: on[i].hat, seed: on[i].id ? seedOf(on[i].id) : id * 31 + i });
+        draw.add({ x: l.xyz[j], y: l.xyz[j + 1] - 0.8 * RIDER * 0.7, z: l.xyz[j + 2], yaw: 0, s: RIDER * 0.7, clip: 'hang', t: t + i * 1.7, hat: on[i].hat, seed: on[i].id ? seedOf(on[i].id) : id * 31 + i });
       }
     });
     draw.end();
@@ -145,7 +151,7 @@ export function createGnomes({ scene, bloom, net, say, stamp, groundAt, creature
     },
     hud() {
       const r = riders.find((q) => !q.doneAt) ?? riders[0];
-      return { riders: riders.length, team: me.team, converted: me.converted, top, quest: r ? { name: r.gn.name, kind: r.quest.kind, text: r.quest.text, have: Math.floor(r.quest.have), need: r.quest.need, done: !!r.doneAt, left: Math.max(0, Math.ceil((GNOME.questMs - (Date.now() - r.since)) / 1000)) } : null };
+      return { riders: riders.length, team: me.team, converted: me.converted, top, quest: r ? { name: r.gn.name, kind: r.quest.kind, x: r.quest.x, z: r.quest.z, text: r.quest.text, have: Math.floor(r.quest.have), need: r.quest.need, done: !!r.doneAt, left: Math.max(0, Math.ceil((GNOME.questMs - (Date.now() - r.since)) / 1000)) } : null };
     },
     get count() { return draw.count; },
     homes: () => homes, riders: () => riders, draw,
