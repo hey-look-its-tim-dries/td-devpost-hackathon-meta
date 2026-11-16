@@ -1,7 +1,6 @@
 // src/gnomecomm.js
 // Grandfather Tuft calling in: a small window in your view with his face, his name and what he is saying, the way
-// a wingman calls in over the radio. His mouth moves while he talks. A child of the HUD (left, under the world's
-// numbers), drawn here; what he says and when is the game's business (src/garden/voice.js).
+// a wingman calls in over the radio. His mouth moves while he talks. A child of the HUD (top right), drawn here; what he says and when is the game's business (src/garden/voice.js).
 import * as THREE from 'three';
 import { themed, look } from './ui/themed.js';
 
@@ -10,10 +9,10 @@ export function createGnomeComm() {
   const canvas = Object.assign(document.createElement('canvas'), { width: W, height: H });
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
-  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.21, 0.082), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false, opacity: 0 }));
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.19, 0.074), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false, opacity: 0 }));
   mesh.renderOrder = 33;
   mesh.visible = false;
-  mesh.position.set(-0.185, -0.045, -0.65); // left of your view, between the world's numbers and the place card
+  mesh.position.set(0.225, 0.095, -0.65); // top right of your view (the radar sits under him)
   let drawn = '', clock = 0;
   // his face: 16 frames rendered in Blender (tools/blender/tuft.py), 8 x 2 of 256 px: frame 0 at rest, 1..15 talking
   const sheet = new Image();
