@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { themed, look } from './ui/themed.js';
 
 // The gesture card: a small card fixed at the bottom of your view that says what your hand is
 // commanding right now. Not steering: the three parts of the palm-down gesture as a checklist, each
@@ -23,7 +24,7 @@ export function createGestureCard() {
   let drawn = '';
 
   function paint(s) {
-    const g = canvas.getContext('2d');
+    const g = themed(canvas.getContext('2d')); // calm or foxfire: the same drawing in either look
     g.clearRect(0, 0, W, H);
     g.fillStyle = PAPER;
     g.beginPath();
@@ -108,7 +109,7 @@ export function createGestureCard() {
       mesh.material.opacity += (want - mesh.material.opacity) * (1 - Math.exp(-dt * 8));
       mesh.visible = mesh.material.opacity > 0.02;
       if (!s) return;
-      const key = JSON.stringify([s.steering, Math.round(s.turn * 20), Math.round(s.climb * 20), Math.round(s.progress * 10),
+      const key = JSON.stringify([look.neon, s.steering, Math.round(s.turn * 20), Math.round(s.climb * 20), Math.round(s.progress * 10),
         ...PARTS.map(([k]) => s.checks && [s.checks[k].ok, Math.round(s.checks[k].frac * 10)])]);
       if (key !== drawn) { drawn = key; paint(s); tex.needsUpdate = true; }
     },

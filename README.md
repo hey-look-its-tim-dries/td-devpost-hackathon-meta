@@ -19,8 +19,8 @@ creature of black ink.</p>
 
 On top of the flying, everyone gardens the desert together.
 
-- **Collect:** fly through the swirls of seed on the wind. Each cloud is one species out of 688 real ones
-  (259 flowers, 144 trees, and the birds, insects, fish and animals that follow them). New finds go into your herbarium.
+- **Collect:** fly through the swirls of seed on the wind. Each cloud is one of 403 real flowers and trees
+  (the index holds 712 species: 259 flowers, 144 trees, 24 mushrooms, and the 285 birds, insects, fish and animals that follow them). New finds go into your herbarium.
 - **Build:** hold **Space** (in the headset: hold a right-hand pinch) low over a Hand to sow. You slow down while you sow.
   **Q / E** (left-hand pinch) picks the seed. Every species has one of three looks: pixel art, painted, or 3D.
   Pixel species also lay a mosaic tile on the sand, snapped to a grid, so fields of them join into pictures.
@@ -312,8 +312,13 @@ the next time the map can be reached. To deploy: `npx wrangler login`,
 node --test tests/*.test.mjs   # the server tests run when a server answers on :8787 (SERVER=1 starts one)
 node tests/m3.mjs              # two browsers on one map: needs serve.py on :8130 and the server on :8787
 node tests/phone.mjs           # the phone companion end to end, on generated images: same servers
+node tests/bloom.mjs           # two browsers garden together: sow, hyper sow, water, clear
+node tests/gnomes.mjs          # two browsers and one gnome: at home, carried, its quest, its team, converted
 node tools/film.mjs            # records the demo film in the emulator (media/), with a second player
 ```
+
+The film clears the gardens and gnome teams of the **local** map (never a deployed one) and grows a fresh
+garden for each take, so the take is the same every time.
 
 ### Handy URL parameters
 
@@ -328,6 +333,9 @@ node tools/film.mjs            # records the demo film in the emulator (media/),
 | `?go=<handId>.<code>` | Open flying to a place (the atlas's addresses) |
 | `?calm` | Reduced motion: no braiding |
 | `?perf` | Frame rate, draw calls and terrain patches in a corner |
+| `?atelier` / `?noatelier` | Offer a new player the hand card at once / never (by default after six plantings or 90 s) |
+| `?fox` | Hold the foxfire on (`?nobloom`: without the screen bloom) |
+| `?quest=foxfire` | Every gnome asks for this kind of side quest (source, hand, cousin, foxfire, sow, water, speed, high, cloud, river) |
 
 ## Competition fit
 

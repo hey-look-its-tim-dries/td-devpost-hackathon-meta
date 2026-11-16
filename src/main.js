@@ -225,7 +225,7 @@ function charting() {
   if (r === 'sealed') stamp(`${hand.name} sealed`, `every handbit charted · ${chart.sealedCount()} sealed`);
   else panel.say(`Charted: ${handbit.name} · ${hand.name} (${chart.count(hand.id)} of ${total})`, 3.5);
 }
-const braid = createBraid(), braidList = [], CALM = params.has('calm'); // the greeting; ?calm: reduced motion, no braiding
+const braid = createBraid({ radius: 450 }), braidList = [], CALM = params.has('calm'); // the greeting, within 450 m (at this speed you turn in a 340 m circle: any closer and you could not circle a friend); ?calm: reduced motion, no braiding
 let braiding = null; // { id, k } while two swarms braid
 let braidN = 0;
 const braidPool = [];
@@ -978,7 +978,11 @@ function frame() {
   }
   surface.update(renderer.xr.isPresenting ? rig.localToWorld(camPos.copy(renderer.xr.getCamera().position)) : camera.getWorldPosition(camPos), viewFrustum());
   panel.update(dt, headLocal, headQuat);
+  // in your own room only what hangs on the rig is drawn (the card, your hands): gardens, gnomes, storms, name tags and the Source wait outside
+  const outside = room ? scene.children.filter((o) => o !== rig && o.visible) : null;
+  if (outside) for (const o of outside) o.visible = false;
   if (composer && trip > 0.01 && !renderer.xr.isPresenting) composer.render(); else renderer.render(scene, camera); // the bloom only while the foxfire lasts
+  if (outside) for (const o of outside) o.visible = true;
 }
 
 // ---------- start / stop ----------

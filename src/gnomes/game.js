@@ -7,7 +7,7 @@
 import { GNOME, gnomeAt, activity, shout, questFor, advance, seedOf, lostGnome, gainedGnome } from './gnomes.js';
 import { createGnomeRenderer } from './render.js';
 
-const SIZE = 20, RIDER = 12, CAP = 27; // metres per gnome unit at home and on a whorl; how high a mushroom's cap sits
+const SIZE = 20, RIDER = 17, CAP = 27; // metres per gnome unit at home and on a whorl (big enough to see on another player's whorl); how high a mushroom's cap sits
 
 export function createGnomes({ scene, bloom, net, say, stamp, groundAt, creature, others, fauna, online, makeLabel, hands, onRiders, ridersOf, quest = null }) { // quest: a kind to ask for (?quest=, for the film and the checks)
   const draw = createGnomeRenderer();

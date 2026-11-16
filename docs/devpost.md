@@ -6,7 +6,7 @@ once that version is live, and re-record the video first (the old one shows the 
 
 ## Tagline (140 characters max)
 
-A desert made of players' hands. Fly over it as an ink whorl, sow 688 kinds of flowers and trees together, and become a flying bouquet.
+A desert made of players' hands. Fly over it as an ink whorl, sow 403 real flowers and trees together, and become a flying bouquet.
 
 ## About the project
 
@@ -24,7 +24,7 @@ few hundred bytes of map DNA. The world proposes three places where it fits; you
 it down with your palm, and your Hand rises out of the wilderness for every player.
 
 Then you fly as the Whorl, a creature of ink: point where you want to go, dive for speed. And you garden.
-Seed drifts on the wind in swirls: 688 real species, each with its own look, some pixel art, some painted,
+Seed drifts on the wind in swirls: 403 real flowers and trees, each with its own look, some pixel art, some painted,
 some 3D, mixed on purpose. Hold a pinch over a Hand and you sow; sweep an open hand and you scatter; skim a
 river for water and pour it with a flat palm, and groves grow through four stages. Plots bloom, and wildlife
 moves in: insects, then birds and fish, then animals. Pixel flowers lay mosaic tiles on the sand, and in a
@@ -34,7 +34,7 @@ it passes, until someone waters it; every four, one golden seed appears and ever
 What dies feeds mushrooms. Eat one and the world turns to foxfire for half a minute: a neon night with a
 striped sun, faster flight, double rewards and synthwave. Gnomes live in the mushrooms. They wave, shout,
 ride the animals, and jump onto your whorl with a side quest; do it and the gnome joins your team, or
-converts from someone else's.
+converts from someone else's, and they are told. Other players see your gnomes hanging on.
 
 It is one garden for all players, live. Anyone can water anyone's grove. And you are what you have sown:
 your whorl wears your whole sowing history as a bouquet, first-sown at the head, so no two players look
@@ -82,7 +82,8 @@ and held for 0.4 seconds, so resting hands never steer. A card fixed in view sho
 is missing. The head steers when no hand is engaged. Gardening uses the oldest sowing movements: pinch and
 hold drills seed along your path (and slows you), an open hand swept to a side broadcasts five groves that
 way, thrown forward it casts them far ahead, a flat palm pressed down pours water, a short left pinch picks
-the next seed and a held one starts the hyper sow. The hand that steers never sows. Hand data is used live only and never stored or
+the next seed and a held one starts the hyper sow, and an open hand tossed upward sets a gnome down. One
+hand steers (the first one raised) and the other is free for all of these. Hand data is used live only and never stored or
 sent.
 
 ## Built With
@@ -95,7 +96,7 @@ IWER (Immersive Web Emulation Runtime), GitHub Pages, Node.js, Claude Code
 
 - Live: https://hey-look-its-tim-dries.github.io/td-devpost-hackathon-meta/
 - Code: https://github.com/hey-look-its-tim-dries/td-devpost-hackathon-meta
-- Video: TODO (re-record with the garden: `node tools/film.mjs` shows only the game before it)
+- Video: TODO (upload `media/palm-whorl-cities-demo.mp4`, recorded by `node tools/film.mjs` in the Quest 3 emulator)
 
 ## Track, division, launch
 

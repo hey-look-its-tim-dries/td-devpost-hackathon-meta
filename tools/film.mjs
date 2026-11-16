@@ -4,6 +4,10 @@
 //   node tools/film.mjs [out.mp4]       needs serve.py on :8130, Chrome, ffmpeg on the PATH
 //   SHOTS=dir node tools/film.mjs       no recording: a still every 2 s into dir, to check the takes
 //   API=http://localhost:8787 (default): the shared map (wrangler dev); a second player, Oruvel, flies there too
+// Before the take the second player grows a garden on that map (only on a local one; it is kept between takes):
+// patches of flowers and trees on the Hand north of the start, and mushrooms until some house a gnome. The film
+// then sows, waters, scatters and hyper-sows there by hand, eats a mushroom (the foxfire) and carries its gnome.
+// ?quest=foxfire asks every gnome for the same side quest (eat a mushroom with it on board), so the take is the same every day.
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import puppeteer from '/Users/timdries/Desktop/Projects/TD-GAME-LINKSAWAKENING/tests/node_modules/puppeteer-core/lib/esm/puppeteer/puppeteer-core.js';
@@ -11,7 +15,7 @@ import puppeteer from '/Users/timdries/Desktop/Projects/TD-GAME-LINKSAWAKENING/t
 const OUT = process.argv[2] ?? 'media/palm-whorl-cities-demo.mp4', SHOTS = process.env.SHOTS;
 const [W, H] = (process.env.SIZE ?? '1280x720').split('x').map(Number);
 const API = process.env.API ?? 'http://localhost:8787';
-const URL_ = process.env.URL_ ?? `http://localhost:8130/?emulate&nodevui&at=0,1100,11800&api=${API}`;
+const URL_ = process.env.URL_ ?? `http://localhost:8130/?emulate&nodevui&atelier&quest=foxfire&at=0,1100,11800&api=${API}`; // ?atelier: the hand card at once
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const browser = await puppeteer.launch({ headless: 'new', executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', args: ['--use-angle=metal', '--enable-gpu', `--window-size=${W},${H}`] });
@@ -20,9 +24,37 @@ const friend = await (await browser.createBrowserContext()).newPage();
 await friend.setViewport({ width: 640, height: 360 });
 await friend.goto('http://localhost:8130/', { waitUntil: 'load' });
 await friend.evaluate(async () => { const F = await import('/src/world/founders.js'), M = await import('/src/world/mine.js'); const f = F.founders()[6]; M.saveHand(localStorage, { palm: f.palm, prints: f.prints, pose: { x: -9000, z: 21000, rot: 2.6, mirror: false }, name: 'Oruvel', pending: true }); });
-await friend.goto(`http://localhost:8130/?play&atelier&api=${API}&at=300,330,4300`, { waitUntil: 'load' });
+await friend.goto(`http://localhost:8130/?play&atelier&api=${API}&at=500,420,2900`, { waitUntil: 'load' }); // north of the garden, on the lane the film flies
 await friend.waitForFunction(() => window.__pwc && __pwc.state.started && __pwc.state.hands >= 10, { timeout: 60000 });
 await friend.keyboard.press('m'); // their atlas is open, so they hover where you will find them
+await friend.waitForFunction(() => __pwc.hands.filter((h) => h.data?.cells).length >= 10, { timeout: 60000 });
+// the garden the film flies over, grown by the second player on Marrow, the Hand north of the start (a local map only;
+// planted afresh for every take): flowers in drifts along two lanes (x = 1000 northbound, x = -350 back), trees further
+// out, and mushrooms beside the first lane until three of them house a gnome. Every plot keeps room for the film's own sowing.
+const LOCAL = /localhost|127\.0\.0\.1/.test(API);
+if (LOCAL) try { execFileSync('npx', ['wrangler', 'd1', 'execute', 'pwc', '--local', '--command', 'delete from plant; delete from gnome; delete from gnome_score'], { cwd: new URL('../server', import.meta.url).pathname, stdio: 'ignore' }); } catch (e) { console.log('the local map was not cleared:', e.message); }
+const garden = !LOCAL ? null : await friend.evaluate(async () => {
+  const p = window.__pwc, { whereAt } = await import('/src/world/where.js'), { toHand, toWorld } = await import('/src/world/founders.js'), { gnomeAt } = await import('/src/gnomes/gnomes.js');
+  const S = p.bloom.species, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), hand = whereAt(p.hands, 1000, 4600).hand;
+  let seed = 11;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647, flowers = S.filter((s) => s.kind === 'flower'), trees = S.filter((s) => s.kind === 'tree'), fungi = S.filter((s) => s.kind === 'mushroom');
+  const list = [], ids = [], room = new Map(); // room: groves planted per plot; 50 of the 80 a plot holds
+  const spot = (x, z) => { const w = whereAt(p.hands, x, z); if (!w?.handbit || w.hand !== hand) return null; const [hx, hy] = toHand(hand.pose, x, z); return { hand: hand.id, bit: w.index, x: hx, y: hy, hab: 'dune', big: 0 }; };
+  const put = (x, z, sp) => { const s = spot(x, z), n = s ? room.get(s.bit) ?? 0 : 99; if (n >= 50) return; room.set(s.bit, n + 1); list.push({ ...s, sp }); };
+  // a lane: drifts of one flower, a new kind every few steps, alternating sides; now and then a tree further out
+  const lane = (x0, z0, z1, step, near, far, treeEvery) => { let kind = flowers[0], k = 0; for (let z = z0; z > z1; z -= step, k++) { if (k % 5 === 0) kind = flowers[Math.floor(rnd() * flowers.length)]; const side = k % 2 ? 1 : -1; put(x0 + side * (near + rnd() * (far - near)), z + rnd() * 30, kind.id); if (treeEvery && k % treeEvery === 0) put(x0 - side * (far + 60 + rnd() * 220), z, trees[Math.floor(rnd() * trees.length)].id); } };
+  lane(1000, 7320, 4150, 34, 60, 280, 4); // plots t, s and p
+  lane(-350, 6400, 4150, 40, 0, 130, 0); // plot r, a narrow bank between two rivers
+  lane(-1000, 6300, 4200, 70, 0, 280, 3); // plot q, the far bank
+  for (let i = 0; i < list.length; i += 40) { const r = await p.net.plantMany(list.slice(i, i + 40)); if (r.ids) ids.push(...r.ids.filter(Boolean)); }
+  let gnomes = 0; // mushrooms on the first lane, until three of them house a gnome (about four in ten do)
+  for (let k = 0; k < 14 && gnomes < 3; k++) { const s = spot(600 + (k % 2 ? 45 : -45), 5450 - k * 95); if (!s) continue; const sp = fungi[k % fungi.length].id, r = await p.net.plant({ ...s, sp }); if (r.id) { ids.push(r.id); if (gnomeAt({ id: r.id, sp, stage: 3, dry: 0 }, S)) gnomes++; } }
+  for (let round = 0; round < 3; round++) { await sleep(1150); for (let i = 0; i < ids.length; i += 25) await Promise.all(ids.slice(i, i + 25).map((id) => p.net.tend(id))); } // watered three times: in full flower
+  const now = (await p.net.plants(hand.id))?.plants ?? [];
+  const shrooms = now.filter((g) => S[g.sp]?.kind === 'mushroom' && g.stage === 3).map((g) => { const [x, z] = toWorld(hand.pose, g.x, g.y); return { id: g.id, x: Math.round(x), z: Math.round(z), gnome: !!gnomeAt({ ...g, dry: 0 }, S) }; });
+  return { hand: hand.name, groves: now.length, plots: Object.fromEntries(room), shrooms };
+});
+console.log('garden', JSON.stringify(garden));
 const page = await (await browser.createBrowserContext()).newPage();
 await page.setViewport({ width: W, height: H, deviceScaleFactor: 1 });
 page.on('pageerror', (e) => console.log('PAGEERROR', e.message));
@@ -98,6 +130,7 @@ await page.evaluate(() => {
   big.style.cssText = 'position:fixed;inset:0;display:grid;place-items:center;text-align:center;z-index:2147483647;background:rgba(22,16,14,.72);color:#f6e8d8;opacity:0;transition:opacity .8s;pointer-events:none';
 
   let tipOff = null;
+  let f0 = null; // where the fingers point when the hand is not turned: measured once, the first time you fly
   let card = null; // kept after it closes, so a hand on its way back still has somewhere to go
   const cardPoint = (cx, cy, z) => { const c = (card = S.card() ?? card); return add(c.pos, qrot(c.quat, [(cx / 1200 - 0.5) * 0.6, (0.5 - cy / 900) * 0.45, z])); };
   window.__film = {
@@ -135,7 +168,7 @@ await page.evaluate(() => {
     lookAhead(pitch = -0.12, rate = 1.2) { T.lookRate = rate; T.look = () => add(S.head(), [0, Math.sin(pitch), -Math.cos(pitch)]); },
     // fly through waypoints [x, altitude, z] by pointing the raised right hand: your fingers are the arrow
     fly(points, onDone) {
-      let i = 0, prev = window.__pwc.state.pos, vel = [0, 0, -1], f0 = null, turn = 0, climb = 0;
+      let i = 0, prev = window.__pwc.state.pos, vel = [0, 0, -1], turn = 0, climb = 0;
       T.r.pose = 'default'; T.r.rate = 4; T.r.pos = add(S.head(), [0.13, -0.2, -0.42]);
       T.fly = (dt) => {
         const s = window.__pwc.state, p = s.pos, h = s.hand[1];
@@ -160,6 +193,17 @@ await page.evaluate(() => {
       T.l.pos = on ? add(S.head(), [-0.1, -0.2, -0.36]) : [-0.28, -0.75, -0.25];
     },
     friend() { const o = S.others()[0]; return o ? [o.pos[0], o.pos[1], o.pos[2]] : null; },
+    // ---- the garden ----
+    // fly towards a spot, keeping `alt` over the land under you (go() moves the spot)
+    goal: { x: 0, z: 0, alt: 200 },
+    go(x, z, alt) { this.goal = { x, z, alt }; },
+    cruise() { this.fly([() => { const g = this.goal, p = window.__pwc.state.pos; return [g.x, window.__pwc.groundAt(p[0], p[2]) + g.alt, g.z]; }]); },
+    sow(on) { hands.r.updatePinchValue(on ? 1 : 0); }, // a held right pinch sows
+    async hyper() { hands.l.updatePinchValue(1); await sleep(950); hands.l.updatePinchValue(0); }, // a left pinch held for most of a second
+    // the free (left) hand, open, swept fast to the right: seed scattered that way
+    async sweep() { T.l.pose = 'default'; T.l.quat = REST; T.l.rate = 7; T.l.pos = add(S.head(), [-0.34, -0.2, -0.42]); await sleep(700); T.l.rate = 24; T.l.pos = add(S.head(), [0.2, -0.18, -0.42]); await sleep(450); this.rest('l'); },
+    // a flat palm held out and pressed down: water for the groves around you
+    async pour() { T.l.pose = 'default'; T.l.quat = REST; T.l.rate = 7; T.l.pos = add(S.head(), [-0.2, -0.2, -0.4]); await sleep(1000); T.l.rate = 8; T.l.pos = add(S.head(), [-0.2, -0.37, -0.4]); await sleep(1000); this.rest('l'); },
   };
 });
 const film = (fn, ...a) => page.evaluate(fn, ...a);
@@ -212,13 +256,98 @@ await caption('Look at one and pinch.');
 for (let k = 0; k < 4 && (await state()).mode === 'merge'; k++) { await aimed(); await film(() => __film.pinch()); log(`pinch ${k + 1}: ${(await state()).mode}`); await wait(1200); }
 await until((s) => s.mode === 'rise' || s.mode === 'fly', 'laid');
 await caption('Your Hand rises out of the wilderness, for everyone.');
-await film(([x, y, z]) => { __film.rest(); __film.lookWorld(x, y + 150, z, 1.5); }, fits[pick]);
+await film(([x, y, z]) => { __film.rest('l'); __film.lookWorld(x, y + 150, z, 1.5); }, fits[pick]);
+await film(() => { __film.go(1000, 10400, 520); __film.cruise(); }); // meanwhile you fly on: to a point south of the garden, to come in over it northbound
 await until((s) => s.mode === 'fly' && s.mine, 'risen', 20000);
 await wait(1500);
+// ---------- the flight, and the garden ----------
+// Marrow's sand: lane A (x = 1000) runs north over plot t (z 7300..6750), a river, plot s, a river, then plot p
+// (z 5800..4100); lane B (x = -350) comes back south over plot r (z 4150..6400), a bank between two rivers. The
+// mushrooms stand in plot p at x = 600. North is -z; the Source is at 0, 0. At cruise the whorl turns in a 340 m circle.
+const go = (x, z, alt) => film((x, z, alt) => __film.go(x, z, alt), x, z, alt);
+const reach = async (ok, label, ms = 20000) => { for (const end = Date.now() + ms; Date.now() < end; await wait(80)) { if (ok((await state()).pos)) return true; } log(`TIMEOUT ${label}: at ${(await state()).pos}`); return false; };
+const near = (x, z, d, ms) => reach((p) => Math.hypot(p[0] - x, p[2] - z) < d, `near ${x},${z}`, ms);
+const bloomNow = () => film(() => { const p = window.__pwc, h = p.bloom.hud(null), g = p.gnomes.hud(), s = p.state.pos, acts = {}; for (const a of window.__acts) acts[a] = (acts[a] ?? 0) + 1; return { acts, seeds: h.seeds, water: h.water, hyper: h.hyper, fox: !!h.fox, sown: p.bloom.counts.sown, tends: p.bloom.counts.tends, riders: g.riders, team: g.team, quest: g.quest && `${g.quest.kind} ${g.quest.have}/${g.quest.need}${g.quest.done ? ' done' : ''}`, speed: p.state.speed, alt: Math.round(s[1] - p.groundAt(s[0], s[2])), pos: s }; });
+const mark = async (label) => log(`${label} ${JSON.stringify(await bloomNow())}`);
+await film(() => { const b = window.__pwc.bloom, act = b.act; window.__acts = []; b.act = (what, ctx) => { window.__acts.push(what); return act.call(b, what, ctx); }; }); // what the hands asked the garden for, for the log
 await caption('Raise a hand and point. Your fingers are the arrow.');
-await film(() => { __film.lookAhead(-0.14); __film.fly([[0, 260, 8600], [0, 110, 6400], [500, 140, 4600]]); });
-for (const [ms, text] of [[6000, 'Dive, and you build speed.'], [8000, 'Fly low over a Hand and you chart it: its handbits ink in.'], [6000, 'Every palm line is a river. Every fingertip is a hill of ridges.']]) { await wait(ms); log(`flight ${JSON.stringify(await film(() => __film.flight))}`); await caption(text); }
-await wait(5000);
+await film(() => __film.lookAhead(-0.14));
+await near(1000, 10400, 800, 20000);
+await go(1000, 8700, 250);
+await wait(1500);
+await caption('Dive, and you build speed. Fly low over a Hand and you chart it.');
+await near(1000, 8700, 600, 12000);
+// lane A, northbound: sow and water on plot t
+await go(1000, 3600, 215);
+await reach((p) => p[2] < 7300, 'over plot t', 8000);
+await mark('at the garden');
+await caption('Every Hand is a garden. Hold a pinch and you sow.');
+await film(() => __film.sow(true));
+await wait(3000);
+await film(() => __film.sow(false));
+await mark('sown');
+// low over the river for water, then plot s: sow a little more and pour it on
+await go(1000, 3600, 100);
+await caption('Skim a river and you carry water.');
+await reach((p) => p[2] < 6480, 'over plot s', 8000);
+await go(1000, 3600, 200);
+await film(() => __film.sow(true));
+await wait(1900);
+await caption('Press a flat palm down, and it pours on what you planted.');
+await film(() => __film.pour()); // (still sowing, so still slow: the water falls on the groves just planted)
+await wait(300);
+await film(() => __film.sow(false));
+await mark('watered');
+// on over the river and plot p
+await caption('Players plant hundreds of real flowers and trees. Wildlife moves in.');
+await reach((p) => p[2] < 5500, 'over plot p', 12000);
+await caption('Sweep an open hand and you scatter seed.');
+await film(() => __film.sweep());
+await mark('scattered');
+// round the wrist (a U-turn to the left is 680 m wide: from x = 330 it comes out on lane B) and back south:
+// the hyper sow, slowly (a held pinch brakes)
+await go(330, 3600, 200);
+await reach((p) => p[2] < 4150, 'past the wrist', 12000);
+await go(-350, 7000, 190);
+await reach((p) => p[2] > 4250 && p[0] < -150, 'onto lane B', 12000);
+await caption('Hold a left pinch for a hyper sow: ten seconds of drawing with flowers.');
+await film(() => __film.hyper());
+await film(() => __film.sow(true));
+await wait(6500);
+await film(() => __film.sow(false));
+await mark('drawn');
+await caption('You are what you have sown: your whorl wears every flower you planted.');
+await reach((p) => p[2] > 6300, 'the end of lane B', 9000);
+// round again and north up lane A to a mushroom with a gnome in it
+const shroom = (garden?.shrooms ?? []).find((q) => q.gnome) ?? garden?.shrooms?.[0] ?? null;
+log(`mushroom ${JSON.stringify(shroom)}`);
+if (shroom) {
+  await go(shroom.x, 6500, 210);
+  await near(shroom.x, 6500, 450, 12000);
+  await caption('Mushrooms fruit among the flowers. Fly through one…');
+  for (let pass = 0; pass < 3; pass++) {
+    await go(shroom.x, shroom.z, 170);
+    await near(shroom.x, shroom.z, 110, 15000);
+    await wait(500);
+    const b = await bloomNow();
+    if (b.riders || (b.fox && !shroom.gnome)) break;
+    log(`missed the mushroom (pass ${pass + 1}): ${JSON.stringify(b)}`);
+    await go(shroom.x, shroom.z + 1500, 200); // come round again from the south
+    await near(shroom.x, shroom.z + 1500, 500, 14000);
+  }
+  await mark('mushroom');
+  await caption('…and the foxfire comes over the world: faster, brighter, everything counts double.');
+}
+// on north to the other player
+await film(() => __film.fly([() => __film.friend() ?? [500, 420, 2900]]));
+log(`friend ${JSON.stringify(await film(() => __film.friend()))}`);
+await wait(4500);
+await caption('Other players fly beside you. Meet one, and your whorls braid: that is the greeting.');
+for (let i = 0; i < 40 && !(await film(() => window.__pwc.state.braid)); i++) await wait(250);
+log(`braid ${JSON.stringify(await film(() => window.__pwc.state.braid))}`);
+await wait(4500);
+if ((await bloomNow()).riders) { await caption('A gnome lived in that mushroom. It grabbed on with a side quest: do it, and it joins your team.'); await wait(5500); }
+await mark('gnome');
 await caption('Turn your left palm up: the atlas of the whole world.');
 await film(() => __film.palmUp(true));
 await until((s) => s.mode === 'atlas', 'the atlas', 6000);
@@ -227,12 +356,6 @@ await wait(6500);
 await caption(null);
 await film(() => { __film.palmUp(false); __film.lookAhead(-0.12); });
 await until((s) => s.mode === 'fly', 'atlas closed', 6000);
-await caption('Other players fly beside you.');
-await film(() => __film.fly([() => __film.friend()])); // chase them until the swarms meet
-for (let i = 0; i < 60 && !(await film(() => window.__pwc.state.braid)); i++) await wait(500);
-log(`braid ${JSON.stringify(await film(() => window.__pwc.state.braid))}`);
-await caption('Meet one, and your swarms braid: that is the greeting.');
-await wait(6000);
 await film(() => __film.fly([[0, 600, 1200], [0, 700, -2500]]));
 await caption('At the Source, everyone builds the Community Hand together.');
 await film(() => { __film.T.lookRate = 1.2; __film.T.look = () => window.__pwc.space.toRig(0, 120, 0); });
