@@ -22,3 +22,14 @@ export async function verifyGoogle(fetchFn, clientId, idToken, now = Date.now())
     return d?.aud === clientId && (d.iss === 'https://accounts.google.com' || d.iss === 'accounts.google.com') && +d.exp * 1000 > now && /^\d{1,32}$/.test(String(d.sub ?? '')) ? { id: String(d.sub), picture: cleanPicture(d.picture) } : null;
   } catch { return null; }
 }
+// which account an identity token is for, as a short local tag (a hash of its `sub`; never sent anywhere): the
+// game keeps one player per account on a device. null when the token cannot be read.
+export function accountTag(idToken) {
+  try {
+    const sub = String(JSON.parse(atob(String(idToken).split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).sub ?? '');
+    if (!/^\d{1,32}$/.test(sub)) return null;
+    let h = 2166136261;
+    for (const ch of sub) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
+    return h.toString(36) + sub.length.toString(36) + sub.slice(-2);
+  } catch { return null; }
+}

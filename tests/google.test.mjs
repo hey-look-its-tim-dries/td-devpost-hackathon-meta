@@ -36,3 +36,12 @@ test('a profile picture is only ever an address on Google\'s own picture host', 
   assert.equal(cleanPicture('https://lh3.googleusercontent.com/a/ACg8ocK-abc_DEF=s96-c'), 'https://lh3.googleusercontent.com/a/ACg8ocK-abc_DEF=s96-c');
   for (const bad of ['http://lh3.googleusercontent.com/a/abcdefghijk', 'https://lh3.googleusercontent.com.evil.test/a/abcdefghijk', 'https://lh3.googleusercontent.com/a/x"onerror="alert(1)', 'javascript:alert(1)', null, 42, '']) assert.equal(cleanPicture(bad), null, String(bad));
 });
+
+test('accountTag: one tag per Google account, the same every time, null for rubbish', async () => {
+  const { accountTag } = await import('../src/net/google.js');
+  const tok = (sub) => `h.${Buffer.from(JSON.stringify({ sub })).toString('base64url')}.s`;
+  assert.equal(accountTag(tok('1234567890')), accountTag(tok('1234567890')));
+  assert.notEqual(accountTag(tok('1234567890')), accountTag(tok('1234567891')));
+  assert.equal(accountTag('nonsense'), null);
+  assert.equal(accountTag(tok('not-a-number')), null);
+});

@@ -60,7 +60,7 @@ import { createFauna } from './garden/fauna.js';
 import { bouquet, fromSignature } from './garden/bouquet.js';
 import { drawGarland } from './garden/garland.js';
 import { FB_APP_ID, GOOGLE_CLIENT_ID } from './config.js';
-import { googleUrl, idFromFragment, cleanPicture } from './net/google.js';
+import { googleUrl, idFromFragment, cleanPicture, accountTag } from './net/google.js';
 import { cleanName } from './world/names.js';
 import { createTouch } from './touch.js';
 import { look as hudLook } from './ui/themed.js';
@@ -139,6 +139,23 @@ rig.add(panel.mesh);
 
 let storage = null; // localStorage, or null when the browser refuses it (your Hand then lasts until you close the page)
 try { storage = localStorage; } catch {}
+/* Each Google account is its own player on this device. Coming back from Google as another account than the one
+   that last played here, this device's player (Hand, pouch, token, name...) is put away under the old account
+   and the new account's own is brought out (or a fresh one), before anything is read. Then the page loads again. */
+try {
+  const frag = new URLSearchParams(location.hash.slice(1)), idt = frag.get('id_token'), st = sessionStorage.getItem('pwc.g.state');
+  if (storage && idt && st && frag.get('state') === `g:${st}`) {
+    const who = accountTag(idt), was = storage.getItem('pwc.account.v1');
+    if (who && was && was !== who) {
+      const keys = Object.keys(storage).filter((k) => k.startsWith('pwc.') && !k.startsWith('pwc.acct.') && k !== 'pwc.account.v1');
+      storage.setItem(`pwc.acct.${was}`, JSON.stringify(Object.fromEntries(keys.map((k) => [k, storage.getItem(k)]))));
+      for (const k of keys) storage.removeItem(k);
+      for (const [k, v] of Object.entries(JSON.parse(storage.getItem(`pwc.acct.${who}`) ?? '{}'))) storage.setItem(k, v);
+      storage.removeItem(`pwc.acct.${who}`);
+    }
+    if (who) storage.setItem('pwc.account.v1', who);
+  }
+} catch (e) { console.warn('account switch', e); }
 /* the name you chose for yourself (the lobby); without one, your Hand's name */
 let userName = null;
 try { userName = cleanName(storage?.getItem('pwc.name.v1')); } catch {}
@@ -251,7 +268,7 @@ function charting() {
 }
 const braid = createBraid({ radius: 450, hold: 2 }), braidList = [], CALM = params.has('calm'); // the greeting, within 450 m (at this speed you turn in a 340 m circle: any closer and you could not circle a friend); ?calm: reduced motion, no braiding
 const flybys = []; /* what others just sowed, drifting past you: { sp, t0, seed, dir } */
-let metAt = -99, livePill = '';
+let metAt = -99, livePill = '', missionKey = '';
 let braiding = null; // { id, k } while two swarms braid
 let braidN = 0;
 const braidPool = [];
@@ -782,6 +799,7 @@ const ghosts = createGhosts((x, z) => groundAt(x, z));
 scene.add(ghosts.group);
 let mode = 'fly', flow = null, laying = null, drawing = false, poking = null;
 const raycaster = new THREE.Raycaster(), ndc = new THREE.Vector2(), tipW = new THREE.Vector3();
+raycaster.layers.enableAll(); /* the cards live on a layer of their own (drawn after the bloom): clicks must still find them */
 
 function openAtelier() {
   if (mode !== 'fly' || mine) return;
@@ -1044,9 +1062,20 @@ function frame() {
     missFor = miss ? missFor + dt : 0;
     if (missFor > 5) tuft(/river/.test(miss) && tutorial.step.id !== 'water' ? 'need-sand' : /Too high|Lower/.test(miss) ? 'need-low' : /Hand/.test(miss) ? 'need-hand' : 'need-water', 18); // stuck for a while: he says what is missing
     lesson.update(dt, { index: tutorial.index, step: tutorial.step, progress: tutorial.progress, hands: renderer.xr.isPresenting, coach: miss, ready: !miss && ['sow', 'scatter', 'pour', 'hyper', 'water'].includes(tutorial.step.id) });
-  } else { // no tutorial: the card is the gnome's wish while one is on board: what it wants, how far along, how long is left
+  }
+  { /* the gnome's wish is always on screen while one rides: CURRENT MISSION, how far along, how long is left */
+    const q = started && mode === 'fly' ? gnomes.hud().quest : null, el = document.getElementById('mission');
+    const key = q && !q.done ? `${q.name}|${q.text}|${q.have}/${q.need}|${q.left}` : '';
+    if (key !== missionKey) {
+      if (key && !missionKey) lesson.mesh.userData.away = false;
+      missionKey = key;
+      el.classList.toggle('hidden', !key);
+      if (key) { el.querySelector('b').textContent = q.text; el.querySelector('i').textContent = `${q.name} is hanging on your whorl`; el.querySelector('em').textContent = `${q.need > 1 ? `${q.have}/${q.need} · ` : ''}${Math.floor(q.left / 60)}:${String(q.left % 60).padStart(2, '0')}`; el.querySelector('s').style.width = `${Math.max(0, Math.min(100, 100 * q.left / 180))}%`; }
+    }
+  }
+  if (!(tutorial.active && started && (mode === 'fly' || mode === 'atlas'))) { // no tutorial: the card is the gnome's wish while one is on board: what it wants, how far along, how long is left
     const q = started && mode === 'fly' ? gnomes.hud().quest : null;
-    lesson.update(dt, q && !q.done ? { note: { id: `wish:${q.kind}:${q.have}`, kicker: "A GNOME'S WISH", title: q.name, icon: WISH_ICON[q.kind] ?? 'gnome', text: q.text, corner: `${q.need > 1 ? `${q.have}/${q.need} · ` : ''}${Math.floor(q.left / 60)}:${String(q.left % 60).padStart(2, '0')}` }, progress: 1 - q.left / 180, hands: renderer.xr.isPresenting } : null);
+    lesson.update(dt, q && !q.done && renderer.xr.isPresenting ? { note: { id: `wish:${q.kind}:${q.have}`, kicker: "A GNOME'S WISH", title: q.name, icon: WISH_ICON[q.kind] ?? 'gnome', text: q.text, corner: `${q.need > 1 ? `${q.have}/${q.need} · ` : ''}${Math.floor(q.left / 60)}:${String(q.left % 60).padStart(2, '0')}` }, progress: 1 - q.left / 180, hands: renderer.xr.isPresenting } : null);
   }
   if (invite && mode === 'fly' && !tutorial.active && (t > invite.at || bloom.pouch.plantedTotal >= invite.planted)) { invite = null; openAtelier(); }
   fauna.update(dt, t, glide.pos, groundAt);
