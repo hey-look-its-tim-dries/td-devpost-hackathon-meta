@@ -12,7 +12,7 @@ const GLASS = 'rgba(255,43,214,0.5)', PAPERS = new Set(['#f6ead6', '#fbf3e6', '#
 const HEX = { '#16100e': '#f4fbff', '#f6ead6': '#0b001a', '#fbf3e6': '#1c0b3d', '#f7eedf': '#ffffff', '#f3e4d2': '#0b001a', '#b8442e': '#ff2bd6', '#a8402b': '#ff2bd6', '#c9a35a': '#ff7a1a', '#a88442': '#ff7a1a', '#2f5d7c': '#00e5ff', '#3f7d3a': '#39ff14', '#8a6a44': '#ff4500' };
 const RGBA = [
   [/^rgba\(22, ?16, ?14, ?([0-9.]+)\)$/, (a) => `rgba(191,233,255,${a})`], // ink, thinned: ice blue
-  [/^rgba\((?:246, ?234, ?214|243, ?228, ?210|246, ?232, ?216), ?([0-9.]+)\)$/, (a) => `rgba(11,0,26,${+a >= 0.85 ? 0.72 : a})`], // paper: translucent violet
+  [/^rgba\((?:246, ?234, ?214|243, ?228, ?210|246, ?232, ?216), ?([0-9.]+)\)$/, (a) => `rgba(11,0,26,${+a >= 0.85 ? 0.88 : a})`], // paper: deep violet, dense enough to read white letters on
   [/^rgba\(184, ?68, ?46, ?([0-9.]+)\)$/, (a) => `rgba(255,43,214,${a})`],
   [/^rgba\(47, ?93, ?124, ?([0-9.]+)\)$/, (a) => `rgba(0,229,255,${a})`],
   [/^rgba\((?:79, ?143, ?58|52, ?122, ?52|111, ?160, ?74), ?([0-9.]+)\)$/, (a) => `rgba(57,255,20,${a})`],
@@ -26,7 +26,7 @@ export function neonColour(c) {
   for (const [re, to] of RGBA) { const m = c.match(re); if (m) return to(m[1]); }
   return c;
 }
-export const neonFont = (f) => String(f).replace(/Georgia(, "Times New Roman")?, serif/, MONO).replace(/\bitalic /, '');
+export const neonFont = (f) => f; // the letters keep their own face in the foxfire: a terminal face with a glow could not be read over the bright land
 
 export function themed(g, on = () => look.neon) {
   const chamfer = (x, y, w, h, r) => { const c = Math.min(typeof r === 'number' ? r * 0.75 : 14, w / 4, h / 4); g.moveTo(x + c, y); g.lineTo(x + w - c, y); g.lineTo(x + w, y + c); g.lineTo(x + w, y + h - c); g.lineTo(x + w - c, y + h); g.lineTo(x + c, y + h); g.lineTo(x, y + h - c); g.lineTo(x, y + c); g.closePath(); };
@@ -42,7 +42,7 @@ export function themed(g, on = () => look.neon) {
       if (on()) {
         if (k === 'roundRect') return chamfer;
         if (k === 'stroke') return glow(v, 'strokeStyle', 8); // every line a laser line
-        if (k === 'fillText') { const lit = glow(v, 'fillStyle', 2); return paper ? swap(lit, '#ffffff') : lit; } // every letter lit, and still sharp
+        if (k === 'fillText') return swap(v.bind(t), '#ffffff'); // every letter plain white, no glow: text is there to be read
         if (k === 'fill' && ink) return swap(v.bind(t), GLASS);
       }
       return v.bind(t);

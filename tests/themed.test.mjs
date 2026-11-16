@@ -3,15 +3,15 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { themed, neonColour, neonFont, look } from '../src/ui/themed.js';
 
-const fake = () => { const calls = [], g = { fillStyle: '', strokeStyle: '', font: '', shadowBlur: 0, shadowColor: '', save() {}, restore() {}, moveTo(...a) { calls.push(['moveTo', ...a]); }, lineTo(...a) { calls.push(['lineTo', ...a]); }, closePath() { calls.push(['closePath']); }, roundRect(...a) { calls.push(['roundRect', ...a]); }, stroke() { calls.push(['stroke', this.shadowBlur]); }, fillText(...a) { calls.push(['fillText', a[0], this.shadowBlur]); }, fillRect(...a) { calls.push(['fillRect', ...a]); } }; return { g, calls }; };
+const fake = () => { const calls = [], g = { fillStyle: '', strokeStyle: '', font: '', shadowBlur: 0, shadowColor: '', save() {}, restore() { this.shadowBlur = 0; }, moveTo(...a) { calls.push(['moveTo', ...a]); }, lineTo(...a) { calls.push(['lineTo', ...a]); }, closePath() { calls.push(['closePath']); }, roundRect(...a) { calls.push(['roundRect', ...a]); }, stroke() { calls.push(['stroke', this.shadowBlur]); }, fillText(...a) { calls.push(['fillText', a[0], this.shadowBlur]); }, fillRect(...a) { calls.push(['fillRect', ...a]); } }; return { g, calls }; };
 test('ink becomes light, paper becomes translucent violet, the seal hot pink, the river cyan; unknown colours stay', () => {
   assert.equal(neonColour('#16100e'), '#f4fbff');
   assert.equal(neonColour('rgba(22,16,14,0.6)'), 'rgba(191,233,255,0.6)');
-  assert.equal(neonColour('rgba(243, 228, 210, 0.9)'), 'rgba(11,0,26,0.72)');
+  assert.equal(neonColour('rgba(243, 228, 210, 0.9)'), 'rgba(11,0,26,0.88)');
   assert.equal(neonColour('#b8442e'), '#ff2bd6');
   assert.equal(neonColour('#2f5d7c'), '#00e5ff');
   assert.equal(neonColour('#123456'), '#123456');
-  assert.match(neonFont('italic 400 34px Georgia, serif'), /^400 34px ui-monospace/);
+  assert.equal(neonFont('italic 400 34px Georgia, serif'), 'italic 400 34px Georgia, serif', 'the letters keep their own face: only the colours change');
 });
 test('the calm look passes through untouched; the foxfire look repaints the same calls', () => {
   const { g, calls } = fake(), t = themed(g, () => look.neon);
@@ -25,10 +25,11 @@ test('the calm look passes through untouched; the foxfire look repaints the same
   t.fillStyle = '#16100e'; t.strokeStyle = 'rgba(22,16,14,0.5)'; t.font = '600 46px Georgia, serif'; t.roundRect(0, 0, 100, 50, 20); t.stroke(); t.fillText('Crown', 1, 2);
   assert.equal(g.fillStyle, '#f4fbff');
   assert.equal(g.strokeStyle, 'rgba(191,233,255,0.5)');
-  assert.match(g.font, /ui-monospace/);
+  assert.equal(g.font, '600 46px Georgia, serif');
   assert.ok(!calls.some((c) => c[0] === 'roundRect'), 'no rounded panels');
   assert.equal(calls.filter((c) => c[0] === 'lineTo').length, 7, 'a chamfered one: eight corners');
-  assert.ok(calls.find((c) => c[0] === 'stroke')[1] > 0 && calls.find((c) => c[0] === 'fillText')[2] > 0, 'lines and letters glow');
+  assert.ok(calls.find((c) => c[0] === 'stroke')[1] > 0, 'lines glow');
+  assert.equal(calls.find((c) => c[0] === 'fillText')[2], 0, 'letters do not: plain and sharp, to be read');
   look.neon = false;
 });
 
@@ -39,7 +40,10 @@ test('in the foxfire look a shape filled with ink (a chosen tab, a pressed chip)
   assert.deepEqual(calls.at(-1), ['fill', 'rgba(255,43,214,0.5)']);
   assert.equal(g.fillStyle, '#f4fbff', 'ink is still light for the letters that follow');
   t.fillText('ink letters', 0, 0);
-  assert.deepEqual(calls.at(-1), ['fillText', 'ink letters', '#f4fbff']);
+  assert.deepEqual(calls.at(-1), ['fillText', 'ink letters', '#ffffff']);
+  t.fillStyle = '#b8442e'; t.fillText('a red kicker', 0, 0);
+  assert.deepEqual(calls.at(-1), ['fillText', 'a red kicker', '#ffffff'], 'every letter is white in the foxfire, whatever its colour was');
+  t.fillStyle = '#16100e';
   t.fillStyle = '#f6ead6'; t.fillText('World', 0, 0);
   assert.deepEqual(calls.at(-1), ['fillText', 'World', '#ffffff'], 'a label in paper, on an inked shape');
   t.fill();

@@ -495,6 +495,7 @@ const firsts = createFirsts(storage, { off: params.has('notutorial') || params.h
 // words in a window on your HUD and says them aloud (clips in assets/voice). One line at a time, none too often.
 const tuftVoice = createVoicePlayer(), tuftCard = createGnomeComm(), speaker = createSpeaker(), TUFT_OFF = params.has('notuft') || ((params.has('atelier') || params.has('notutorial')) && !params.has('tuft')); // (?tuft keeps him where the checks' parameters would leave him out: the film)
 hud.group.add(tuftCard.mesh);
+let hudLayered = false;
 let tuftLine = null, tuftStep = null, tuftNote = null, missFor = 0, wildFor = 0;
 function tuft(ids, again = 45, anyway = false) { // anyway: if he is busy, show the words without the voice (a note that must not be lost)
   if (TUFT_OFF || !started) return false;
@@ -1109,7 +1110,12 @@ function frame() {
   // in your own room only what hangs on the rig is drawn (the card, your hands): gardens, gnomes, storms, name tags and the Source wait outside
   const outside = room ? scene.children.filter((o) => o !== rig && o.visible) : null;
   if (outside) for (const o of outside) o.visible = false;
-  if (composer && trip > 0.01 && !renderer.xr.isPresenting) composer.render(); else renderer.render(scene, camera); // the bloom only while the foxfire lasts
+  if (!hudLayered) { hudLayered = true; for (const o of [hud.group, card.mesh, seal.mesh, atlas.mesh, panel.mesh, atelier.mesh]) o.traverse((q) => q.layers.set(1)); camera.layers.enableAll(); } // the HUD on a layer of its own
+  if (composer && trip > 0.01 && !renderer.xr.isPresenting) { // the foxfire's glow is for the world: the HUD (layer 1) is drawn after it, sharp
+    camera.layers.set(0); composer.render();
+    camera.layers.set(1); renderer.autoClear = false; renderer.clearDepth(); renderer.render(scene, camera); renderer.autoClear = true;
+    camera.layers.enableAll();
+  } else renderer.render(scene, camera); // the bloom only while the foxfire lasts
   if (outside) for (const o of outside) o.visible = true;
 }
 
@@ -1135,7 +1141,7 @@ function start() {
   panel.say('Palm Whorl Cities', 4);
   // fly and garden first; the invitation to lay a Hand of your own comes once you have planted a little (or after a while)
   // someone who has played before comes in on their own page: the atlas, open at Me (?play, the checks' way in, skips it)
-  if (!params.has('play') && !tutorial.active && (mine || bloom.pouch.xp > 0)) setTimeout(() => { if (mode === 'fly') { atlas.setTab('hand'); openAtlas(false); } }, 1800);
+  if (!params.has('play') && !params.has('atelier') && !tutorial.active && (mine || bloom.pouch.xp > 0)) setTimeout(() => { if (mode === 'fly' && !renderer.xr.isPresenting) { /* on a screen: in the headset the atlas is opened by your own palm */ atlas.setTab('hand'); openAtlas(false); } }, 1800);
   if (!tutorial.active) setTimeout(() => panel.say(firstHint(renderer.xr.isPresenting), 8), 4200); // (the tutorial teaches the rest)
   invite = mine || params.has('noatelier') ? null : { at: t + (params.has('atelier') ? 4.2 : 90), planted: bloom.pouch.plantedTotal + 6 }; // ?atelier: at once (the tests)
 }
