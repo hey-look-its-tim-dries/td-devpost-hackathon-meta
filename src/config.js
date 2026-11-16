@@ -5,4 +5,4 @@
 export const FB_APP_ID = '';
 // GOOGLE_CLIENT_ID: the OAuth client ID (type Web application) from Google Cloud (README: "Signing in with Google").
 // Empty: no Google button. It has no secret; the same ID goes into server/wrangler.toml.
-export const GOOGLE_CLIENT_ID = '';
+export const GOOGLE_CLIENT_ID = '559961845678-49j076nprhcanbf5i9rmhn50f1kakesp.apps.googleusercontent.com';
