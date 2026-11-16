@@ -15,7 +15,7 @@ import puppeteer from '/Users/timdries/Desktop/Projects/TD-GAME-LINKSAWAKENING/t
 const OUT = process.argv[2] ?? 'media/palm-whorl-cities-demo.mp4', SHOTS = process.env.SHOTS;
 const [W, H] = (process.env.SIZE ?? '1280x720').split('x').map(Number);
 const API = process.env.API ?? 'http://localhost:8787';
-const URL_ = process.env.URL_ ?? `http://localhost:8130/?emulate&nodevui&atelier&notutorial&quest=foxfire&at=0,1100,11800&api=${API}`; // ?atelier: the hand card at once
+const URL_ = process.env.URL_ ?? `http://localhost:8130/?emulate&nodevui&atelier&notutorial&tuft&quest=foxfire&at=0,1100,11800&api=${API}`; // ?atelier: the hand card at once
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const browser = await puppeteer.launch({ headless: 'new', executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', args: ['--use-angle=metal', '--enable-gpu', `--window-size=${W},${H}`] });
@@ -213,8 +213,14 @@ const caption = (t) => film((t) => __film.caption(t), t);
 const poke = (x, y, drag) => film((x, y, drag) => __film.poke(x, y, drag), x, y, drag ?? []);
 
 // ---------- the film ----------
-await wait(4000); // the title, over the drifting world
-await page.click('#xrButton');
+await wait(3500); // the title, over the drifting world
+// the lobby: the world right now, with the second player on the live map
+await page.click('#previewButton');
+await wait(600);
+await caption('One world, live. See who is flying before you dive in.');
+await wait(5200);
+await caption(null);
+await page.click('#lobbyXr');
 await until((s) => s.xr, 'in the headset');
 await caption('A world map made of hands. Ten founders, then only players.');
 await until((s) => s.mode === 'atelier', 'the card opens');

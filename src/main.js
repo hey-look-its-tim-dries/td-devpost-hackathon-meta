@@ -493,7 +493,7 @@ hud.group.add(lesson.mesh); // the tutorial's card, with the HUD: on a screen it
 const firsts = createFirsts(storage, { off: params.has('notutorial') || params.has('atelier') }), meet = { cloud: false, mushroom: false, gnome: false, at: 0 };
 // Grandfather Tuft, the old gnome who talks you through it (src/garden/voice.js): he calls in with his face and his
 // words in a window on your HUD and says them aloud (clips in assets/voice). One line at a time, none too often.
-const tuftVoice = createVoicePlayer(), tuftCard = createGnomeComm(), speaker = createSpeaker(), TUFT_OFF = params.has('notuft') || params.has('atelier') || params.has('notutorial');
+const tuftVoice = createVoicePlayer(), tuftCard = createGnomeComm(), speaker = createSpeaker(), TUFT_OFF = params.has('notuft') || ((params.has('atelier') || params.has('notutorial')) && !params.has('tuft')); // (?tuft keeps him where the checks' parameters would leave him out: the film)
 hud.group.add(tuftCard.mesh);
 let tuftLine = null, tuftStep = null, tuftNote = null, missFor = 0, wildFor = 0;
 function tuft(ids, again = 45, anyway = false) { // anyway: if he is busy, show the words without the voice (a note that must not be lost)
