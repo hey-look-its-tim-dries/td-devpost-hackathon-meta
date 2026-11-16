@@ -6,7 +6,7 @@ hills. Lay it at the edge of a world made only of players' hands, then glide ove
 creature of black ink.</p>
 
 <p align="center">
-  <img src="docs/screenshots/07-rivers.jpg" alt="Gliding low over a founding Hand: its palm lines are rivers between ridged hills, and a black ink creature flies ahead" width="820" />
+  <img src="docs/screenshots/21-title-centrepiece.jpg" alt="The title screen: Palm Whorl Cities over a desert of hands, a ring of flowers round a round window with a jubilant gnome" width="820" />
 </p>
 
 <p align="center">
@@ -14,6 +14,28 @@ creature of black ink.</p>
   <a href="https://start-developer-competition-26.devpost.com/">Meta VR Start Developer Competition 2026</a><br/>
   A mixed reality game for Meta Quest, hands only
 </p>
+
+## Watch it
+
+<!-- VIDEO: replace VIDEO_ID with the YouTube id once media/palm-whorl-cities-pitch.mp4 is uploaded -->
+[![Watch the 2:33 demo, filmed in the Meta Quest 3 emulator](docs/screenshots/26-foxfire-gnome-folk.jpg)](https://youtu.be/VIDEO_ID)
+
+Early game, mid game and late game in two and a half minutes: reading your hand, sowing a garden with other
+players, the foxfire, gnomes and the Community Hand. Pitch deck: [docs/deck/palm-whorl-cities-pitch.pdf](docs/deck/palm-whorl-cities-pitch.pdf).
+Player manual: [docs/manual/palm-whorl-cities-manual.pdf](docs/manual/palm-whorl-cities-manual.pdf).
+
+## The game at a glance
+
+| | |
+|---|---|
+| ![Lobby: the live world map with every Hand and who is flying](docs/screenshots/22-lobby.jpg) | ![The first minutes: Grandfather Tuft calls in while the tutorial shows how to turn](docs/screenshots/23-first-minutes-tuft.jpg) |
+| **The lobby.** The live world before you dive in: every Hand where it lies, who is flying, top gardeners, news, your username. | **The first minutes.** A nine-step tutorial and Grandfather Tuft, a grumpy gnome with a voice and a face, then the game leaves you alone. |
+| ![Your hand read in the headset: a glowing palm on the floor, a ring of flowers, the card](docs/screenshots/29-headset-palm-dome.jpg) | ![Sowing: seed thrown ahead over a Hand, the place and territory card bottom left](docs/screenshots/24-sowing.jpg) |
+| **Your hand becomes land.** Read in your own room in passthrough (here under the dusk sky the emulator shows instead). | **A garden for everyone.** Pinch to sow, sweep to scatter, pour with a flat palm. 712 species; wildlife moves into plots in bloom. |
+| ![Foxfire: a glowing row of seeds curving ahead, giant gnomes watching](docs/screenshots/25-foxfire-seed-trail.jpg) | ![A gnome hangs under the whorl with its wish in the CURRENT MISSION bar](docs/screenshots/27-gnome-mission.jpg) |
+| **The foxfire.** Rows of seeds ring up a scale as you fly them; giant gnome folk dance on the dunes; wildlife grows five times as tall. | **Gnomes.** Red hats on the map show where they wait. One hangs under your whorl with a wish; grant it and it joins your team. |
+| ![The Community Hand at the Source: every grove in the world as a coloured pixel](docs/screenshots/31-community-hand-world.jpg) | ![On a phone: tilt to steer, touch buttons for sowing and the map](docs/screenshots/30-phone-gyroscope.jpg) |
+| **The whole world in one hand.** At the Source, every grove anyone has sown, one pixel each. | **Everywhere.** Quest with hands only, any browser, a webcam as hands, or a phone you tilt to steer. |
 
 ## Bloom: the garden game
 
