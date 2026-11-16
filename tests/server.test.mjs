@@ -257,3 +257,28 @@ test('review 2, 5, 6: names stored cleaned; a wash leaves no name in the journal
   for (let i = 0; i < 40; i++) ws.send(JSON.stringify({ name: i % 2 ? 'Aa' : 'Bb' }));
   assert.equal(await Promise.race([closed, wait(3000).then(() => 'open')]), 1008, 'a name flood closes the socket');
 });
+
+test('deferred minors: /events?since, a summit cap per player, two donors racing for one slot', { skip }, async () => {
+  const toks = ['u', 'v'].map((c) => c.repeat(40));
+  for (const h of (await world()).filter((h) => /^Minor [uv]$/.test(h.name))) for (const t of toks) await wash(h.id, t); // a previous run
+  const ids = [];
+  for (const [k, token] of toks.entries()) {
+    const fit = findFits(shapes(await world()), handShape(templatePalm({ seed: 300 + k })))[0];
+    ids.push((await (await post(body(fit.pose, { token, seed: 300 + k, name: `Minor ${'uv'[k]}` }))).json()).id);
+  }
+  // since: only what came after
+  const all = (await (await fetch(API + '/events')).json()).events, top = all[0].id;
+  assert.deepEqual((await (await fetch(`${API}/events?since=${top}`)).json()).events, []);
+  assert.equal((await (await fetch(`${API}/events?since=${top - 1}`)).json()).events.length, 1);
+  // summits: five each
+  const name = (feature, hand_id, n) => fetch(API + '/names', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: toks[0], hand_id, feature, name: n }) });
+  for (let s = 0; s < 5; s++) assert.equal((await name(`summit:${s}`, 'hand-founder-7', `Capfell ${'abcde'[s]}`)).status, 200);
+  assert.equal((await name('summit:0', 'hand-founder-8', 'Capfell f')).status, 429, 'a sixth summit is refused');
+  // the same free slot, two donors, one moment: one gets it, the other a clear 409
+  const { slots } = await (await fetch(API + '/community')).json();
+  const free = ['T1', 'T2', 'T3', 'I1', 'I2', 'I3', 'M1', 'M2', 'M3', 'R1', 'R2', 'R3', 'L1', 'L2', 'L3', 'P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7'].find((c) => !slots.some((s) => s.slot === c));
+  const give = (token) => fetch(API + '/community', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, code: free }) });
+  const st = (await Promise.all(toks.map(give))).map((r) => r.status).sort();
+  assert.deepEqual(st, free === 'P7' && slots.length === 21 ? [200, 200] : [200, 409], st.join(','));
+  for (const [k, id] of ids.entries()) await wash(id, toks[k]);
+});

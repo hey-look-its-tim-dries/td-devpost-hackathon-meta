@@ -4,7 +4,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import { checkHand } from '../../src/world/mine.js';
 
-const PAIR_ABC = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789', PAIR_TTL = 10 * 60 * 1000;
+const PAIR_ABC = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789', PAIR_TTL = 10 * 60 * 1000, SUMMITS_EACH = 5;
 import { overlaps, findFits, confluences } from '../../src/world/fit.js';
 import { handShape } from '../../src/hand/shape.js';
 import { unpackPalm, toB64, fromB64 } from '../../src/hand/dna.js';
@@ -41,7 +41,7 @@ export class World extends DurableObject {
   async fetch(req) {
     const url = new URL(req.url);
     if (url.pathname === '/world') {
-      if (!this.cache) { const hands = await this.hands(); this.cache = { etag: `"${hands.at(-1)?.placed_at ?? 0}-${hands.length}"`, body: JSON.stringify({ gen: 1, hands }) }; }
+      if (!this.cache) { const hands = await this.hands(); this.cache = { etag: `"${hands.at(-1)?.placed_at ?? 0}-${hands.length}"`, body: JSON.stringify({ gen: 1, hands }), n: hands.length }; }
       if (req.headers.get('If-None-Match') === this.cache.etag) return new Response(null, { status: 304, headers: { ETag: this.cache.etag } });
       return new Response(this.cache.body, { headers: { ETag: this.cache.etag, 'Content-Type': 'application/json' } });
     }
@@ -54,7 +54,8 @@ export class World extends DurableObject {
     const pairM = url.pathname.match(/^\/pair(?:\/([A-Z2-9]{6}))?$/);
     if (pairM) return this.pair(req, pairM[1]);
     if (url.pathname === '/events' && req.method === 'GET') {
-      const { results } = await this.env.DB.prepare('select id, at, kind, hand_id, data from event order by id desc limit 100').all();
+      const since = Math.max(0, Number.parseInt(url.searchParams.get('since') ?? '0', 10) || 0);
+      const { results } = await this.env.DB.prepare('select id, at, kind, hand_id, data from event where id > ? order by id desc limit 100').bind(since).all();
       return Response.json({ events: results.map((e) => ({ ...e, data: JSON.parse(e.data ?? 'null') })) });
     }
     if (url.pathname === '/watersheds' && req.method === 'GET') {
@@ -74,7 +75,7 @@ export class World extends DurableObject {
       const now = Date.now();
       let flying = 0;
       for (const [k, c] of this.counts) { if (now - c.at > 30000) this.counts.delete(k); else flying += c.n; }
-      const hands = this.cache ? JSON.parse(this.cache.body).hands.length : (await this.env.DB.prepare('select count(*) as n from hand where placed_at is not null').first()).n;
+      const hands = this.cache ? this.cache.n : (await this.env.DB.prepare('select count(*) as n from hand where placed_at is not null').first()).n;
       return Response.json({ hands, flying });
     }
     if (url.pathname === '/rooms/count' && req.method === 'POST') {
@@ -122,11 +123,13 @@ export class World extends DurableObject {
     // the journal: who joined, beside whom, and whose rivers they now reach (watersheds)
     const meets = confluences(world, shape, hand.pose).map((i) => laid[i]);
     const ctr = toWorld(hand.pose, 0, 230), nextTo = laid.map((h) => [h.name, Math.hypot(...toWorld(h.pose, 0, 230).map((v, k) => v - ctr[k]))]).filter(([, d]) => d < 9000).sort((a, b) => a[1] - b[1]).slice(0, 2).map(([n]) => n); // the nearest one or two
-    await this.event('laid', hid, { name: hand.name, next: nextTo });
-    for (const h of meets) {
-      await this.env.DB.prepare('insert or ignore into confluence (hand_a, hand_b, at) values (?, ?, ?)').bind(hid, h.id, now).run();
-      await this.event('confluence', hid, { name: hand.name, with: h.name });
-    }
+    try { // the Hand is laid: a journal that fails to write must not turn that into an error
+      await this.event('laid', hid, { name: hand.name, next: nextTo });
+      for (const h of meets) {
+        await this.env.DB.prepare('insert or ignore into confluence (hand_a, hand_b, at) values (?, ?, ?)').bind(hid, h.id, now).run();
+        await this.event('confluence', hid, { name: hand.name, with: h.name });
+      }
+    } catch (e) { console.error('journal', e); }
     const out = { id: hid, name: hand.name, palette: palm.palette, side: palm.side, palm: toB64(hand.palm), prints: hand.prints.map(toB64), pose: hand.pose, founder: false, placed_at: now };
     this.ctx.waitUntil(this.tell({ laid: out }));
     return Response.json({ id: hid, pose: hand.pose });
@@ -210,6 +213,8 @@ export class World extends DurableObject {
       await this.env.DB.prepare('insert or replace into place_name (hand_id, feature, name, by_player, at) values (?, ?, ?, ?, ?)').bind(handId, feature, name, me.id, Date.now()).run();
       if (first) await this.event('named', handId, { name, hand: (await this.env.DB.prepare('select p.name from hand h join player p on p.id = h.player_id where h.id = ?').bind(handId).first())?.name });
     } else {
+      const mineN = (await this.env.DB.prepare("select count(*) as n from place_name where by_player = ? and feature like 'summit:%'").bind(me.id).first()).n;
+      if (mineN >= SUMMITS_EACH) return Response.json({ error: `${SUMMITS_EACH} summits each: leave some for others` }, { status: 429 });
       const r = await this.env.DB.prepare('insert or ignore into place_name (hand_id, feature, name, by_player, at) values (?, ?, ?, ?, ?)').bind(handId, feature, name, me.id, Date.now()).run();
       if (!r.meta.changes) return Response.json({ error: 'already named' }, { status: 409 });
       await this.event('named', handId, { name, hand: (await this.env.DB.prepare('select p.name from hand h join player p on p.id = h.player_id where h.id = ?').bind(handId).first())?.name });
