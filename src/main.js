@@ -61,6 +61,7 @@ import { bouquet, fromSignature } from './garden/bouquet.js';
 import { drawGarland } from './garden/garland.js';
 import { FB_APP_ID, GOOGLE_CLIENT_ID } from './config.js';
 import { googleUrl, idFromFragment, cleanPicture } from './net/google.js';
+import { cleanName } from './world/names.js';
 import { look as hudLook } from './ui/themed.js';
 import { createMusic } from './music.js';
 import { createSound } from './sound.js';
@@ -137,6 +138,10 @@ rig.add(panel.mesh);
 
 let storage = null; // localStorage, or null when the browser refuses it (your Hand then lasts until you close the page)
 try { storage = localStorage; } catch {}
+/* the name you chose for yourself (the lobby); without one, your Hand's name */
+let userName = null;
+try { userName = cleanName(storage?.getItem('pwc.name.v1')); } catch {}
+const myName = () => userName ?? mine?.name ?? null;
 const net = createNet({ api: params.get('api') ?? API, storage }); // ?api=http://localhost:8787 for wrangler dev
 let mine = loadHand(storage); // your Hand on this device ({ id, palm, prints, pose, name, pending }), or null
 let rising = null; // { id, t } while a laid Hand rises
@@ -220,7 +225,7 @@ net.fetchWorld().then(({ hands: list, online: ok }) => {
   if (ok) { refreshNames(); forgetGone([...list.map((h) => h.id), mine?.id].filter(Boolean), chart, pins); } // Hands washed while you were away
 
   if (ok) { bloom.load(); gnomes.load(); }
-  if (ok) roomLink = net.openRoom({ name: mine?.name ?? null, deco: withRiders(bloom.pouch.signature(), myGnomes), onGarden: bloom.onGarden, onDecos: (m) => { for (const [id, raw] of Object.entries(m)) { const { sig, riders } = splitRiders(raw); bouquets.set(+id, bouquet(fromSignature(sig), { strands: 5, max: 80 })); theirGnomes.set(+id, riders); } }, onGnome: (g) => gnomes.onGnome(g), onHello: (id) => (me = id), onNames: (m) => others.setNames(m), onSnapshot: (s) => others.apply(s, me, glide.pos), onLaid: applyLaid, onLeft: removeHand, onState: (st) => (roomState = st), onCommunity: (m) => { if (m.donated) community.add(m.donated); if (m.sealed) { stamp(`Community Hand ${m.sealed}`, 'all 22 handbits given · the next one begins'); net.community().then((c) => community.set(c)); } } });
+  if (ok) roomLink = net.openRoom({ name: myName(), deco: withRiders(bloom.pouch.signature(), myGnomes), onGarden: (m) => { const p = m.planted ?? m.plantedMany?.[0]; if (p && started && !bloom.garden.get(p.id) && flybys.length < 6) flybys.push({ sp: p.sp, t0: performance.now() / 1000, seed: Math.random(), dir: Math.random() < 0.5 ? -1 : 1 }); bloom.onGarden(m); }, onDecos: (m) => { for (const [id, raw] of Object.entries(m)) { const { sig, riders } = splitRiders(raw); bouquets.set(+id, bouquet(fromSignature(sig), { strands: 5, max: 80 })); theirGnomes.set(+id, riders); } }, onGnome: (g) => gnomes.onGnome(g), onHello: (id) => (me = id), onNames: (m) => others.setNames(m), onSnapshot: (s) => others.apply(s, me, glide.pos), onLaid: applyLaid, onLeft: removeHand, onState: (st) => (roomState = st), onCommunity: (m) => { if (m.donated) community.add(m.donated); if (m.sealed) { stamp(`Community Hand ${m.sealed}`, 'all 22 handbits given · the next one begins'); net.community().then((c) => community.set(c)); } } });
   else panel.say('Playing alone: the map could not be reached', 6);
 });
 const others = createOthers({ max: 60 }); // the other players in your room, as lighter creatures
@@ -243,7 +248,9 @@ function charting() {
   if (r === 'sealed') stamp(`${hand.name} sealed`, `every handbit charted · ${chart.sealedCount()} sealed`);
   else sfx('chart'), panel.say(`Charted: ${handbit.name} · ${hand.name} (${chart.count(hand.id)} of ${total})`, 3.5);
 }
-const braid = createBraid({ radius: 450 }), braidList = [], CALM = params.has('calm'); // the greeting, within 450 m (at this speed you turn in a 340 m circle: any closer and you could not circle a friend); ?calm: reduced motion, no braiding
+const braid = createBraid({ radius: 450, hold: 2 }), braidList = [], CALM = params.has('calm'); // the greeting, within 450 m (at this speed you turn in a 340 m circle: any closer and you could not circle a friend); ?calm: reduced motion, no braiding
+const flybys = []; /* what others just sowed, drifting past you: { sp, t0, seed, dir } */
+let metAt = -99, livePill = '';
 let braiding = null; // { id, k } while two swarms braid
 let braidN = 0;
 const braidPool = [];
@@ -252,6 +259,37 @@ const tags = new Map(); // id -> name tag over that player
 const greeted = new Set(); // players you have been told about
 const eyeW = new THREE.Vector3();
 const seenTags = new Set();
+/* the first seconds you are near a player their picture floats over their whorl (their initial when they have none) */
+const faces = new Map(); /* id -> { sprite, tex, at, near } */
+let avatarsAt = -99;
+function faceOne(id, name, pos) {
+  const d = Math.hypot(pos[0] - glide.pos[0], pos[1] - glide.pos[1], pos[2] - glide.pos[2]), now = performance.now() / 1000;
+  let f = faces.get(id);
+  if (!f) {
+    const c = Object.assign(document.createElement('canvas'), { width: 256, height: 256 }), tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    f = { c, tex, at: -99, near: false, name: undefined, sprite: new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, depthTest: false })) };
+    f.sprite.renderOrder = 16; f.sprite.visible = false; scene.add(f.sprite); faces.set(id, f);
+  }
+  if (d < 1500 && !f.near) { f.near = true; f.at = now; if (!pics[name] && now - avatarsAt > 60) { avatarsAt = now; net.avatars().then((a) => { if (a) { pics = a; for (const q of faces.values()) q.name = undefined; } }); } }
+  if (d > 2500) f.near = false;
+  const k = (now - f.at) / 6;
+  f.sprite.visible = k >= 0 && k < 1;
+  if (!f.sprite.visible) return;
+  if (f.name !== name) {
+    f.name = name;
+    const g = f.c.getContext('2d'), ring = () => { g.strokeStyle = '#ffcfa8'; g.lineWidth = 10; g.beginPath(); g.arc(128, 128, 118, 0, Math.PI * 2); g.stroke(); f.tex.needsUpdate = true; };
+    g.clearRect(0, 0, 256, 256);
+    g.fillStyle = '#2a1830'; g.beginPath(); g.arc(128, 128, 118, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#ffcfa8'; g.font = '700 130px Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText((name ?? '?').slice(0, 1).toUpperCase(), 128, 136);
+    ring();
+    const url = cleanPicture(pics[name]);
+    if (url) { const img = new Image(); img.crossOrigin = 'anonymous'; img.referrerPolicy = 'no-referrer'; img.onload = () => { if (f.name !== name) return; g.save(); g.beginPath(); g.arc(128, 128, 118, 0, Math.PI * 2); g.clip(); g.drawImage(img, 10, 10, 236, 236); g.restore(); ring(); }; img.src = url; }
+  }
+  const s = d * 0.075 * Math.min(1, k * 8, (1 - k) * 5);
+  f.sprite.position.set(pos[0], pos[1] + 30 + d * 0.07, pos[2]);
+  f.sprite.scale.set(s, s, 1);
+}
 function tagOne(c, id, pos) {
     seenTags.add(id);
     let t = tags.get(id);
@@ -259,6 +297,7 @@ function tagOne(c, id, pos) {
     const name = others.nameOf(id);
     t.set(name ?? 'a traveller');
     t.update(pos, eyeW);
+    faceOne(id, name, pos);
     if (started && mode === 'fly' && !greeted.has(id)) { greeted.add(id); panel.say(`${name ?? 'A traveller'} joined your sky`, 4); }
 }
 let hudTick = 1, hudState = null;
@@ -298,7 +337,7 @@ function updateTags() { // no allocation per frame: one set, one callback
   camera.getWorldPosition(eyeW);
   seenTags.clear();
   others.each(tagOne);
-  for (const [id, t] of tags) if (!seenTags.has(id)) { scene.remove(t.sprite); t.dispose(); tags.delete(id); greeted.delete(id); }
+  for (const [id, t] of tags) if (!seenTags.has(id)) { scene.remove(t.sprite); t.dispose(); tags.delete(id); greeted.delete(id); const f = faces.get(id); if (f) { scene.remove(f.sprite); f.tex.dispose(); f.sprite.material.dispose(); faces.delete(id); } }
 }
 
 // height of the world at (x, z), for flight clearance (the GPU surface follows the same rule)
@@ -400,7 +439,7 @@ addEventListener('keydown', (e) => { if ((e.key === 'g' || e.key === 'G') && mod
 const FOX = params.has('fox') ? 1 : null;
 const C = (hex) => new THREE.Color(hex);
 const DAY = { fog: C(HORIZON), ink: C('#16100e'), sun: C(0xfff1e0), sky: C(0xc9d6e2), ground: C(0x9a6a50) };
-const NIGHT = { fog: C('#14052b'), ink: C('#eaffff'), streak: C('#3fd8ff'), hand: C('#00e5ff'), sun: C('#ff5ad6'), sky: C('#66e8ff'), ground: C('#7a1fff') };
+const NIGHT = { fog: C('#14052b'), ink: C('#a9a9a9') /* ponytail: plain white-grey just under the bloom threshold (0.42), so the whorl does not glow; draw it after the bloom pass if it must be pure white */, streak: C('#3fd8ff'), hand: C('#00e5ff'), sun: C('#ff5ad6'), sky: C('#66e8ff'), ground: C('#7a1fff') };
 let trip = 0, tripWas = -1, composer = null, bloomPass = null;
 // the foxfire has music (openly licensed synthwave, assets/music/CREDITS.md); the calm world stays silent. N mutes it.
 const music = createMusic({ storage, onPlay: (tr) => panel.say(`♪ ${tr.title} · ${tr.artist}${tr.licence ? ` · ${tr.licence}` : ''}`, 6) });
@@ -834,7 +873,7 @@ async function choose(i) { // a ghost chosen once is picked, chosen again is lai
     return panel.say(`This device already has a Hand on the map: ${mine.name}`, 7);
   }
   mine = { ...laying, pose: r.pose ?? fit.pose, id: r.id ?? `local-${Date.now()}`, pending: !r.id };
-  roomLink?.rename(mine.name); // others now see your Hand's name over you
+  roomLink?.rename(myName()); // others now see your Hand's name over you
   delete mine.busy;
   try {
     saveHand(storage, mine);
@@ -1013,6 +1052,7 @@ function frame() {
   // charting and the HUD's contents ten times a second (the HUD still fades every frame)
   if ((hudTick += dt) >= 0.1) { hudTick = 0; charting(); hudState = hudContents(); }
   { const k = renderer.xr.isPresenting ? 1 : 1.9 * Math.tan(camera.fov * Math.PI / 360) / Math.tan(65 * Math.PI / 360); hud.group.scale.set(k, k, 1); } // on a screen: larger, and the same size however wide the view gets
+  { const s = started ? `${others.count + 1} flying now` : ''; if (s !== livePill) { livePill = s; const el = document.getElementById('livePill'); el.textContent = s; el.classList.toggle('hidden', !s); } }
   if (hudState) { hudState.show = started && mode === 'fly'; hudState.yaw = glide.yaw; hudState.active = Math.abs(want.turn) + Math.abs(want.climb) > 0.1 || !!braiding; hud.update(dt, hudState); }
   // the greeting: near another player your swarms braid for a few seconds
   braidN = 0;
@@ -1021,6 +1061,13 @@ function frame() {
   const b = started && mode === 'fly' ? braid.update(dt, glide.pos, braidList) : null;
   if (b && b.id !== braiding?.id) panel.say(`You met ${others.nameOf(b.id) ?? 'a traveller'}`, 4);
   if (b && b.id !== braiding?.id) sfx('greet');
+  if (b && b.id !== braiding?.id) { /* they hand you a seed of something they sowed */
+    metAt = t;
+    { const f = faces.get(b.id); if (f) f.at = performance.now() / 1000; } /* and their picture comes up again */
+    const theirs = bouquets.get(b.id), sp = theirs?.length ? theirs[Math.floor(Math.random() * theirs.length)].sp : Math.floor(Math.random() * 3);
+    bloom.pouch.gather(sp, 1);
+    panel.say(`You met ${others.nameOf(b.id) ?? 'a traveller'}: you swapped seeds, and got ${bloom.species[sp].name}`, 5);
+  }
   if (b && b.id !== braiding?.id) passport.note('friend', others.nameOf(b.id) ?? 'A traveller'); // a greeting: one more for your passport
   braiding = b;
   const other = b && braidList.find((o) => o.id === b.id);
@@ -1072,6 +1119,21 @@ function frame() {
   // what you carry: tiny flecks of each kind of seed in your pouch, so a seed cloud caught shows on you at once
   for (const o of bloom.motes(creature.active)) { const l = creature.strand(o.strand), j = Math.min(l.count - 1, Math.max(1, Math.round(o.at * (l.count - 1)))) * 3; fl.deco(l.xyz[j], l.xyz[j + 1], l.xyz[j + 2], 4.5 * (1 + 0.25 * Math.sin(t * 3 + o.phase)), o.sp); }
   others.each((c, id) => { const b = bouquets.get(id); if (b) for (const o of b) { const l = c.strand(o.strand % c.strands), j = Math.min(l.count - 1, Math.max(1, Math.round(o.at * (l.count - 1)))) * 3; fl.deco(l.xyz[j], l.xyz[j + 1], l.xyz[j + 2], (5 + 4 * o.size) * (1 + 0.12 * Math.sin(t * 2.2 + o.phase)), o.sp); } });
+  if (braiding && other) { /* intertwined: seeds cross both ways between you */
+    const theirs = bouquets.get(braiding.id), mineB = bloom.bouquet(), A = glide.pos, B = other.pos;
+    for (let i = 0; i < 12; i++) {
+      const back = i % 2, k = (t * 0.9 + i / 12) % 1, u = back ? 1 - k : k, sp = back ? theirs?.[i % (theirs.length || 1)]?.sp ?? i % 3 : mineB[i % (mineB.length || 1)]?.sp ?? bloom.pouch.selected ?? 0;
+      const a = k * Math.PI * 4 + i, r = 14 * Math.sin(Math.PI * k);
+      fl.deco(A[0] + (B[0] - A[0]) * u + Math.cos(a) * r, A[1] + (B[1] - A[1]) * u + Math.sin(Math.PI * k) * 30 + Math.sin(a) * r, A[2] + (B[2] - A[2]) * u + Math.sin(a) * r, 10 * braiding.k * (0.6 + 0.4 * Math.sin(Math.PI * k)), sp);
+    }
+  }
+  if (t - metAt < 1.4) { const k = (t - metAt) / 1.4, mineB = bloom.bouquet(); for (let i = 0; i < 16; i++) { const a = i * Math.PI / 8 + k * 2; fl.deco(glide.pos[0] + Math.cos(a) * 160 * k, glide.pos[1] + 20 + 60 * Math.sin(Math.PI * k), glide.pos[2] + Math.sin(a) * 160 * k, 14 * (1 - k), mineB[i % (mineB.length || 1)]?.sp ?? i % 3); } }
+  { const f = glide.forward(); /* somebody sowed somewhere: a few of their petals drift across your view */
+    for (let n = flybys.length - 1; n >= 0; n--) {
+      const q = flybys[n], k = (t - q.t0) / 5;
+      if (k >= 1 || k < 0) { flybys.splice(n, 1); continue; }
+      for (let i = 0; i < 5; i++) { const side = (k * 2 - 1) * 300 * q.dir + i * 16, ahead = 220 + i * 22 + q.seed * 90, up = 10 + q.seed * 50 + 26 * Math.sin(k * 7 + i); fl.deco(glide.pos[0] + f[0] * ahead - f[2] * side, glide.pos[1] + up, glide.pos[2] + f[2] * ahead + f[0] * side, 9 * Math.sin(Math.PI * k), q.sp); }
+    } }
   for (const c of bloom.clouds()) if (!bloom.taken(c.id)) for (let i = 0; i < 10; i++) { const a = t * (0.5 + 0.07 * i) + i * 0.63, r = 30 + 50 * ((i * 0.618) % 1); fl.deco(c.x + Math.cos(a) * r, c.y + Math.sin(a * 1.3 + i) * 25, c.z + Math.sin(a) * r, 30, c.sp); }
   sandstorm.update(t, bloom.storm(), groundAt);
   const gold = bloom.gold();
@@ -1218,7 +1280,7 @@ function lobbyData() {
       blooms: bloom.allPlots(), sowings: bloom.sowings(), players: [{ name: 'you', x: glide.pos[0], z: glide.pos[2], you: true }, ...flying.map((p) => ({ ...p, name: p.name ?? 'traveller' }))],
     },
     pics, whorls: Object.fromEntries(hands.filter((h) => h.pose && !h.founder).map((h) => [h.name, classesOf(h)])), // each player's five print classes: their whorl's sign
-    me: { whorl: creature.styled, pic: myPic, name: mine?.name ?? 'A traveller', status: STATUS[Math.min(STATUS.length - 1, Math.floor((lv - 1) / 2))], level: lv },
+    me: { whorl: creature.styled, pic: myPic, name: myName() ?? 'A traveller', status: STATUS[Math.min(STATUS.length - 1, Math.floor((lv - 1) / 2))], level: lv },
   };
 }
 function openLobby() {
@@ -1234,6 +1296,11 @@ function openLobby() {
   lobby.update(lobbyData());
 }
 document.getElementById('previewButton').addEventListener('click', openLobby);
+{ const el = document.getElementById('lobbyName');
+  el.value = userName ?? '';
+  el.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') el.blur(); });
+  el.addEventListener('keyup', (e) => e.stopPropagation());
+  el.addEventListener('change', () => { userName = cleanName(el.value); el.value = userName ?? ''; try { userName ? storage?.setItem('pwc.name.v1', userName) : storage?.removeItem('pwc.name.v1'); } catch {} const n = myName(); if (n) roomLink?.rename(n); lobby.update(lobbyData()); }); }
 // "Explain this game to me": the whole game from A to Z, from the title and from the lobby (src/guide.js)
 const guideEl = document.getElementById('guide');
 const openGuide = () => { document.getElementById('guideBody').innerHTML = guideHtml(!document.getElementById('xrButton').classList.contains('hidden')); guideEl.classList.remove('hidden'); guideEl.scrollTop = 0; };
