@@ -406,7 +406,7 @@ const ownSeed = () => { try { return userName ?? storage?.getItem('pwc.account.v
 const seedWhorl = () => { const s = ownSeed(); if (!mine && s) creature.style(seedClasses(s)); };
 seedWhorl();
 setInterval(() => others.each((c, id) => { const name = others.nameOf(id), h = name && hands.find((q) => q.name === name && q.prints); c.style(h ? classesOf(h) : seedClasses(name ?? `traveller ${id}`)); /* a Hand's own prints, else a whorl from their name */ }), 2000); // other players' whorls, from their Hands
-const CHASE = { back: 158, up: 34 }; /* a fifth nearer than before: the whorl is the prettiest thing on screen, let it be seen */ // further back than the creature is long, so all of it is in front of you
+const CHASE = { back: 126, up: 27 }; /* a fifth nearer than before: the whorl is the prettiest thing on screen, let it be seen */ // further back than the creature is long, so all of it is in front of you
 const chase = { pos: new THREE.Vector3(glide.pos[0], glide.pos[1] + CHASE.up, glide.pos[2] + CHASE.back), yaw: glide.yaw };
 const ink = createInk(MAX_LAYERS * 5 * (LINE.points + 1) + creature.strands * 71 + 60 * 5 * 41, { width: 1.1, color: '#16100e' }); // every Hand's five, you, and up to 60 others
 // speed lines: ink streaks hanging in the air that rush past when you are fast
@@ -1154,7 +1154,7 @@ function frame() {
   creature.pull(other && !CALM ? other.pos : null, b ? b.k * 0.6 : 0);
   for (const o of braidList) o.c.pull(other === o && !CALM ? glide.pos : null, other === o ? b.k * 0.6 : 0);
   // the camera chases the creature: behind and above it, easing after its turns (never rolling)
-  const f = glide.forward(), follow = 1 - Math.exp(-dt * 3);
+  const f = glide.forward(), follow = 1 - Math.exp(-dt * 7); /* a tight follow: at speed the whorl no longer runs away to the horizon */
   const cx = glide.pos[0] - f[0] * CHASE.back, cz = glide.pos[2] - f[2] * CHASE.back;
   chase.pos.lerp(tmpChase.set(cx, Math.max(glide.pos[1] + CHASE.up, groundAt(cx, cz) + 20), cz), follow);
   chase.yaw += Math.atan2(Math.sin(glide.yaw - chase.yaw), Math.cos(glide.yaw - chase.yaw)) * follow;
