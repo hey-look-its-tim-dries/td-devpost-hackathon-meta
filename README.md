@@ -43,7 +43,7 @@ On top of the flying, everyone gardens the desert together.
 
 - **Collect:** fly through the swirls of seed on the wind. Each cloud is one of 403 real flowers and trees
   (the index holds 712 species: 259 flowers, 144 trees, 24 mushrooms, and the 285 birds, insects, fish and animals that follow them). New finds go into your herbarium.
-- **Build:** hold **Space** (in the headset: hold a right-hand pinch) low over a Hand to sow. You slow down while you sow.
+- **Sow:** hold **Space** or **Enter** (in the headset: hold a right-hand pinch) low over a Hand. A pink SOW MODE badge lights whenever sowing would work, and the seed is thrown ahead of you, so you keep your speed.
   **Q / E** (left-hand pinch) picks the seed. Every species has one of three looks: pixel art, painted, or 3D.
   Pixel species also lay a mosaic tile on the sand, snapped to a grid, so fields of them join into pictures.
 - **Cultivate:** skim a river to fill your five pours of water, then fly low over groves to grow them (four stages).
