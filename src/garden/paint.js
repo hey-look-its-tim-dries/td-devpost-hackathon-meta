@@ -93,6 +93,14 @@ function tree(g, s, r, thick) {
   }
 }
 
+// only the stem and leaves of a flower, for a portrait whose bloom comes from elsewhere
+export function drawStem(g, x0, y0, px) {
+  g.save(); g.translate(x0, y0); g.scale(px, px);
+  g.strokeStyle = GREENS[0]; g.lineWidth = 0.05; g.lineCap = 'round'; g.beginPath(); g.moveTo(0.5, 0.99); g.quadraticCurveTo(0.47, 0.7, 0.5, 0.4); g.stroke();
+  g.fillStyle = GREENS[0]; ell(g, 0.39, 0.8, 0.11, 0.045, -0.6); ell(g, 0.61, 0.72, 0.11, 0.045, 0.6);
+  g.restore();
+}
+
 // one species into a px by px cell whose top left is (x0, y0); smooth = painted with light, otherwise flat
 export function drawSpecies(g, s, x0, y0, px, smooth) {
   const r = rng(hashName(s.name));

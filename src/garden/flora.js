@@ -8,7 +8,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { rng } from '../hand/dna.js';
-import { paintAtlases, styleOf, ROW, PIX, SOFT, GEN } from './paint.js';
+import { paintAtlases, styleOf, drawStem, ROW, PIX, SOFT, GEN } from './paint.js';
 
 const NEAR = 7000; // groves farther than this from you are not drawn
 export const FLOWER_H = 46, TREE_H = 150, TILE = 90; // giants: the Hands are kilometres long // stylised metres: it has to read from the air at speed
@@ -180,6 +180,25 @@ export function createFlora(species, flora, shared) {
       }));
       (style === 'pixel' ? pixTex : softTex).needsUpdate = true;
     }
+    // The other painted flower species get a bloom from Josep Valls's 1000+ Free Flowers (CC0): of its 1024, the one
+    // nearest the species' own colour, set on a stem. The sheet is 32 by 32 flowers of 48 px.
+    const sheet = await load('assets/flora/josepvalls-1000-flowers/flowers-1536.png');
+    if (!sheet) return;
+    const tiny = Object.assign(document.createElement('canvas'), { width: 32, height: 32 }), tg = tiny.getContext('2d', { willReadFrequently: true });
+    tg.drawImage(sheet, 0, 0, 32, 32); // one pixel a flower: its average colour
+    const avg = tg.getImageData(0, 0, 32, 32).data, used = new Set(), g = soft.getContext('2d');
+    flora.filter((id) => species[id].kind === 'flower' && styleOf(species[id]) === 'paint').filter((_, i) => i % 2 === 1).forEach((id) => {
+      const n = parseInt(species[id].color.slice(1), 16), r = n >> 16, gr = (n >> 8) & 255, b = n & 255;
+      let best = 0, bd = Infinity;
+      for (let k = 0; k < 1024; k++) { if (used.has(k)) continue; const d = (avg[k * 4] - r) ** 2 + (avg[k * 4 + 1] - gr) ** 2 + (avg[k * 4 + 2] - b) ** 2; if (d < bd) { bd = d; best = k; } }
+      used.add(best);
+      const c = cell.get(id), x = c[0] * SOFT, y = c[1] * SOFT;
+      g.clearRect(x, y, SOFT, SOFT);
+      drawStem(g, x, y, SOFT);
+      g.imageSmoothingEnabled = true;
+      g.drawImage(sheet, (best % 32) * 48, Math.floor(best / 32) * 48, 48, 48, x + 10, y + 1, 44, 44);
+    });
+    softTex.needsUpdate = true;
   })();
   const spriteMat = (map, o = {}) => new THREE.ShaderMaterial({ uniforms: { ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog), uMap: { value: map }, uTime, uBillboard: { value: o.billboard ? 1 : 0 }, uTile: { value: o.tile ? 1 : 0 } }, vertexShader: o.tile ? TILE_VERT : SPRITE_VERT, fragmentShader: SPRITE_FRAG, side: THREE.DoubleSide, fog: true });
   const meshMat = () => new THREE.ShaderMaterial({ uniforms: { ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog), uTime, uSunDir: shared.uSunDir }, vertexShader: MESH_VERT, fragmentShader: MESH_FRAG, fog: true });
