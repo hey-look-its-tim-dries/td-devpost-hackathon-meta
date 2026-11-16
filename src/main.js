@@ -34,6 +34,7 @@ import { createAtlas } from './atlas/card.js';
 import { createPalmUp, createPush, createFling, createPull } from './gesture.js';
 import { firstHint } from './garden/hints.js';
 import { createTutorial, coach } from './garden/tutorial.js';
+import { createFirsts } from './garden/firsts.js';
 import { createPassport, profile, STATUS } from './garden/passport.js';
 import { createLobby, lobbyFacts } from './lobby.js';
 import { guideHtml } from './guide.js';
@@ -481,6 +482,9 @@ camera.add(seal.mesh);
 const hud = createHud();
 camera.add(hud.group);
 hud.group.add(lesson.mesh); // the tutorial's card, with the HUD: on a screen it grows with it
+// "what is what" (src/garden/firsts.js): the first time you meet each thing, a note says what it is; each once, then never again
+const firsts = createFirsts(storage, { off: params.has('notutorial') || params.has('atelier') }), noteCard = createTutorialCard(0.03), meet = { cloud: false, mushroom: false, gnome: false, at: 0 };
+hud.group.add(noteCard.mesh);
 const pins = createPins(storage); // up to five pinned places, on the compass
 let flyTo = null; // { x, z, label } while Fly here steers you
 const community = createCommunityArt(); // lies on the Source lake, once the map has answered
@@ -923,6 +927,20 @@ function frame() {
   gnomes.frame(dt, gnomeCtx);
   // the tutorial: fed with what you are doing; the hand card waits until it is over
   passport.sync(bloom.counts);
+  if (started && mode === 'fly' && firsts.left) { // what is near you, looked at twice a second
+    if (t - meet.at > 0.5) {
+      meet.at = t;
+      const near = (x, z, r) => Math.hypot(x - glide.pos[0], z - glide.pos[2]) < r;
+      meet.cloud = bloom.clouds().some((c) => !bloom.taken(c.id) && near(c.x, c.z, 1500));
+      meet.gnome = gnomes.homes().some((h) => near(h.x, h.z, 700));
+      meet.mushroom = false;
+      for (const g of bloom.garden.all()) if (g.dry === 2 && g.wx !== undefined && near(g.wx, g.wz, 900)) { meet.mushroom = true; break; }
+    }
+    let player = false;
+    others.each((c, id, pos) => { if (Math.hypot(pos[0] - glide.pos[0], pos[2] - glide.pos[2]) < 2500) player = true; });
+    const sand = bloom.storm(), g = bloom.hud(place);
+    noteCard.update(dt, (() => { const n = firsts.update({ onHand: !!place?.handbit, onWater: !!place && !place.handbit, cloud: meet.cloud, mushroom: meet.mushroom, gnome: meet.gnome, player, storm: !!sand && Math.hypot(sand.x - glide.pos[0], sand.z - glide.pos[2]) < 5000, gold: !!bloom.gold(), bloom: g.plot?.level ?? 0 }, dt); return n && { note: n, progress: n.progress, hands: renderer.xr.isPresenting }; })());
+  } else noteCard.update(dt, null);
   placesEl.classList.toggle('hidden', mode !== 'merge' || renderer.xr.isPresenting); // the chooser, on a screen only
   if (tutorial.active && started && (mode === 'fly' || mode === 'atlas')) {
     const r = tutorial.update({ turn: steer.turn, climb: steer.climb, sown: bloom.counts.sown, water: bloom.pouch.water, atlas: mode === 'atlas', acts }, dt);
