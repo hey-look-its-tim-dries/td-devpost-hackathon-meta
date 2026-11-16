@@ -62,14 +62,14 @@ test('annoying a gnome: a wild one grumbles; another gardener\'s loses heart and
 });
 test('gnomes on board travel in the bouquet\'s signature, each with its hat and the mushroom it left; the flowers are untouched', () => {
   const sig = [5, 10, 9, 20], riders = [{ hat: 2, id: 70000 }, { hat: 4, id: 5 }], out = withRiders(sig, riders);
-  assert.deepEqual(out, [5, 10, 9, 20, 4095, 2, 4094, 70000 & 4095, 4093, 70000 >> 12, 4095, 4, 4094, 5, 4093, 0]);
+  assert.deepEqual(out, [5, 10, 9, 20, 65535, 2, 65534, 70000 & 65535, 65533, 70000 >>> 16, 65535, 4, 65534, 5, 65533, 0]);
   assert.deepEqual(splitRiders(out), { sig, riders });
   assert.equal(fromSignature(splitRiders(out).sig).length, 2);
   const full = withRiders(Array.from({ length: 48 }, (_, i) => i), [1, 2, 3, 4, 5].map((hat) => ({ hat, id: 16000000 + hat })));
-  assert.ok(full.length <= 48 && full.every((v) => Number.isInteger(v) && v >= 0 && v < 4096), 'never longer, never larger than the room allows');
+  assert.ok(full.length <= 48 && full.every((v) => Number.isInteger(v) && v >= 0 && v < 65536), 'never longer, never larger than the room allows');
   assert.equal(splitRiders(full).riders.length, GNOME.max);
   assert.deepEqual(splitRiders(full).riders[0], { hat: 1, id: 16000001 });
-  assert.deepEqual(splitRiders([5, 10, 4095, 3]), { sig: [5, 10], riders: [{ hat: 3, id: 0 }] }, 'a rider with no home told still rides');
+  assert.deepEqual(splitRiders([5, 10, 65535, 3]), { sig: [5, 10], riders: [{ hat: 3, id: 0 }] }, 'a rider with no home told still rides');
   assert.deepEqual(splitRiders('junk'), { sig: [], riders: [] });
 });
 

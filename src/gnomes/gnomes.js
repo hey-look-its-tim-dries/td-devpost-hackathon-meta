@@ -130,19 +130,19 @@ export function lostGnome(was, mine, [, tag, owner, , event]) {
 export const gainedGnome = (was, mine, [, tag, , , event]) => (mine && tag === mine && was?.tag !== mine ? event : null);
 
 // ---- gnomes on board, told to the room inside the bouquet's signature, after the species ----
-// Per rider three pairs: [4095, hat], then the mushroom it left in two 12-bit halves, [4094, low] [4093, high]
-// (the room passes whole numbers under 4096 only). Others draw the gnome on your whorl and its cap empty.
+// Per rider three pairs: [65535, hat], then the mushroom it left in two 16-bit halves, [65534, low] [65533, high]
+// (the room passes whole numbers under 65536 only). Others draw the gnome on your whorl and its cap empty.
 export function withRiders(sig, riders) {
   const on = riders.slice(0, GNOME.max);
-  return [...sig.slice(0, 48 - 6 * on.length), ...on.flatMap((r) => [4095, r.hat, 4094, r.id & 4095, 4093, (r.id >>> 12) & 4095])];
+  return [...sig.slice(0, 48 - 6 * on.length), ...on.flatMap((r) => [65535, r.hat, 65534, r.id & 65535, 65533, (r.id >>> 16) & 65535])];
 }
 export function splitRiders(sig) {
   const s = [], riders = [];
   if (Array.isArray(sig)) for (let i = 0; i + 1 < sig.length; i += 2) {
     const k = sig[i], v = sig[i + 1], last = riders.at(-1);
-    if (k === 4095) riders.push({ hat: v % HATS.length, id: 0 });
-    else if (k === 4094) { if (last) last.id |= v & 4095; }
-    else if (k === 4093) { if (last) last.id |= (v & 4095) << 12; }
+    if (k === 65535) riders.push({ hat: v % HATS.length, id: 0 });
+    else if (k === 65534) { if (last) last.id = (last.id | (v & 65535)) >>> 0; }
+    else if (k === 65533) { if (last) last.id = (last.id + (v & 65535) * 65536) >>> 0; }
     else s.push(k, v);
   }
   return { sig: s, riders: riders.slice(0, GNOME.max) };

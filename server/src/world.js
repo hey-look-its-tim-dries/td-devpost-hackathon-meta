@@ -232,7 +232,7 @@ export class World extends DurableObject {
   // (big = 2: one plant, from a hyper sow) is 1. One at a time, a few a second; or up to 40 in a batch.
   async plant(req) {
     const b = await this.body(req), num = (v, lim) => typeof v === 'number' && Number.isFinite(v) && Math.abs(v) <= lim;
-    const ok = (q) => q && typeof q.hand_id === 'string' && Number.isInteger(q.bit) && q.bit >= 0 && q.bit <= 33 && num(q.x, 3000) && num(q.y, 3000) && Number.isInteger(q.sp) && q.sp >= 0 && q.sp <= 4095 && HABS.includes(q.hab);
+    const ok = (q) => q && typeof q.hand_id === 'string' && Number.isInteger(q.bit) && q.bit >= 0 && q.bit <= 33 && num(q.x, 3000) && num(q.y, 3000) && Number.isInteger(q.sp) && q.sp >= 0 && q.sp < 65533 && HABS.includes(q.hab);
     const many = Array.isArray(b?.batch), list = many ? b.batch : [b];
     if (!b || !list.length || list.length > 40 || !list.every(ok)) return Response.json({ error: 'not a grove' }, { status: 400 });
     const names = new Map();

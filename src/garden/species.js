@@ -744,6 +744,18 @@ const ROWS = [
   ["Devil's Fingers", 'Clathrus archeri', 'mushroom', 'ridge', 4, '#d81e2c', '#2a1414', 'cap', 1.0],
 ];
 
+// the forms each kind can be drawn in: flowers and trees by the painter (paint.js drawSpecies), wildlife by its
+// animation (fauna.js). A species must use one of these; a new form needs its drawing there and its name here.
+export const FORMS = {
+  flower: ['daisy', 'tulip', 'bell', 'spike', 'umbel', 'rosette'],
+  tree: ['round', 'cone', 'palm', 'umbrella', 'column', 'cactus'],
+  mushroom: ['cap'],
+  bird: ['songbird', 'raptor', 'wader', 'hummer'],
+  insect: ['butterfly', 'dragonfly', 'bee'],
+  fish: ['fish'],
+  animal: ['antelope', 'fox', 'camel', 'giraffe', 'tortoise', 'hare'],
+};
+
 export const SPECIES = ROWS.map(([name, latin, kind, habitat, rarity, color, color2, form, size], id) =>
   Object.freeze({ id, name, latin, kind, habitat, rarity, color, color2, form, size }));
 

@@ -42,8 +42,10 @@ export function signature(log, max = 24) {
   for (const [sp, n] of log) totals.set(sp, (totals.get(sp) ?? 0) + n);
   return [...totals].slice(0, max).flatMap(([sp, n]) => [sp, Math.min(63, Math.round(Math.log2(n + 1) * 4))]);
 }
+// species ids travel in 16 bits (the map's rows, the rooms' decorations): room for 65 thousand kinds
+export const MAX_SPECIES = 65533; // 65533..65535 mark gnome riders in a decoration (src/gnomes/gnomes.js)
 export function fromSignature(ints) {
-  if (!Array.isArray(ints) || ints.length % 2 || !ints.every((v) => Number.isInteger(v) && v >= 0 && v < 4096)) return [];
+  if (!Array.isArray(ints) || ints.length % 2 || !ints.every((v) => Number.isInteger(v) && v >= 0 && v < 65536)) return [];
   const out = [];
   for (let i = 0; i < ints.length; i += 2) { if (ints[i + 1] > 63) return []; out.push([ints[i], Math.max(1, Math.round(2 ** (ints[i + 1] / 4)) - 1), i / 2]); }
   return out;

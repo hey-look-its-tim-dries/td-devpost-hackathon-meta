@@ -178,7 +178,7 @@ export function createFlora(species, flora, shared) {
       if (!pool.length) continue;
       const S = style === 'pixel' ? PIX : SOFT, g = (style === 'pixel' ? pix : soft).getContext('2d');
       await Promise.all(ids.map(async (id, i) => {
-        const e = pool[Math.floor((i * pool.length) / ids.length) % pool.length], img = await load(e.file), c = cell.get(id);
+        const e = pool[i % pool.length] /* by its own place, not the list's length: adding species never repaints the old ones */, img = await load(e.file), c = cell.get(id);
         if (!img) return;
         const k = Math.min(S / e.w, S / e.h), w = e.w * k, h = e.h * k; // whole, feet on the ground, centred
         g.imageSmoothingEnabled = style !== 'pixel';

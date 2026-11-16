@@ -7,6 +7,7 @@
 // Flyers and fish are pure functions of time (nothing to integrate, nothing to remember but the height of
 // the ground under them); the herds walk, so they keep a little state. Who lives where: fauna-plan.js.
 import * as THREE from 'three';
+import { FORMS } from './species.js';
 import { planFauna, herdSize, hash32, KIND_KEY, DEFAULT_MAX } from './fauna-plan.js';
 
 export { herdSize, planFauna };
@@ -14,12 +15,6 @@ export { herdSize, planFauna };
 const TAU = Math.PI * 2;
 const SHADE = '0.5'; // how much of the scene's light shapes them (1: plain Lambert, 0: flat colour). The haze always applies
 const RANGE = { birds: 5000, insects: 2600, fish: 3600, animals: 5000 }; // metres from you to the edge of a plot; the small ones are specks long before
-const FORMS = {
-  bird: ['songbird', 'raptor', 'wader', 'hummer'],
-  insect: ['butterfly', 'dragonfly', 'bee'],
-  fish: ['fish'],
-  animal: ['antelope', 'fox', 'camel', 'giraffe', 'tortoise', 'hare'],
-};
 const SONGBIRD = 0, RAPTOR = 1, WADER = 2, HUMMER = 3, BUTTERFLY = 0, DRAGONFLY = 1, HARE = 5;
 // birds: how fast they fly (m/s) and how many wingbeats a second
 const BIRDS = [{ v: 30, flap: 3.2 }, { v: 20, flap: 0.8 }, { v: 19, flap: 1.5 }, { v: 0, flap: 11 }];

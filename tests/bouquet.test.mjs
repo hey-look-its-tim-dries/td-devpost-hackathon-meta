@@ -40,7 +40,7 @@ test('no two gardeners look alike, and one gardener always looks the same', () =
 test('a signature small enough to tell the room carries the order and the weight of the first 24 kinds', () => {
   const log = sow(Array.from({ length: 40 }, (_, i) => [100 + i, 1 + i * 20, i]));
   const sig = signature(log);
-  assert.ok(sig.length <= 48 && sig.every((v) => Number.isInteger(v) && v >= 0 && v < 4096));
+  assert.ok(sig.length <= 48 && sig.every((v) => Number.isInteger(v) && v >= 0 && v < 65536));
   const back = fromSignature(sig);
   assert.deepEqual(back.map((e) => e[0]), log.slice(0, 24).map((e) => e[0]));
   assert.ok(back[20][1] > back[1][1], 'more of it then, more of it now');

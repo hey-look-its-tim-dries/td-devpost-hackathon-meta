@@ -4,8 +4,15 @@
 // (painted, with light on it) and pixel (sixteen by sixteen, hard edged, outlined), and a species keeps
 // one style for good, so a garden mixes pixel flowers, painted ones and real 3D ones. Canvas 2D only.
 import { rng } from '../hand/dna.js';
+import { SPECIES, FORMS } from './species.js';
 
-export const ROW = 32, PIX = 32, SOFT = 64, GEN = 16; // cells a row; a cell's pixels in the pixel and the painted atlas; generated pixel portraits are 16 px, doubled
+// The flora sprite atlases are square grids of cells, one per plant species. They grow with the list: 32 cells a row
+// up to 1024 plants, 64 up to 4096 (a 4096 px painted atlas, about the most a headset takes). Past that: split the atlas.
+export const atlasRow = (n) => Math.max(32, 2 ** Math.ceil(Math.log2(Math.ceil(Math.sqrt(Math.max(1, n))))));
+export const MAX_FLORA = 4096;
+export const ROW = atlasRow(SPECIES.filter((s) => s.kind === 'flower' || s.kind === 'tree' || s.kind === 'mushroom').length), PIX = 32, SOFT = 64, GEN = 16;
+// the forms a flower or a tree can be drawn in (drawSpecies); a new form needs its drawing there and its name here
+export const FLOWER_FORMS = FORMS.flower, TREE_FORMS = FORMS.tree; // cells a row; a cell's pixels in the pixel and the painted atlas; generated pixel portraits are 16 px, doubled
 export const hashName = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619); return h >>> 0; };
 export const STYLES = ['pixel', 'paint', 'mesh'];
 export const styleOf = (s) => STYLES[hashName(s.name + s.kind) % 3];
