@@ -20,7 +20,7 @@ const friend = await (await browser.createBrowserContext()).newPage();
 await friend.setViewport({ width: 640, height: 360 });
 await friend.goto('http://localhost:8130/', { waitUntil: 'load' });
 await friend.evaluate(async () => { const F = await import('/src/world/founders.js'), M = await import('/src/world/mine.js'); const f = F.founders()[6]; M.saveHand(localStorage, { palm: f.palm, prints: f.prints, pose: { x: -9000, z: 21000, rot: 2.6, mirror: false }, name: 'Oruvel', pending: true }); });
-await friend.goto(`http://localhost:8130/?play&api=${API}&at=300,330,4300`, { waitUntil: 'load' });
+await friend.goto(`http://localhost:8130/?play&atelier&api=${API}&at=300,330,4300`, { waitUntil: 'load' });
 await friend.waitForFunction(() => window.__pwc && __pwc.state.started && __pwc.state.hands >= 10, { timeout: 60000 });
 await friend.keyboard.press('m'); // their atlas is open, so they hover where you will find them
 const page = await (await browser.createBrowserContext()).newPage();

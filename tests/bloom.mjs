@@ -35,9 +35,8 @@ try {
   await until(b, (id) => window.__pwc.bloom.garden.get(id)?.stage >= 1, 'B sees it grow', target.id);
   console.log('watered: stage', await b.evaluate((id) => window.__pwc.bloom.garden.get(id).stage, target.id), 'on B');
   // A clears it
-  await a.evaluate((q) => { const g = window.__pwc.glide; g.pos[0] = q.x; g.pos[1] = q.y + 90; g.pos[2] = q.z; }, target);
-  await wait(400);
-  await a.keyboard.press('KeyX');
+  const over = () => a.evaluate((q) => { const g = window.__pwc.glide; g.pos[0] = q.x; g.pos[1] = q.y + 90; g.pos[2] = q.z; }, target);
+  for (let i = 0; i < 8 && await a.evaluate((id) => !!window.__pwc.bloom.garden.get(id), target.id); i++) { await over(); await wait(150); await over(); await a.keyboard.press('KeyX'); await wait(500); } // the whorl flies on: hold it over the grove
   await until(b, (id) => !window.__pwc.bloom.garden.get(id), 'B sees it cleared', target.id);
   console.log('cleared on both');
   // tidy: A takes its test groves off the map

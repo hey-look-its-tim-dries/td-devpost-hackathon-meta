@@ -15,6 +15,30 @@ creature of black ink.</p>
   A mixed reality game for Meta Quest, hands only
 </p>
 
+## Bloom: the garden game
+
+On top of the flying, everyone gardens the desert together.
+
+- **Collect:** fly through the swirls of seed on the wind. Each cloud is one species out of 688 real ones
+  (259 flowers, 144 trees, and the birds, insects, fish and animals that follow them). New finds go into your herbarium.
+- **Build:** hold **Space** (in the headset: hold a right-hand pinch) low over a Hand to sow. You slow down while you sow.
+  **Q / E** (left-hand pinch) picks the seed. Every species has one of three looks: pixel art, painted, or 3D.
+  Pixel species also lay a mosaic tile on the sand, snapped to a grid, so fields of them join into pictures.
+- **Cultivate:** skim a river to fill your five pours of water, then fly low over groves to grow them (four stages).
+  Anyone can water anyone's grove. Planting in the right habitat (dune, river bank, ridge) and mixing kinds scores more.
+- **Grow:** a handbit is a plot of up to 80 groves. Its bloom has four levels; insects come first, then birds and fish,
+  then animals, and the rarest only to a full bloom. Your whorl grows more strands with your gardener level, splits in
+  two at full speed, and wears the flowers you planted most. Other players see them too.
+- **Destroy:** groves nobody tends dry out after 36 hours and die after 96. **X** clears a grove: your own, any on your
+  own Hand, or anyone's once it is dead (the compost gives two seeds back).
+- **Together:** groves are on the shared map and appear live for everyone. Planting while your whorl is braided with
+  another player's makes a double grove. Every four minutes one golden seed appears for the whole world, marked on
+  every compass: the first to reach it wins a legendary species. The HUD shows who is flying, a radar with other
+  players, seed clouds and blooming plots, and the top gardeners.
+
+Checks: `node tests/bloom.mjs` (two browsers sow, see, water and clear) and `node tools/bloom-look.mjs <dir>` for screenshots.
+Flower art from other makers is in `assets/flora` with its licences in `assets/flora/CREDITS.md`.
+
 ## Project description
 
 A palm already looks like a map. Its heart, head and life lines are rivers, the creases of the

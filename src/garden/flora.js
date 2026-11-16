@@ -7,7 +7,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { rng } from '../hand/dna.js';
-import { paintAtlases, styleOf, ROW, PIX, SOFT } from './paint.js';
+import { paintAtlases, styleOf, ROW, PIX, SOFT, GEN } from './paint.js';
 
 const NEAR = 7000; // groves farther than this from you are not drawn
 export const FLOWER_H = 46, TREE_H = 150, TILE = 90; // giants: the Hands are kilometres long // stylised metres: it has to read from the air at speed
@@ -57,7 +57,7 @@ const SPRITE_FRAG = /* glsl */ `
     vec4 c = texture2D(uMap, vUv);
     if (c.a < 0.5) discard;
     vec3 col = wither(c.rgb, vDry);
-    if (uTile > 0.5) { vec2 f = fract(vUv * ${ROW * PIX}.0); float edge = min(min(f.x, 1.0 - f.x), min(f.y, 1.0 - f.y)); col *= 0.72 + 0.28 * smoothstep(0.0, 0.14, edge); } // each pixel a set stone
+    if (uTile > 0.5) { vec2 f = fract(vUv * ${ROW * GEN}.0); float edge = min(min(f.x, 1.0 - f.x), min(f.y, 1.0 - f.y)); col *= 0.72 + 0.28 * smoothstep(0.0, 0.14, edge); } // each pixel a set stone
     gl_FragColor = vec4(col, 1.0);
     #include <colorspace_fragment>
     #include <fog_fragment>
@@ -157,6 +157,29 @@ export function createFlora(species, flora, shared) {
   const tex = (canvas, pixel) => { const t = new THREE.CanvasTexture(canvas); t.colorSpace = THREE.SRGBColorSpace; t.flipY = false; /* cells are addressed from the canvas's top left */ t.magFilter = pixel ? THREE.NearestFilter : THREE.LinearFilter; t.minFilter = THREE.LinearMipmapLinearFilter; t.generateMipmaps = true; t.anisotropy = 4; return t; };
   const softTex = tex(soft, false), pixTex = tex(pix, true);
   const uTime = { value: 0 };
+  // Freely licensed art from other makers (assets/flora, see its CREDITS.md) takes the place of every other
+  // sprite species' generated portrait: pixel packs for pixel species, painted ones for painted species.
+  (async () => {
+    let list;
+    try { list = await (await fetch(new URL('../../assets/flora/manifest.json', import.meta.url))).json(); } catch { return; }
+    const PACKS = { pixel: ['sicklyseraph-pixel-flower-icons', 'spiderdave-flowers', 'arkyonveil-16x-tileset', 'idylwild-foliage-pack', 'syrsly-2d-trees', 'letargicdev-some-plants'], paint: ['varkalandar-forbs', 'twemoji', 'kenney-foliage-pack'] };
+    const images = new Map(), load = (file) => { if (!images.has(file)) images.set(file, new Promise((res) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => res(null); i.src = new URL(`../../${file}`, import.meta.url).href; })); return images.get(file); };
+    for (const style of ['pixel', 'paint']) for (const kind of ['flower', 'tree']) {
+      const pool = list.filter((e) => e.kind === kind && e.style === (style === 'paint' ? 'painted' : 'pixel') && PACKS[style].includes(e.pack) && e.w > 0 && /\.png$/.test(e.file) && (style === 'paint' || (e.w <= 64 && e.h <= 64)));
+      const ids = flora.filter((id) => species[id].kind === kind && styleOf(species[id]) === style).filter((_, i) => i % 2 === 0);
+      if (!pool.length) continue;
+      const S = style === 'pixel' ? PIX : SOFT, g = (style === 'pixel' ? pix : soft).getContext('2d');
+      await Promise.all(ids.map(async (id, i) => {
+        const e = pool[Math.floor((i * pool.length) / ids.length) % pool.length], img = await load(e.file), c = cell.get(id);
+        if (!img) return;
+        const k = Math.min(S / e.w, S / e.h), w = e.w * k, h = e.h * k; // whole, feet on the ground, centred
+        g.imageSmoothingEnabled = style !== 'pixel';
+        g.clearRect(c[0] * S, c[1] * S, S, S);
+        g.drawImage(img, e.x, e.y, e.w, e.h, c[0] * S + (S - w) / 2, c[1] * S + S - h, w, h);
+      }));
+      (style === 'pixel' ? pixTex : softTex).needsUpdate = true;
+    }
+  })();
   const spriteMat = (map, o = {}) => new THREE.ShaderMaterial({ uniforms: { ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog), uMap: { value: map }, uTime, uBillboard: { value: o.billboard ? 1 : 0 }, uTile: { value: o.tile ? 1 : 0 } }, vertexShader: o.tile ? TILE_VERT : SPRITE_VERT, fragmentShader: SPRITE_FRAG, side: THREE.DoubleSide, fog: true });
   const meshMat = () => new THREE.ShaderMaterial({ uniforms: { ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog), uTime, uSunDir: shared.uSunDir }, vertexShader: MESH_VERT, fragmentShader: MESH_FRAG, fog: true });
   const SPR = { aPos: 4, aFx: 3, aCell: 2 }, MSH = { aPos: 4, aFx: 3, aC0: 3, aC1: 3, aC2: 3 };

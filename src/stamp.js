@@ -15,7 +15,7 @@ export function createStamp() {
   let t = Infinity;
   return {
     mesh,
-    show(title, sub = '') {
+    show(title, sub = '', kicker = 'SEALED') {
       const g = canvas.getContext('2d');
       g.clearRect(0, 0, W, H);
       g.fillStyle = 'rgba(243, 228, 210, 0.95)';
@@ -28,7 +28,7 @@ export function createStamp() {
       g.fillStyle = '#f3e4d2'; g.font = '700 64px Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('✋', 0, 4);
       g.restore();
       g.fillStyle = SEAL; g.textAlign = 'left'; g.textBaseline = 'alphabetic';
-      g.font = '700 26px Inter, system-ui, sans-serif'; g.fillText('SEALED', 250, 140);
+      g.font = '700 26px Inter, system-ui, sans-serif'; g.fillText(kicker, 250, 140);
       g.fillStyle = '#16100e'; g.font = '600 56px Georgia, serif'; g.fillText(title, 250, 210, W - 290);
       g.fillStyle = 'rgba(22, 16, 14, 0.7)'; g.font = '400 28px Inter, system-ui, sans-serif'; g.fillText(sub, 250, 260, W - 290);
       tex.needsUpdate = true;

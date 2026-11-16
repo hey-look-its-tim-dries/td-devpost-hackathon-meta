@@ -93,7 +93,7 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
     const up = pouch.credit('plant');
     worldPlants++;
     onDeco?.(pouch.deco());
-    if (up) stamp(`Gardener level ${pouch.level}`, TIER(pouch.level) > TIER(pouch.level - 1) ? 'rarer seeds will come to you now' : 'your whorl grows');
+    if (up) stamp(`Gardener level ${pouch.level}`, TIER(pouch.level) > TIER(pouch.level - 1) ? 'rarer seeds will come to you now' : 'your whorl grows', 'GARDENER');
     if (!online()) return;
     net.plant(p).then((r) => {
       remove(p.id);
@@ -153,7 +153,7 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
         (online() ? net.claimGolden(g.epoch) : Promise.resolve({ won: true })).then((r) => {
           if (r && !r.won) return say(`${r.name} reached the golden seed first`, 4);
           pouch.gather(g.sp, g.n); pouch.credit('golden'); ctx.burst?.();
-          stamp('The golden seed', `${g.n} seeds of ${SPECIES[g.sp].name}, a legend`);
+          stamp('The golden seed', `${g.n} seeds of ${SPECIES[g.sp].name}, a legend`, 'FIRST THERE');
         });
       }
     }
@@ -170,7 +170,7 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
     }
     if (dirty || flora.moved(pos)) { dirty = false; flora.rebuild(garden.all(), pos, groundAt); }
   }
-  function discovered(sp) { pouch.credit('discover'); stamp(`New in your herbarium: ${SPECIES[sp].name}`, `${SPECIES[sp].latin} · ${pouch.found.size} of ${SPECIES.length} found`); }
+  function discovered(sp) { pouch.credit('discover'); stamp(`New in your herbarium: ${SPECIES[sp].name}`, `${SPECIES[sp].latin} · ${pouch.found.size} of ${SPECIES.length} found`, 'HERBARIUM'); }
 
   // plots near you: notice blooms, and tell the wildlife where to live
   function blooms(ctx) {
@@ -180,7 +180,7 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
       if (!hb) continue;
       const pl = garden.plot(hand, bit, now), k = `${hand}:${bit}`, before = levels.get(k);
       levels.set(k, pl.level);
-      if (before !== undefined && pl.level > before) { if (pl.level === 4) stamp(`${hb.name} is in full bloom`, `${h.name} · ${pl.kinds.size} kinds`); else say(`${hb.name} of ${h.name}: ${BLOOM[pl.level]}`, 3.5); pouch.credit('bloom'); }
+      if (before !== undefined && pl.level > before) { if (pl.level === 4) stamp(`${hb.name} is in full bloom`, `${h.name} · ${pl.kinds.size} kinds`, 'FULL BLOOM'); else say(`${hb.name} of ${h.name}: ${BLOOM[pl.level]}`, 3.5); pouch.credit('bloom'); }
       if (!pl.level) continue;
       const [x, z] = toWorld(h.pose, hb.cx, hb.cy);
       if (Math.hypot(x - ctx.pos[0], z - ctx.pos[2]) > 6000) continue;

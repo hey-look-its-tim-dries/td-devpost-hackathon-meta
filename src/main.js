@@ -202,7 +202,7 @@ const others = createOthers({ max: 60 }); // the other players in your room, as 
 // charting (spec 6.4): fly over a handbit lower than 400 m and it is inked into your atlas; chart every
 // handbit of a Hand and it is sealed
 const chart = createChart(storage), CHART_ALT = 400, seal = createStamp();
-const stamp = (title, sub) => seal.show(title, sub);
+const stamp = (title, sub, kicker) => seal.show(title, sub, kicker);
 let place = null; // what lies under you: { hand, handbit, index } or null
 function charting() {
   place = whereAt(hands, glide.pos[0], glide.pos[2]);
@@ -295,7 +295,7 @@ scene.add(ink.mesh);
 
 // ---------- Bloom: the garden game (src/garden/game.js) ----------
 const decos = {}; // room id -> what that player planted most, on their whorl
-const bloom = createBloom({ scene, shared: world.shared, storage, net, hands, groundAt, say: (text, s) => panel.say(text, s), stamp: (a, b) => stamp(a, b), online: () => online, onDeco: (d) => roomLink?.deco(d) });
+const bloom = createBloom({ scene, shared: world.shared, storage, net, hands, groundAt, say: (text, s) => panel.say(text, s), stamp: (a, b, k) => stamp(a, b, k), online: () => online, onDeco: (d) => roomLink?.deco(d) });
 const fauna = createFauna(bloom.species);
 scene.add(fauna.group);
 bloom.setFauna(fauna);
@@ -874,7 +874,7 @@ function start() {
   panel.say('Palm Whorl Cities', 4);
   // fly and garden first; the invitation to lay a Hand of your own comes once you have planted a little (or after a while)
   setTimeout(() => panel.say(renderer.xr.isPresenting ? 'Point where you want to fly · hold a pinch over a Hand to sow' : 'A D turn · W S climb · hold SPACE over a Hand to sow · Q E choose a seed', 8), 4200);
-  invite = mine || params.has('noatelier') ? null : { at: t + 90, planted: bloom.pouch.plantedTotal + 6 };
+  invite = mine || params.has('noatelier') ? null : { at: t + (params.has('atelier') ? 4.2 : 90), planted: bloom.pouch.plantedTotal + 6 }; // ?atelier: at once (the tests)
 }
 async function enterHeadset() {
   const kind = (await navigator.xr.isSessionSupported('immersive-ar').catch(() => false)) ? 'immersive-ar' : 'immersive-vr';

@@ -47,7 +47,7 @@ await art.close();
 const head = await (await browser.createBrowserContext()).newPage();
 await head.setViewport({ width: 1280, height: 720 });
 head.on('pageerror', (e) => fail(`headset: ${e.message}`));
-await head.goto(`${GAME}/?play&api=${API}`, { waitUntil: 'load' });
+await head.goto(`${GAME}/?play&atelier&api=${API}`, { waitUntil: 'load' });
 await head.waitForFunction(() => window.__pwc && __pwc.state.mode === 'atelier' && __pwc.state.online, { timeout: 60000 });
 await head.evaluate(() => __pwc.atelier.act({ type: 'route', route: 'phone' }));
 await head.waitForFunction(() => __pwc.state.pairCode, { timeout: 20000 });

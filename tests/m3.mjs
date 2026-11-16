@@ -3,7 +3,7 @@
 // Run by hand (not part of node --test):  node tests/m3.mjs
 import puppeteer from '/Users/timdries/Desktop/Projects/TD-GAME-LINKSAWAKENING/tests/node_modules/puppeteer-core/lib/esm/puppeteer/puppeteer-core.js';
 
-const URL_ = 'http://localhost:8130/?play&api=http://localhost:8787';
+const URL_ = 'http://localhost:8130/?play&atelier&api=http://localhost:8787';
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const browser = await puppeteer.launch({ headless: true, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--no-sandbox'] });
 const open = async (label) => {

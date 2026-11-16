@@ -5,7 +5,7 @@
 // one style for good, so a garden mixes pixel flowers, painted ones and real 3D ones. Canvas 2D only.
 import { rng } from '../hand/dna.js';
 
-export const ROW = 32, PIX = 16, SOFT = 64; // cells a row, and a cell's pixels in the pixel and the painted atlas
+export const ROW = 32, PIX = 32, SOFT = 64, GEN = 16; // cells a row; a cell's pixels in the pixel and the painted atlas; generated pixel portraits are 16 px, doubled
 export const hashName = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619); return h >>> 0; };
 export const STYLES = ['pixel', 'paint', 'mesh'];
 export const styleOf = (s) => STYLES[hashName(s.name + s.kind) % 3];
@@ -121,8 +121,8 @@ export function pixelate(img) {
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     const i = y * w + x;
     if (solid[i]) continue;
-    const cx = x % PIX, cy = y % PIX; // never across a cell's edge into its neighbour
-    const near = (cx > 0 && solid[i - 1]) || (cx < PIX - 1 && solid[i + 1]) || (cy > 0 && solid[i - w]) || (cy < PIX - 1 && solid[i + w]);
+    const cx = x % GEN, cy = y % GEN; // never across a cell's edge into its neighbour
+    const near = (cx > 0 && solid[i - 1]) || (cx < GEN - 1 && solid[i + 1]) || (cy > 0 && solid[i - w]) || (cy < GEN - 1 && solid[i + w]);
     if (near) { d[i * 4] = 42; d[i * 4 + 1] = 24; d[i * 4 + 2] = 20; d[i * 4 + 3] = 255; }
   }
   return img;
@@ -131,14 +131,17 @@ export function pixelate(img) {
 // the two atlases: every flora species in one cell of each, 32 cells a row. Returns the canvases and where each is.
 export function paintAtlases(species, flora, makeCanvas = (w, h) => Object.assign(document.createElement('canvas'), { width: w, height: h })) {
   const rows = Math.ceil(flora.length / ROW);
-  const soft = makeCanvas(ROW * SOFT, ROW * SOFT), pix = makeCanvas(ROW * PIX, ROW * PIX), gs = soft.getContext('2d'), gp = pix.getContext('2d', { willReadFrequently: true });
+  const soft = makeCanvas(ROW * SOFT, ROW * SOFT), pix = makeCanvas(ROW * PIX, ROW * PIX), small = makeCanvas(ROW * GEN, ROW * GEN), gs = soft.getContext('2d'), gp = small.getContext('2d', { willReadFrequently: true });
   const cell = new Map(); // species id -> [column, row]
   flora.forEach((id, i) => {
     const cx = i % ROW, cy = Math.floor(i / ROW);
     cell.set(id, [cx, cy]);
     drawSpecies(gs, species[id], cx * SOFT, cy * SOFT, SOFT, true);
-    drawSpecies(gp, species[id], cx * PIX, cy * PIX, PIX - 0, false);
+    drawSpecies(gp, species[id], cx * GEN, cy * GEN, GEN, false);
   });
-  gp.putImageData(pixelate(gp.getImageData(0, 0, ROW * PIX, rows * PIX)), 0, 0);
+  gp.putImageData(pixelate(gp.getImageData(0, 0, ROW * GEN, rows * GEN)), 0, 0);
+  const gx = pix.getContext('2d');
+  gx.imageSmoothingEnabled = false;
+  gx.drawImage(small, 0, 0, ROW * PIX, ROW * PIX); // doubled, hard edged
   return { soft, pix, cell };
 }
