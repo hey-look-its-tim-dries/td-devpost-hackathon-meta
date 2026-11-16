@@ -35,7 +35,7 @@ import { createPalmUp, createPush, createFling, createPull } from './gesture.js'
 import { firstHint } from './garden/hints.js';
 import { createTutorial, coach } from './garden/tutorial.js';
 import { createFirsts } from './garden/firsts.js';
-import { LINES, relDir, createSpeaker } from './garden/voice.js';
+import { LINES, MUSINGS, pickLine, relDir, createSpeaker } from './garden/voice.js';
 import { createVoicePlayer } from './voiceplay.js';
 import { createGnomeComm } from './gnomecomm.js';
 import { createPassport, profile, STATUS } from './garden/passport.js';
@@ -269,7 +269,7 @@ function charting() {
 }
 const braid = createBraid({ radius: 450, hold: 2 }), braidList = [], CALM = params.has('calm'); // the greeting, within 450 m (at this speed you turn in a 340 m circle: any closer and you could not circle a friend); ?calm: reduced motion, no braiding
 const flybys = []; /* what others just sowed, drifting past you: { sp, t0, seed, dir } */
-let metAt = -99, livePill = '', missionKey = '', invTick = 0;
+let metAt = -99, livePill = '', missionKey = '', invTick = 0, worldTick = 3, readWorld = false;
 const inventory = createInventory(document.getElementById('inventory'), { onPick: (id) => { bloom.pouch.select(id); invTick = 0; sfx('seed'); } }); /* the right side of a screen: all you carry and know */
 let braiding = null; // { id, k } while two swarms braid
 let braidN = 0;
@@ -579,12 +579,16 @@ try { tuftQuiet = storage?.getItem('pwc.tuft.v1') === 'off'; } catch {}
 const toggleTuft = () => { tuftQuiet = !tuftQuiet; try { storage?.setItem('pwc.tuft.v1', tuftQuiet ? 'off' : 'on'); } catch {} if (tuftQuiet) { tuftLine = null; tuftVoice.set(true); } else tuftVoice.set(music.muted); panel.say(tuftQuiet ? 'Grandfather Tuft keeps quiet now' : 'Grandfather Tuft is back', 3); };
 addEventListener('keydown', (e) => { if ((e.key === 'u' || e.key === 'U') && mode === 'fly' && !e.repeat) toggleTuft(); });
 let tuftLine = null, tuftStep = null, tuftNote = null, missFor = 0, wildFor = 0;
+const tuftWas = new Map();
+let museAt = 60, museWas = -1;
 function tuft(ids, again = 45, anyway = false) { // anyway: if he is busy, show the words without the voice (a note that must not be lost)
   if (TUFT_OFF || tuftQuiet || !started) return false;
   const list = [].concat(ids), dur = tuftVoice.length(list), ok = speaker.may(t, list, dur + 0.6, again);
   if (!ok && !anyway) return false;
-  if (ok) tuftVoice.say(list);
-  tuftLine = { text: list.map((id) => LINES[id]).join(' '), until: t + Math.max(dur, 4) + 1.5 };
+  const said = list.map((id) => { const v = pickLine(id, tuftWas.get(id)); tuftWas.set(id, v); return v; }); /* one of his ways to say it, never the same twice running */
+  if (ok) tuftVoice.say(said);
+  tuftLine = { text: said.map((id) => LINES[id]).join(' '), until: t + Math.max(tuftVoice.length(said), 4) + 1.5 };
+  museAt = t + 50 + Math.random() * 40;
   return ok;
 }
 const pins = createPins(storage); // up to five pinned places, on the compass
@@ -1057,6 +1061,7 @@ function frame() {
   // lost over the wilderness for a while: he says which way the nearest Hand lies
   wildFor = started && mode === 'fly' && !place ? wildFor + dt : 0;
   for (const m of [lesson.mesh, tuftCard.mesh, card.mesh]) if (m.userData.away) m.visible = false;
+  if (started && mode === 'fly' && !tutorial.active && t > museAt) { let i = Math.floor(Math.random() * MUSINGS.length); if (i === museWas) i = (i + 1) % MUSINGS.length; museWas = i; museAt = t + 50 + Math.random() * 40; tuft(`muse-${i}`, 600); } /* nothing happening: he mutters */
   tuftCard.update(dt, tuftLine && t < tuftLine.until && !tuftCard.mesh.userData.away && mode !== 'atlas' ? { text: tuftLine.text, talking: tuftVoice.talking } : null);
   placesEl.classList.toggle('hidden', mode !== 'merge' || renderer.xr.isPresenting); // the chooser, on a screen only
   if (tutorial.active && started && (mode === 'fly' || mode === 'atlas')) {
@@ -1073,6 +1078,7 @@ function frame() {
     lesson.update(dt, { index: tutorial.index, step: tutorial.step, progress: tutorial.progress, hands: renderer.xr.isPresenting, coach: miss, ready: !miss && ['sow', 'scatter', 'pour', 'hyper', 'water'].includes(tutorial.step.id) });
   }
   if ((invTick -= dt) <= 0) { invTick = 0.5; const on = started && mode === 'fly' && !renderer.xr.isPresenting; inventory.show(on); if (on) { const d = bloom.pouch.dump(); inventory.update({ species: bloom.species, seeds: d.seeds, planted: d.planted ?? {}, found: bloom.pouch.found, selected: bloom.pouch.selected }, bloom.flora.icon, (id) => bloom.flora.styleOf?.(id) === 'pixel'); } }
+  if (started && communityOn && (worldTick -= dt) <= 0) { worldTick = 5; if (!readWorld && online) { readWorld = true; bloom.readAll(); } community.sown(bloom.sowings()); } /* the Community Hand: the whole world's sowings in pixels */
   { /* the gnome's wish is always on screen while one rides: CURRENT MISSION, how far along, how long is left */
     const q = started && mode === 'fly' ? gnomes.hud().quest : null, el = document.getElementById('mission');
     const key = q && !q.done ? `${q.name}|${q.text}|${q.have}/${q.need}|${q.left}` : '';

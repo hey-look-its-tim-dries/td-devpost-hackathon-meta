@@ -6,11 +6,14 @@ import * as THREE from 'three';
 import { labelHand } from './hand/label.js';
 import { handShape, templatePalm } from './hand/shape.js';
 import { SLOTS } from './world/community.js';
+import { nearest, worldCells } from './world/worldcells.js';
 import { TONES } from './world/scene.js';
 
 const S = 1024, GILT = '#c9a35a', INK = '#16100e';
 const LAB = labelHand(handShape(templatePalm({ seed: 1, fate: true, sun: true, mercury: true })), 3); // a palm cut into exactly 7 regions
 const hex = (c) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16));
+
+const NEAR = nearest(LAB);
 
 export function createCommunityArt() {
   const canvas = Object.assign(document.createElement('canvas'), { width: S, height: S });
@@ -22,7 +25,7 @@ export function createCommunityArt() {
   mesh.rotation.x = -Math.PI / 2;
   mesh.position.set(0, 3, 0);
   mesh.renderOrder = 2;
-  let state = { no: 1, sealed: 0, slots: [] };
+  let state = { no: 1, sealed: 0, slots: [] }, world = new Map(), groves = 0, worldKey = '';
 
   function paint() {
     g.clearRect(0, 0, S, S);
@@ -33,9 +36,9 @@ export function createCommunityArt() {
     for (let r = 0; r < LAB.h; r++) for (let c = 0; c < LAB.w; c++) {
       const L = LAB.label[r * LAB.w + c];
       if (L < 0) continue;
-      const slot = SLOTS[L], q = filled.get(slot), col = q ? hex(TONES[(q.palette ?? 2) * 3 + 1]) : [233, 214, 170];
+      const slot = SLOTS[L], q = filled.get(slot), sown = world.get(r * LAB.w + c), col = sown ? hex(sown) : q ? hex(TONES[(q.palette ?? 2) * 3 + 1]) : [233, 214, 170]; /* a sowing somewhere in the world: its flower's colour, here */
       const x0 = Math.floor(ox + c * k), y0 = Math.floor(oy + (LAB.h - 1 - r) * k); // north up: the fingers point away from the Source's south shore
-      for (let y = y0; y < y0 + Math.ceil(k); y++) for (let x = x0; x < x0 + Math.ceil(k); x++) { const o = (y * S + x) * 4; img.data[o] = col[0]; img.data[o + 1] = col[1]; img.data[o + 2] = col[2]; img.data[o + 3] = q ? 235 : 150; }
+      for (let y = y0; y < y0 + Math.ceil(k); y++) for (let x = x0; x < x0 + Math.ceil(k); x++) { const o = (y * S + x) * 4; img.data[o] = col[0]; img.data[o + 1] = col[1]; img.data[o + 2] = col[2]; img.data[o + 3] = sown ? 255 : q ? 235 : 150; }
     }
     g.putImageData(img, 0, 0);
     // gilt borders between slots
@@ -48,7 +51,7 @@ export function createCommunityArt() {
     g.font = '600 46px Georgia, serif'; g.letterSpacing = '6px';
     g.fillText(`COMMUNITY HAND ${state.no}`, S / 2, S - 70);
     g.letterSpacing = '0px'; g.font = '400 34px Georgia, serif';
-    g.fillText(`${filled.size} of ${SLOTS.length} given · sealed ${state.sealed}`, S / 2, S - 24);
+    g.fillText(`the whole world in one hand · ${groves.toLocaleString('en')} groves sown · ${filled.size} of ${SLOTS.length} given`, S / 2, S - 24, S - 40);
     tex.needsUpdate = true;
   }
   paint();
@@ -57,6 +60,8 @@ export function createCommunityArt() {
     canvas,
     get state() { return state; },
     set(s) { if (s) { state = s; paint(); } },
+    // everything sown in the world, as pixels on the hand (repainted only when it changed)
+    sown(points, R = 9500) { const k = `${points.length}:${points.at(-1)?.join()}`; if (k === worldKey) return; worldKey = k; world = worldCells(points, R, LAB, NEAR); groves = points.length; paint(); },
     // a donation heard from the room
     add({ no, slot, palette }) { if (no === state.no && !state.slots.some((q) => q.slot === slot)) { state.slots.push({ slot, palette }); paint(); } },
     // for the atlas tab: the drawing, and what it means

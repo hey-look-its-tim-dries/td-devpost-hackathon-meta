@@ -17,6 +17,7 @@ const ALL = { ...LINES, ...Object.fromEntries(JOY_LINES.map((t, i) => [`joy-${i}
 for (const [id, text] of Object.entries(ALL)) {
   if (only.length && !only.includes(id)) continue;
   const wav = `${OUT}${id}.wav`, mp3 = `${OUT}${id}.mp3`;
+  if (process.env.SKIP && fs.existsSync(mp3)) { seconds[id] = +execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', mp3]).toString().trim(); continue; } /* SKIP=1: only the clips that are missing */
   if (KOKORO) {
     execFileSync(KOKORO, ['-m', process.env.VOICE ?? 'bm_george', '-s', '0.9', '-t', text, '-o', wav], { stdio: 'ignore' });
     const age = id.startsWith('joy-') ? 'asetrate=24000*1.5,aresample=44100,atempo=0.92,highpass=f=200,loudnorm=I=-18:TP=-2' : 'asetrate=24000*0.93,aresample=44100,atempo=1.03,highpass=f=90,aecho=0.8:0.5:32:0.16,loudnorm=I=-17:TP=-2'; // a squeal is small and high; Tuft is old and low
