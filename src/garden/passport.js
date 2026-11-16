@@ -22,11 +22,11 @@ export function createPassport(storage, key = 'pwc.passport.v1') {
 }
 const top = (o, n) => Object.entries(o).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).slice(0, n);
 // the Me page: { name, status, level, xp, rows: [[label, value]], sown: [{ sp, n }] (most sown first), friends, rivals, gnomes: [[name, n]] }
-export function profile({ pass, species, found, level, xp, planted, seeds, charted, sealed, team, converted, hand }) {
+export function profile({ pass, species, found, level, xp, planted, seeds, charted, sealed, team, converted, hand, name = null }) {
   const of = (kinds) => { let have = 0, all = 0; species.forEach((s, id) => { if (kinds.includes(s.kind)) { all++; if (found.has(id)) have++; } }); return `${have} of ${all}`; };
   const sown = Object.entries(planted).map(([sp, n]) => ({ sp: +sp, n })).sort((a, b) => b.n - a.n || a.sp - b.sp);
   return {
-    name: hand?.name ?? 'A traveller', status: STATUS[Math.min(STATUS.length - 1, Math.floor((level - 1) / 2))], level, xp,
+    name: name ?? hand?.name ?? 'A traveller', status: STATUS[Math.min(STATUS.length - 1, Math.floor((level - 1) / 2))], level, xp,
     rows: [
       ['Groves sown', sown.reduce((a, s) => a + s.n, 0)], ['Kinds sown', sown.length], ['Seeds carried', seeds],
       ['Flowers, trees found', of(['flower', 'tree'])], ['Mushrooms found', of(['mushroom'])], ['Animals met', of(['bird', 'insect', 'fish', 'animal'])],

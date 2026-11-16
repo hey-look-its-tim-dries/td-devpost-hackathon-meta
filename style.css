@@ -338,3 +338,23 @@ body.touch .inventory { display: none; }
 
 .touch .pause { left: max(16px, env(safe-area-inset-left)); bottom: 162px; font-size: 16px; }
 .touch .bag { left: calc(max(16px, env(safe-area-inset-left)) + 68px); bottom: 162px; }
+
+/* ---- polish ---- */
+.banner-inner .menu { width: min(880px, 64vw); } /* inside the wreath, nothing clipped by a flower */
+.banner .small { max-width: 620px; padding: 6px 16px; border-radius: 12px; background: rgba(11, 0, 26, 0.55); backdrop-filter: blur(4px); line-height: 1.45; }
+.banner .live { padding: 4px 14px; border-radius: 999px; background: rgba(11, 0, 26, 0.4); }
+.lobby .call { left: 0; right: 0; bottom: 0; padding: 26px 18px 12px; border-radius: 0 0 16px 16px; background: linear-gradient(180deg, rgba(16, 10, 9, 0), rgba(16, 10, 9, 0.85) 55%); }
+.inventory { width: 128px; background: linear-gradient(90deg, rgba(11, 0, 26, 0), rgba(11, 0, 26, 0.28)); }
+.inv { backdrop-filter: blur(3px); background: rgba(20, 8, 34, 0.5); border-color: rgba(255, 255, 255, 0.22); transition: transform 120ms ease, border-color 120ms ease; }
+.inv.carried, .inv.chosen { background: rgba(20, 8, 34, 0.62); }
+.inv.carried:hover { transform: scale(1.06); border-color: #fff; }
+.live-pill { backdrop-filter: blur(4px); border: 1px solid rgba(255, 255, 255, 0.18); }
+.mission { backdrop-filter: blur(4px); }
+button { transition: transform 120ms ease, filter 120ms ease, background-color 120ms ease; }
+button:hover:not(.inv):not(.tb) { transform: translateY(-1px); filter: brightness(1.08); }
+button:focus-visible, input:focus-visible { outline: 2px solid #3ff3ff; outline-offset: 2px; }
+.lobby .lobby-name:focus { border-color: #ff7de9; outline: none; box-shadow: 0 0 0 3px rgba(255, 79, 224, 0.25); }
+.banner-inner .menu { grid-template-columns: repeat(2, minmax(0, 1fr)); width: min(640px, 64vw); } /* two tidy rows: no label ever touches its neighbour */
+@media (max-height: 520px) { .banner-inner .menu { grid-template-columns: repeat(4, minmax(0, 1fr)); width: 92vw; } .banner-inner .menu button { font-size: 0.66rem; } }
+.lobby .news li:nth-child(n+6) { display: none; } /* five lines of news: the list never runs off the screen */
+.lobby aside { overflow: hidden; }

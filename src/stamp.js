@@ -38,7 +38,7 @@ export function createStamp() {
     update(dt) {
       t += dt;
       const k = Math.min(1, t / 0.08);
-      mesh.scale.setScalar((1.15 - 0.15 * k) * 0.62); /* a small card among the others */
+      mesh.scale.setScalar((1.15 - 0.15 * k) * 0.55); /* a small card among the others */
       mesh.material.opacity = t < 3.5 ? Math.min(1, t / 0.05) : Math.max(0, 1 - (t - 3.5) / 0.6);
       mesh.visible = mesh.material.opacity > 0;
     },

@@ -68,8 +68,8 @@ export function createCommunityArt() {
     paintTab(g2, regions, { text }) {
       g2.drawImage(canvas, 40, 110, 680, 680);
       text('The Community Hand', 760, 180, { font: '600 46px Georgia, serif', max: 400 });
-      const lines = [`${state.slots.length} of ${SLOTS.length} slots given.`, `${state.sealed} sealed so far.`, '', 'Give one handbit of your own Hand:', 'tap it on the map, then', '"Give to the Community Hand".', '', 'When all 22 are given it is sealed', 'and the next one begins.'];
-      lines.forEach((t, i) => text(t, 760, 240 + i * 40, { font: '400 26px Inter, system-ui, sans-serif', color: 'rgba(22,16,14,0.8)', max: 400 }));
+      const lines = ['The whole world in one hand:', 'every pixel is a grove somebody', 'sowed, where it lies in the world.', '', `${groves.toLocaleString('en')} groves sown so far.`, '', `${state.slots.length} of ${SLOTS.length} slots given · ${state.sealed} sealed.`, 'Give one handbit of your own Hand:', 'tap it on the map, then', '"Give to the Community Hand".', '', 'When all 22 are given it is sealed', 'and the next one begins.'];
+      lines.forEach((t, i) => text(t, 760, 236 + i * 36, { font: '400 26px Inter, system-ui, sans-serif', color: 'rgba(22,16,14,0.8)', max: 400 }));
     },
   };
 }

@@ -93,6 +93,8 @@ export function createHud() {
       g.fillText(p.land ? `${p.land.groves} groves · ${p.land.kinds} kinds · ${p.land.blooms} plots in bloom` : 'nothing sown here yet', 122, 256, 490);
     } else {
       g.fillStyle = 'rgba(22,16,14,0.6)'; g.font = 'italic 400 34px Georgia, serif'; g.fillText('the wilderness', 28, 110);
+      g.fillStyle = 'rgba(22,16,14,0.25)'; g.fillRect(28, 175, c.width - 56, 2);
+      g.fillStyle = 'rgba(22,16,14,0.7)'; g.font = '400 24px Inter, system-ui, sans-serif'; g.fillText('No Hand under you: nothing grows here.', 28, 222, c.width - 56); g.fillText('Follow the compass to the nearest Hand.', 28, 256, c.width - 56);
     }
     g.textAlign = 'right'; g.fillStyle = INK; g.font = '700 40px Inter, system-ui, sans-serif'; g.fillText(spans(altitude), c.width - 28, 104);
     g.font = '500 20px Inter, system-ui, sans-serif'; g.fillStyle = 'rgba(22,16,14,0.6)'; g.fillText('SPANS UP', c.width - 28, 140);

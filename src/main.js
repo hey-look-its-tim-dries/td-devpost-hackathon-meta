@@ -253,7 +253,7 @@ const others = createOthers({ max: 60 }); // the other players in your room, as 
 const chart = createChart(storage), CHART_ALT = 400, seal = createStamp();
 const sound = createSound({ storage }); // a breeze that swells with your speed, and a sound for everything you do (src/sound.js)
 const SAYS = { level: 'level', mushroom: 'foxfire', grab: 'grab', quest: 'quest', team: 'team', cross: 'cross', greet: 'greet', bloom: 'bloomed', golden: 'golden', storm: 'storm' }; // what Grandfather Tuft says when it happens
-const sfx = (name, gap) => { sound.play(name, gap); if (SAYS[name]) setTimeout(() => tuft(SAYS[name], 90), 900); };
+const sfx = (name, gap) => { sound.play(name, gap); if (SAYS[name]) setTimeout(() => tuft(SAYS[name], 300), 900); /* each remark at most once in five minutes */ };
 const stamp = (title, sub, kicker) => { sfx('stamp'); seal.show(title, sub, kicker); };
 let place = null; // what lies under you: { hand, handbit, index } or null
 function charting() {
@@ -584,16 +584,16 @@ const toggleTuft = () => { tuftQuiet = !tuftQuiet; try { storage?.setItem('pwc.t
 addEventListener('keydown', (e) => { if ((e.key === 'u' || e.key === 'U') && mode === 'fly' && !e.repeat) toggleTuft(); });
 let tuftLine = null, tuftStep = null, tuftNote = null, missFor = 0, wildFor = 0;
 const tuftWas = new Map();
-let museAt = 180, museWas = -1, tuftRest = 0; /* a mutter every four to six minutes at most */
+let museAt = 420, museWas = -1, tuftRest = 0; /* a mutter every eight to twelve minutes at most */
 function tuft(ids, again = 45, anyway = false) { // anyway: if he is busy, show the words without the voice (a note that must not be lost)
   if (TUFT_OFF || tuftQuiet || !started) return false;
-  if (!anyway && !tutorial.active && t < tuftRest) return false; /* he is not a chatterbox: after any line, half a minute of peace (the tutorial aside) */
+  if (!anyway && again > 1 && t < tuftRest) return false; /* he is not a chatterbox: after any line, well over a minute of peace (only his greeting and the tutorial's own steps may break it) */
   const list = [].concat(ids), dur = tuftVoice.length(list), ok = speaker.may(t, list, dur + 0.6, again);
   if (!ok && !anyway) return false;
   const said = list.map((id) => { const v = pickLine(id, tuftWas.get(id)); tuftWas.set(id, v); return v; }); /* one of his ways to say it, never the same twice running */
   if (ok) tuftVoice.say(said);
   tuftLine = { text: said.map((id) => LINES[id]).join(' '), until: t + Math.max(tuftVoice.length(said), 4) + 1.5 };
-  museAt = t + 240 + Math.random() * 120; tuftRest = t + Math.max(dur, 4) + 30;
+  museAt = t + 480 + Math.random() * 240; tuftRest = t + Math.max(dur, 4) + 80;
   return ok;
 }
 const pins = createPins(storage); // up to five pinned places, on the compass
@@ -630,7 +630,7 @@ function atlasState() {
   const mineHand = mine && hands.find((h) => h.id === mine.id);
   return { hands, chart, me: { pos: glide.pos, yaw: glide.yaw }, others: list, pins: pins.list(), selected: selected?.id ?? null, inspect: selected && inspectOf(selected), mine: mine && { name: mine.name, handbits: mineHand?.data.handbits ?? [] }, names: mine ? placeNames[mine.id] ?? {} : {}, pickName,
     garden: bloom.herbarium, blooms: bloom.allPlots(), storm: bloom.storm(), byHand: renderer.xr.isPresenting, tutorial: tutorial.active, muted: music.muted, tuftQuiet, icon: bloom.flora.icon, style: bloom.flora.styleOf, face: myFace?.complete && myFace.naturalWidth ? myFace : null, whorl: creature.styled?.map((c) => WORDS[c] ?? c).join(' · ') ?? null,
-    profile: profile({ pass: passport.data, species: bloom.species, found: bloom.pouch.found, level: bloom.pouch.level, xp: bloom.pouch.xp, planted: bloom.pouch.dump().planted ?? {}, seeds: bloom.pouch.total, charted: hands.reduce((n, h) => n + chart.count(h.id), 0), sealed: chart.sealedCount(), ...(({ team, converted }) => ({ team, converted }))(gnomes.hud()), hand: mine && { name: mine.name } }),
+    profile: profile({ name: myName(), pass: passport.data, species: bloom.species, found: bloom.pouch.found, level: bloom.pouch.level, xp: bloom.pouch.xp, planted: bloom.pouch.dump().planted ?? {}, seeds: bloom.pouch.total, charted: hands.reduce((n, h) => n + chart.count(h.id), 0), sealed: chart.sealedCount(), ...(({ team, converted }) => ({ team, converted }))(gnomes.hud()), hand: mine && { name: mine.name } }),
     journal: events && events.map((e) => ({ when: when(e.at), text: journalText(e) })).filter((e) => e.text),
     timeline: timelineOf(), until: timelineAt,
     waters: atlas.layers.watersheds ? Object.fromEntries(Object.entries(sheds).map(([id, n]) => [id, SHED_COLOURS[n % SHED_COLOURS.length]])) : null, community: communityOn ? { paint: (g, regions, tools) => community.paintTab(g, regions, tools) } : null };
@@ -1066,7 +1066,7 @@ function frame() {
   // lost over the wilderness for a while: he says which way the nearest Hand lies
   wildFor = started && mode === 'fly' && !place ? wildFor + dt : 0;
   for (const m of [lesson.mesh, tuftCard.mesh, card.mesh]) if (m.userData.away) m.visible = false;
-  if (started && mode === 'fly' && !tutorial.active && t > museAt) { let i = Math.floor(Math.random() * MUSINGS.length); if (i === museWas) i = (i + 1) % MUSINGS.length; museWas = i; museAt = t + 240 + Math.random() * 120; tuft(`muse-${i}`, 600); } /* nothing happening: he mutters */
+  if (started && mode === 'fly' && !tutorial.active && t > museAt) { let i = Math.floor(Math.random() * MUSINGS.length); if (i === museWas) i = (i + 1) % MUSINGS.length; museWas = i; museAt = t + 480 + Math.random() * 240; tuft(`muse-${i}`, 900); } /* nothing happening: he mutters */
   tuftCard.update(dt, tuftLine && t < tuftLine.until && !tuftCard.mesh.userData.away && mode !== 'atlas' ? { text: tuftLine.text, talking: tuftVoice.talking } : null);
   placesEl.classList.toggle('hidden', mode !== 'merge' || renderer.xr.isPresenting); // the chooser, on a screen only
   if (tutorial.active && started && (mode === 'fly' || mode === 'atlas')) {
@@ -1079,7 +1079,7 @@ function frame() {
   if (tutorial.active && started && mode === 'fly') {
     const here = { onHand: !!place?.handbit, onWater: !!place && !place.handbit, alt: glide.pos[1] - groundAt(glide.pos[0], glide.pos[2]), limit: 320 }, miss = coach(tutorial.step.id, here);
     missFor = miss ? missFor + dt : 0;
-    if (missFor > 5) tuft(/river/.test(miss) && tutorial.step.id !== 'water' ? 'need-sand' : /Too high|Lower/.test(miss) ? 'need-low' : /Hand/.test(miss) ? 'need-hand' : 'need-water', 18); // stuck for a while: he says what is missing
+    if (missFor > 5) tuft(/river/.test(miss) && tutorial.step.id !== 'water' ? 'need-sand' : /Too high|Lower/.test(miss) ? 'need-low' : /Hand/.test(miss) ? 'need-hand' : 'need-water', 90); // stuck for a while: he says what is missing
     lesson.update(dt, { index: tutorial.index, step: tutorial.step, progress: tutorial.progress, hands: renderer.xr.isPresenting, coach: miss, ready: !miss && ['sow', 'scatter', 'pour', 'hyper', 'water'].includes(tutorial.step.id) });
   }
   if ((invTick -= dt) <= 0) { invTick = 0.5; const on = started && mode === 'fly' && !renderer.xr.isPresenting; inventory.show(on); if (on) { const d = bloom.pouch.dump(); inventory.update({ species: bloom.species, seeds: d.seeds, planted: d.planted ?? {}, found: bloom.pouch.found, selected: bloom.pouch.selected }, bloom.flora.icon, (id) => bloom.flora.styleOf?.(id) === 'pixel'); } }

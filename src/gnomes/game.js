@@ -7,7 +7,7 @@
 import { GNOME, gnomeAt, activity, shout, questFor, advance, questEvents, seedOf, lostGnome, gainedGnome, dangle, JOYS } from './gnomes.js';
 import { createGnomeRenderer } from './render.js';
 
-const SIZE = 20, RIDER = 46, CAP = 27; // metres per gnome unit at home and on a whorl (a passenger is a big, proud thing to carry: you see it from across a Hand); how high a mushroom's cap sits
+const SIZE = 20, RIDER = 184, CAP = 27; // metres per gnome unit at home and on a whorl (a passenger is a big, proud thing to carry: you see it from across a Hand); how high a mushroom's cap sits
 
 export function createGnomes({ scene, bloom, net, say, stamp, groundAt, creature, others, fauna, online, makeLabel, hands, onRiders, ridersOf, quest = null, onMet = null, onRival = null, sfx = () => {}, squeal = () => {} }) { // squeal(n): a gnome's cry of joy, clip n (assets/voice/joy-n) // quest: a kind to ask for (?quest=, for the film and the checks)
   const draw = createGnomeRenderer();
