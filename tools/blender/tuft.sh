@@ -8,3 +8,4 @@ tmp=$(mktemp -d)
 ffmpeg -y -v error -start_number 0 -i "$tmp/f%02d.png" -vf "scale=256:256,tile=8x2" -frames:v 1 assets/tuft.png
 rm -rf "$tmp"
 ls -la assets/tuft.png
+cwebp -quiet -q 92 -alpha_q 100 -m 6 assets/tuft.png -o assets/tuft.webp   # the game loads the WebP (a fifth of the size)

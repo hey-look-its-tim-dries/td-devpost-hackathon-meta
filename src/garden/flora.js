@@ -189,7 +189,7 @@ export function createFlora(species, flora, shared) {
     }
     // The other painted flower species get a bloom from Josep Valls's 1000+ Free Flowers (CC0): of its 1024, the one
     // nearest the species' own colour, set on a stem. The sheet is 32 by 32 flowers of 48 px.
-    const sheet = await load('assets/flora/josepvalls-1000-flowers/flowers-1536.png');
+    const sheet = await load('assets/flora/josepvalls-1000-flowers/flowers-1536.webp');
     if (!sheet) return;
     const tiny = Object.assign(document.createElement('canvas'), { width: 32, height: 32 }), tg = tiny.getContext('2d', { willReadFrequently: true });
     tg.drawImage(sheet, 0, 0, 32, 32); // one pixel a flower: its average colour

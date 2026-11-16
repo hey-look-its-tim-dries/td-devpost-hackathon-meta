@@ -16,7 +16,7 @@ export function createGnomeComm() {
   let drawn = '', clock = 0;
   // his face: 16 frames rendered in Blender (tools/blender/tuft.py), 8 x 2 of 256 px: frame 0 at rest, 1..15 talking
   const sheet = new Image();
-  sheet.src = new URL('../assets/tuft.png', import.meta.url).href;
+  sheet.src = new URL('../assets/tuft.webp', import.meta.url).href;
   function face(g, cx, cy, frame) {
     g.save(); g.beginPath(); g.roundRect(cx - 150, cy - 160, 300, 320, 40); g.clip();
     const sky = g.createLinearGradient(0, cy - 160, 0, cy + 160); sky.addColorStop(0, '#f1d9bd'); sky.addColorStop(1, '#d9a57e');

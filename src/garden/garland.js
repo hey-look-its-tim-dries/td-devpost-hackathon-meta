@@ -1,12 +1,12 @@
 // src/garden/garland.js
 // The opening screen's wreath: a ring of real flowers around the title, the same every time, with leaves
 // under them and petals drifting off. The blooms are 64 of Josep Valls's 1000+ Free Flowers (CC0;
-// assets/flora/josepvalls-1000-flowers/wreath-64.png, 8 by 8 flowers of 160 px). Canvas 2D; drawn again
+// assets/flora/josepvalls-1000-flowers/wreath-64.webp, 8 by 8 flowers of 160 px). Canvas 2D; drawn again
 // when the window changes size, and left empty if the sheet cannot be loaded.
 import { rng } from '../hand/dna.js';
 
 let sheet = null;
-const load = () => (sheet ??= new Promise((res) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => res(null); i.src = new URL('../../assets/flora/josepvalls-1000-flowers/wreath-64.png', import.meta.url).href; }));
+const load = () => (sheet ??= new Promise((res) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => res(null); i.src = new URL('../../assets/flora/josepvalls-1000-flowers/wreath-64.webp', import.meta.url).href; }));
 
 export async function drawGarland(canvas) {
   if (!canvas) return;
