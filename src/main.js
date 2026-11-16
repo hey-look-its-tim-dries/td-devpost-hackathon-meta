@@ -50,7 +50,8 @@ import { createBloom } from './garden/game.js';
 import { createFauna } from './garden/fauna.js';
 import { bouquet, fromSignature } from './garden/bouquet.js';
 import { drawGarland } from './garden/garland.js';
-import { FB_APP_ID } from './config.js';
+import { FB_APP_ID, GOOGLE_CLIENT_ID } from './config.js';
+import { googleUrl, idFromFragment } from './net/google.js';
 import { look as hudLook } from './ui/themed.js';
 import { createMusic } from './music.js';
 import { createSound } from './sound.js';
@@ -345,7 +346,14 @@ bloom.setFauna(fauna);
   const fbButton = document.getElementById('fbButton'), KEY = 'pwc.fb.state';
   let came = null;
   try { came = fromFragment(location.hash, sessionStorage.getItem(KEY)); sessionStorage.removeItem(KEY); } catch {}
-  if (came) { history.replaceState(null, '', location.pathname + location.search); const wait = setInterval(() => { if (online) { clearInterval(wait); bloom.signIn(came.token); } }, 500); }
+  let cameG = null; // ... or back from Google, with an identity token
+  try { cameG = idFromFragment(location.hash, sessionStorage.getItem('pwc.g.state')); sessionStorage.removeItem('pwc.g.state'); } catch {}
+  if (came || cameG) { history.replaceState(null, '', location.pathname + location.search); const wait = setInterval(() => { if (online) { clearInterval(wait); if (cameG) bloom.signIn(cameG.idToken, 'Google'); else bloom.signIn(came.token); } }, 500); }
+  const gButton = document.getElementById('gButton');
+  if (GOOGLE_CLIENT_ID && gButton) {
+    gButton.classList.remove('hidden');
+    gButton.addEventListener('click', () => { const state = crypto.randomUUID(); try { sessionStorage.setItem('pwc.g.state', state); } catch {} location.href = googleUrl(GOOGLE_CLIENT_ID, location.origin + location.pathname, state, crypto.randomUUID()); });
+  }
   if (FB_APP_ID && fbButton) {
     fbButton.classList.remove('hidden');
     fbButton.addEventListener('click', () => { const state = crypto.randomUUID(); try { sessionStorage.setItem(KEY, state); } catch {} location.href = dialogUrl(FB_APP_ID, location.origin + location.pathname, state); });

@@ -121,7 +121,8 @@ button:focus-visible {
 }
 
 #xrButton.hidden,
-#fbButton.hidden {
+#fbButton.hidden,
+#gButton.hidden {
   display: none;
 }
 

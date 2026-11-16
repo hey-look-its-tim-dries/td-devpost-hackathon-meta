@@ -11,6 +11,7 @@ import { handShape } from '../../src/hand/shape.js';
 import { unpackPalm, toB64, fromB64 } from '../../src/hand/dna.js';
 import { cleanName, HANDBIT_FEATURE, SUMMIT_FEATURE } from '../../src/world/names.js';
 import { verifyFacebook } from '../../src/net/facebook.js';
+import { verifyGoogle } from '../../src/net/google.js';
 import { afterQuest, afterAnnoy } from '../../src/gnomes/gnomes.js';
 import { slotFor, isSealed } from '../../src/world/community.js';
 import { toWorld } from '../../src/world/founders.js';
@@ -95,7 +96,7 @@ export class World extends DurableObject {
     }
     const gnomeM = url.pathname.match(/^\/gnomes\/(me|\d{1,12})(?:\/(quest|annoy))?$/);
     if (gnomeM && req.method === 'POST') { const out = this.chain.then(() => this.gnome(gnomeM[1], gnomeM[2], req)); this.chain = out.catch(() => {}); return out; }
-    if ((url.pathname.startsWith('/profile') || url.pathname === '/login/facebook') && req.method === 'POST') return this.profile(url.pathname, req);
+    if ((url.pathname.startsWith('/profile') || url.pathname === '/login/facebook' || url.pathname === '/login/google') && req.method === 'POST') return this.profile(url.pathname, req);
     if (url.pathname === '/stats') {
       const now = Date.now();
       let flying = 0;
@@ -341,11 +342,12 @@ export class World extends DurableObject {
       await this.env.DB.prepare('insert into profile (id, data, updated) values (?, ?, ?) on conflict (id) do update set data = excluded.data, updated = excluded.updated').bind(id, text, Date.now()).run();
       return new Response(null, { status: 204 });
     }
-    if (path === '/login/facebook') {
-      if (!this.env.FB_APP_ID || !this.env.FB_APP_SECRET) return Response.json({ error: 'Facebook login is not set up on this map' }, { status: 501 });
-      const user = await verifyFacebook(fetch, this.env.FB_APP_ID, this.env.FB_APP_SECRET, b.access_token);
-      if (!user) return Response.json({ error: 'Facebook did not vouch for that sign-in' }, { status: 403 });
-      const account = `fb:${await sha(`fb:${user}`)}`, mine = await read(`dev:${dev}`), theirs = await read(account);
+    if (path === '/login/facebook' || path === '/login/google') { // only a hash of the provider's own user id is kept: no name, no e-mail
+      const g = path === '/login/google', who = g ? 'Google' : 'Facebook';
+      if (g ? !this.env.GOOGLE_CLIENT_ID : !this.env.FB_APP_ID || !this.env.FB_APP_SECRET) return Response.json({ error: `${who} login is not set up on this map` }, { status: 501 });
+      const user = g ? await verifyGoogle(fetch, this.env.GOOGLE_CLIENT_ID, b.id_token) : await verifyFacebook(fetch, this.env.FB_APP_ID, this.env.FB_APP_SECRET, b.access_token);
+      if (!user) return Response.json({ error: `${who} did not vouch for that sign-in` }, { status: 403 });
+      const tag = g ? 'g' : 'fb', account = `${tag}:${await sha(`${tag}:${user}`)}`, mine = await read(`dev:${dev}`), theirs = await read(account);
       await this.env.DB.prepare('insert into account (token_hash, account, at) values (?, ?, ?) on conflict (token_hash) do update set account = excluded.account, at = excluded.at').bind(dev, account, Date.now()).run();
       // the first sign-in brings this device's pouch along; later ones find the account's own (the client keeps the richer)
       if (!theirs && mine) await this.env.DB.prepare('insert or ignore into profile (id, data, updated) values (?, ?, ?)').bind(account, JSON.stringify(mine), Date.now()).run();
