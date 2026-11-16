@@ -43,18 +43,24 @@ const smooth = (x) => x * x * (3 - 2 * x);
 
 // ---------- shapes: z is forward, y is up, metres at size 1 ----------
 
+const AXES = [1, 0, Math.SQRT1_2, Math.SQRT1_2, 0, 1, -Math.SQRT1_2, Math.SQRT1_2];
 const FACES = [[0, 4, 6, 2], [1, 3, 7, 5], [0, 1, 5, 4], [2, 6, 7, 3], [0, 2, 3, 1], [4, 5, 7, 6]];
 
 // Collects triangles for one mesh. Every vertex knows its form and whether it wears the accent colour, and
 // four numbers more: for a wing its side and how far out along the span it sits (before and beyond the wrist);
 // for a leg its hip (y, z), when in the stride it swings and how much.
 function shapes() {
-  const pos = [], info = [], ext = [], idx = [];
+  const pos = [], info = [], ext = [], idx = [], seen = new Map();
   let form = 0;
-  const v = (x, y, z, acc, a = 0, b = 0, c = 0, d = 0) => { pos.push(x, y, z); info.push(form, acc); ext.push(a, b, c, d); return pos.length / 3 - 1; };
+  // faces are shaded flat from screen derivatives, so triangles of one colour may share their corners
+  const v = (x, y, z, acc, a = 0, b = 0, c = 0, d = 0) => {
+    const key = `${form} ${x} ${y} ${z} ${acc} ${a} ${b} ${c} ${d}`;
+    if (!seen.has(key)) { seen.set(key, pos.length / 3); pos.push(x, y, z); info.push(form, acc); ext.push(a, b, c, d); }
+    return seen.get(key);
+  };
   const api = {
     form(i) { form = i; return api; },
-    tri(a, b, c, acc = 0) { const i = v(a[0], a[1], a[2], acc); v(b[0], b[1], b[2], acc); v(c[0], c[1], c[2], acc); idx.push(i, i + 1, i + 2); return api; },
+    tri(a, b, c, acc = 0) { idx.push(v(a[0], a[1], a[2], acc), v(b[0], b[1], b[2], acc), v(c[0], c[1], c[2], acc)); return api; },
     // a body: diamonds [z, width, height, y] joined nose to tail (0 wide: a point). tones per joint: 0 back in
     // the body colour and belly in the accent, 1 all accent, 2 all body colour
     spindle(rings, tones = []) {
@@ -84,13 +90,13 @@ function shapes() {
     // a box standing on the middle of its base (bx, by, bz): sx wide, sy tall, sz long; its top may be smaller
     // (top, topZ), and it may lean forward (pitch) or sideways (roll) about its base. leg: [hip y, hip z, phase, swing]
     box(bx, by, bz, sx, sy, sz, { acc = 0, pitch = 0, roll = 0, top = 1, topZ = top, leg = null } = {}) {
-      const cp = Math.cos(pitch), sp = Math.sin(pitch), cr = Math.cos(roll), sr = Math.sin(roll), first = pos.length / 3;
+      const cp = Math.cos(pitch), sp = Math.sin(pitch), cr = Math.cos(roll), sr = Math.sin(roll), at = [];
       for (let i = 0; i < 8; i++) {
         const up = i & 2 ? 1 : 0, x = (i & 1 ? 0.5 : -0.5) * sx * (up ? top : 1), y = up * sy, z = (i & 4 ? 0.5 : -0.5) * sz * (up ? topZ : 1);
         const y1 = y * cp - z * sp, z1 = z * cp + y * sp;
-        v(bx + x * cr + y1 * sr, by + y1 * cr - x * sr, bz + z1, acc, leg ? leg[0] : 0, leg ? leg[1] : 0, leg ? leg[2] : 0, leg ? leg[3] : 0);
+        at.push(v(bx + x * cr + y1 * sr, by + y1 * cr - x * sr, bz + z1, acc, leg ? leg[0] : 0, leg ? leg[1] : 0, leg ? leg[2] : 0, leg ? leg[3] : 0));
       }
-      for (const f of FACES) idx.push(first + f[0], first + f[1], first + f[2], first + f[0], first + f[2], first + f[3]);
+      for (const f of FACES) idx.push(at[f[0]], at[f[1]], at[f[2]], at[f[0]], at[f[2]], at[f[3]]);
       return api;
     },
     // four legs of a walker: the diagonal pairs swing together (or, bounding, the front pair and the hind pair)
@@ -416,7 +422,7 @@ export function createFauna(species, { max = DEFAULT_MAX } = {}) {
     plots = list.map((p) => {
       const water = new Float64Array((p.water || []).length * 2);
       (p.water || []).forEach((w, k) => { water[k * 2] = w[0]; water[k * 2 + 1] = w[1]; });
-      return { x: +p.x || 0, z: +p.z || 0, r: +p.r || 100, water, g: was.get(`${+p.x || 0},${+p.z || 0}`) ?? NaN, d: Infinity };
+      return { x: +p.x || 0, z: +p.z || 0, r: +p.r || 100, water, river: new Float64Array(water.length * 2), g: was.get(`${+p.x || 0},${+p.z || 0}`) ?? NaN, d: Infinity };
     });
     // whoever was here before keeps what it remembers (the ground under it, where it stood)
     herd.old = new Map(); herd.oldS = herd.S.slice(0, herd.n * HS);
@@ -512,7 +518,7 @@ export function createFauna(species, { max = DEFAULT_MAX } = {}) {
             a = 0.08 + e * 0.8 * Math.sin(fl); b = e * 0.5 * Math.sin(fl - 1.1);
           }
         }
-        const g = ground(S, i * GS, i, p, x, z, t, dt, 1, groundAt);
+        const g = ground(S, i * GS, i, p, x, z, t, dt, f === HUMMER ? 0.4 : 1, groundAt);
         put(M, n * 16, x - ox, g + h, z - oz, sy, cy, sp, cp, Math.sin(roll), Math.cos(roll), P[o + 13] * k);
         AN[n * 4] = a; AN[n * 4 + 1] = b; AN[n * 4 + 2] = f;
         tint(B, n++, B.sp[i]);
@@ -553,6 +559,20 @@ export function createFauna(species, { max = DEFAULT_MAX } = {}) {
     flush(I, n);
   }
 
+  // Which way a river runs at one of a plot's water points: the banks are higher than the water, so the lowest of
+  // four lines through the point is the river. Felt once per point (9 samples), then kept: x, z of the direction,
+  // the height of the water, 1 a river / 2 open water with no banks to tell
+  function riverAt(p, w, groundAt) {
+    const x = p.water[w * 2], z = p.water[w * 2 + 1], R = p.river, o = w * 4, y = height(groundAt, x, z, p.g);
+    let best = 0, lo = Infinity, hi = -Infinity;
+    for (let k = 0; k < 4; k++) {
+      const dx = AXES[k * 2] * 30, dz = AXES[k * 2 + 1] * 30, banks = height(groundAt, x + dx, z + dz, y) + height(groundAt, x - dx, z - dz, y);
+      if (banks < lo) { lo = banks; best = k; }
+      if (banks > hi) hi = banks;
+    }
+    R[o] = AXES[best * 2]; R[o + 1] = AXES[best * 2 + 1]; R[o + 2] = y; R[o + 3] = hi - lo > 1 ? 1 : 2;
+  }
+
   // S: 0 1 2 where it leaves the water (x, z and the water's height), 3 4 which way, 5 which leap this is
   function fish(t, groundAt) {
     const P = F.P, S = F.S, M = F.mesh.instanceMatrix.array, AN = F.anim.array;
@@ -562,13 +582,13 @@ export function createFauna(species, { max = DEFAULT_MAX } = {}) {
       if (k <= 0 || !nw) continue;
       for (let i = F.first[j], end = F.last[j]; i < end; i++) {
         const o = i * FP, so = i * FS, q = (t + P[o + 1]) / P[o], leap = Math.floor(q), s = ((q - leap) * P[o]) / P[o + 5];
-        if (S[so + 5] !== leap) { // a new leap, somewhere else along the river, up or down stream
-          const seed = F.seed[i], w = Math.min(nw - 1, Math.floor(rnd(seed, leap * 4) * nw)), w0 = Math.max(0, w - 1), w1 = Math.min(nw - 1, w + 1);
-          let dx = W[w1 * 2] - W[w0 * 2], dz = W[w1 * 2 + 1] - W[w0 * 2 + 1];
-          const len = Math.hypot(dx, dz);
-          if (len < 1) { const a = rnd(seed, leap * 4 + 1) * TAU; dx = Math.sin(a); dz = Math.cos(a); } else { dx /= len; dz /= len; }
-          const slide = (rnd(seed, leap * 4 + 2) - 0.5) * Math.min(len * 0.4, 50), turn = rnd(seed, leap * 4 + 3) < 0.5 ? -1 : 1;
-          S[so] = W[w * 2] + dx * slide; S[so + 1] = W[w * 2 + 1] + dz * slide; S[so + 2] = height(groundAt, S[so], S[so + 1], p.g);
+        if (S[so + 5] !== leap) { // a new leap, at another of the plot's water points, up or down stream
+          const seed = F.seed[i], w = Math.min(nw - 1, Math.floor(rnd(seed, leap * 4) * nw)), R = p.river, ro = w * 4;
+          if (!R[ro + 3]) riverAt(p, w, groundAt);
+          let dx = R[ro], dz = R[ro + 1];
+          if (R[ro + 3] === 2) { const a = rnd(seed, leap * 4 + 1) * TAU; dx = Math.sin(a); dz = Math.cos(a); } // open water: any way will do
+          const slide = (rnd(seed, leap * 4 + 2) - 0.5) * 24, turn = rnd(seed, leap * 4 + 3) < 0.5 ? -1 : 1;
+          S[so] = W[w * 2] + dx * slide; S[so + 1] = W[w * 2 + 1] + dz * slide; S[so + 2] = R[ro + 2];
           S[so + 3] = dx * turn; S[so + 4] = dz * turn; S[so + 5] = leap;
         }
         if (s >= 1) continue; // under water
