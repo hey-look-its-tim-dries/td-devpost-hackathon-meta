@@ -34,13 +34,21 @@ export function createLobby(root) {
     g.clearRect(0, 0, W, H);
     g.strokeStyle = 'rgba(246,232,216,0.10)'; g.lineWidth = 1;
     for (let r = 4000; r < R; r += 4000) { g.beginPath(); g.arc(W / 2, H / 2, r * k, 0, Math.PI * 2); g.stroke(); }
-    for (const h of d.map.hands) { // a Hand: a palm and five fingers, turned as it lies
-      g.save(); g.translate(X(h.x), Y(h.z)); g.rotate(h.rot); g.scale(k * 1000, k * 1000);
-      g.fillStyle = h.mine ? 'rgba(255,207,168,0.95)' : h.founder ? 'rgba(246,232,216,0.34)' : 'rgba(246,232,216,0.6)';
-      g.beginPath(); g.ellipse(0, -0.9, 1.25, 1.35, 0, 0, Math.PI * 2); g.fill();
-      for (let i = 0; i < 5; i++) { const a = -0.9 + i * 0.42, len = i === 0 ? 1.3 : 1.9 - Math.abs(i - 2.5) * 0.22; g.save(); g.translate(Math.sin(a) * 1.05, -1.5 - Math.cos(a) * 0.75); g.rotate(a); g.beginPath(); g.ellipse(0, -len / 2, 0.21, len / 2 + 0.1, 0, 0, Math.PI * 2); g.fill(); g.restore(); }
-      g.restore();
-      g.fillStyle = 'rgba(246,232,216,0.85)'; g.font = `${h.mine ? 700 : 500} ${Math.max(11, W / 62)}px Inter, system-ui, sans-serif`; g.textAlign = 'center'; g.fillText(h.name, X(h.x), Y(h.z) + 4);
+    const poly = (pts) => { g.beginPath(); pts.forEach(([x, z], i) => (i ? g.lineTo(X(x), Y(z)) : g.moveTo(X(x), Y(z)))); g.closePath(); };
+    for (const h of d.map.hands) { // a Hand as it really lies: its own outline and fingers in its skin tone, its palm lines as rivers
+      g.fillStyle = h.tone; g.strokeStyle = h.mine ? '#ffcfa8' : 'rgba(22,16,14,0.55)'; g.lineWidth = h.mine ? 3 : 1.2; g.lineJoin = 'round';
+      g.globalAlpha = h.founder && !h.mine ? 0.8 : 1;
+      for (const f of h.fingers) { poly(f); g.fill(); g.stroke(); }
+      poly(h.outline); g.fill(); g.stroke();
+      g.strokeStyle = '#3b83b0'; g.lineWidth = Math.max(1.2, W / 700); g.lineCap = 'round';
+      for (const l of h.lines) { g.beginPath(); l.forEach(([x, z], i) => (i ? g.lineTo(X(x), Y(z)) : g.moveTo(X(x), Y(z)))); g.stroke(); }
+      g.globalAlpha = 1;
+    }
+    g.textAlign = 'center'; g.lineJoin = 'round';
+    for (const h of d.map.hands) { // names over everything, readable on skin and on the dark
+      g.font = `${h.mine ? 800 : 600} ${Math.max(11, W / 60)}px Inter, system-ui, sans-serif`;
+      g.strokeStyle = 'rgba(16,10,9,0.85)'; g.lineWidth = 4; g.strokeText(h.name, X(h.x), Y(h.z) + 4);
+      g.fillStyle = h.mine ? '#ffcfa8' : '#f6e8d8'; g.fillText(h.name, X(h.x), Y(h.z) + 4);
     }
     g.fillStyle = 'rgba(160,220,120,0.9)';
     for (const p of d.map.blooms) { g.beginPath(); g.arc(X(p.x), Y(p.z), 2 + p.level, 0, Math.PI * 2); g.fill(); }
@@ -58,7 +66,7 @@ export function createLobby(root) {
     get open() { return !root.classList.contains('hidden'); },
     show() { root.classList.remove('hidden'); t0 = performance.now(); },
     hide() { root.classList.add('hidden'); },
-    // d: lobbyFacts(...) plus { map: { hands: [{ name, x, z, rot, mine, founder }], blooms: [{ x, z, level }], players: [{ name, x, z, you }] }, me: { name, status, level } }
+    // d: lobbyFacts(...) plus { map: { hands: [{ name, x, z, mine, founder, outline, fingers, lines (world points), tone }], blooms: [{ x, z, level }], players: [{ name, x, z, you }] }, me: { name, status, level } }
     update(d) {
       paint(d);
       const html = {

@@ -16,7 +16,7 @@ import { groundAt as groundAtWorld } from './world/ground.js';
 import { loadHorizon } from './world/horizon.js';
 import { startWebcamHands } from './webcam-hands.js';
 import { NEAR, FAR } from './view.js';
-import { handShape } from './hand/shape.js';
+import { handShape, OUTLINE } from './hand/shape.js';
 import { createAtelierPanel } from './atelier/panel.js';
 import { createFlow } from './atelier/flow.js';
 import { findFits } from './world/fit.js';
@@ -1111,6 +1111,19 @@ xrButton.addEventListener('click', () => enterHeadset().catch((e) => console.err
 // ---------- the lobby: between the title and the game, the world as it is right now (src/lobby.js) ----------
 const lobby = createLobby(document.getElementById('lobby'));
 let lobbyTimer = null, worldFlying = 0;
+// a Hand as the lobby's map draws it: its real outline, fingers and palm lines, in world metres, in its own skin tone (made once per Hand)
+const lobbyShapes = new Map();
+function lobbyShape(h) {
+  const key = `${h.id}:${h.pose.x}:${h.pose.z}:${h.pose.rot}`, had = lobbyShapes.get(h.id);
+  if (had?.key === key) return had.shape;
+  const w = ([X, Y]) => toWorld(h.pose, X, Y);
+  let s = null;
+  try { s = handShape(unpackPalm(h.palm)); } catch {}
+  const fingers = (s?.fingers ?? []).map((f) => { const hw = f.width / 2, at = (u, t) => w([f.base[0] + f.side[0] * u + f.dir[0] * t, f.base[1] + f.side[1] * u + f.dir[1] * t]), tip = []; for (let i = 0; i <= 8; i++) { const a = Math.PI - (i / 8) * Math.PI; tip.push(at(Math.cos(a) * hw, f.len - hw + Math.sin(a) * hw)); } return [at(-hw, -8), ...tip, at(hw, -8)]; });
+  const shape = { outline: OUTLINE.map(w), fingers, lines: (s?.lines ?? []).map((l) => l.pts.map(w)), tone: TONES[((s?.palette ?? h.palette ?? 2) * 3) % TONES.length] };
+  lobbyShapes.set(h.id, { key, shape });
+  return shape;
+}
 function lobbyData() {
   const flying = [];
   others.each((c, id, pos) => flying.push({ name: others.nameOf(id), x: pos[0], z: pos[2] }));
@@ -1118,7 +1131,7 @@ function lobbyData() {
   return {
     ...lobbyFacts({ hands: hands.filter((h) => h.pose).map((h) => ({ name: h.name, founder: !!h.founder })), flying, me: mine?.name ?? null, groves: g.plants, worldFlying, gardeners: g.top ?? [], converters: gnomes.hud().top ?? [], news: (events ?? []).map((e) => ({ when: when(e.at), text: journalText(e) })).filter((e) => e.text) }),
     map: {
-      hands: hands.filter((h) => h.pose).map((h) => { const [x, z] = toWorld(h.pose, 0, 230); return { name: h.name, x, z, rot: h.pose.rot, founder: !!h.founder, mine: !!mine && h.id === mine.id }; }),
+      hands: hands.filter((h) => h.pose).map((h) => { const [x, z] = toWorld(h.pose, 0, 230); return { name: h.name, x, z, founder: !!h.founder, mine: !!mine && h.id === mine.id, ...lobbyShape(h) }; }),
       blooms: bloom.allPlots(), players: [{ name: 'you', x: glide.pos[0], z: glide.pos[2], you: true }, ...flying.map((p) => ({ ...p, name: p.name ?? 'traveller' }))],
     },
     me: { name: mine?.name ?? 'A traveller', status: STATUS[Math.min(STATUS.length - 1, Math.floor((lv - 1) / 2))], level: lv },
