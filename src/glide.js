@@ -13,7 +13,7 @@ export function createGlide({
   return {
     pos: pos.slice(), yaw, speed, pitch: 0, // pitch: the angle of your path, + climbing
     forward() { return [-Math.sin(this.yaw), 0, -Math.cos(this.yaw)]; },
-    update(dt, { turn = 0, climb = 0 } = {}, groundAt = () => 0) {
+    update(dt, { turn = 0, climb = 0, brake = 0 } = {}, groundAt = () => 0) { // brake 0..1: you slow down to sow
       const f = this.forward(), here = groundAt(this.pos[0], this.pos[2]);
       // the land ahead (two and a half seconds out) lifts you before you reach it
       let ahead = here;
@@ -24,7 +24,7 @@ export function createGlide({
       if (this.speed < minSpeed + 3) want = Math.min(want, -0.2); // too slow: the nose drops (a stall)
       this.pitch += (want - this.pitch) * (1 - Math.exp(-dt * 2.2));
       const rush = groundBoost * Math.max(0, 1 - (this.pos[1] - here) / groundBand);
-      this.speed = Math.max(minSpeed, this.speed + (thrust + rush - gravity * Math.sin(this.pitch) - drag * this.speed ** 2) * dt);
+      this.speed = Math.max(minSpeed, this.speed + ((thrust + rush) * (1 - brake) - gravity * Math.sin(this.pitch) - drag * this.speed ** 2 - brake * 2.2 * (this.speed - minSpeed) + (1 - brake) * Math.min(12, 0.35 * Math.max(0, cruise - this.speed))) * dt); // and you pick cruise up again when you let go
       this.yaw -= clamp1(turn) * turnRate * dt;
       const g = this.forward(), h = this.speed * Math.cos(this.pitch);
       this.pos[0] += g[0] * h * dt;

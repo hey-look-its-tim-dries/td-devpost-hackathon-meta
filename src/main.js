@@ -42,6 +42,8 @@ import { TONES } from './world/scene.js';
 import { steerTo, whoSteers } from './autopilot.js';
 import { forgetGone } from './world/tidy.js';
 import { createOthers } from './others.js';
+import { createBloom } from './garden/game.js';
+import { createFauna } from './garden/fauna.js';
 
 // Palm Whorl Cities, first milestone: the First Ten. Ten founding hands lie in a ring around the
 // Source. Their lines are rivers, their fingertips are print lands, and black-ink scribbles knot
@@ -171,6 +173,7 @@ function removeHand(id) {
   if (i < 0) return;
   surface.setRise(hands[i].layer, 0);
   hands.splice(i, 1);
+  bloom.removeHand(id);
   forgetGone([...hands.map((h) => h.id), mine?.id].filter(Boolean), chart, pins); // its charting and pins leave with it
   for (let k = knots.length - 1; k >= 0; k--) if (knots[k].hand === id) knots.splice(k, 1);
 }
@@ -191,7 +194,8 @@ net.fetchWorld().then(({ hands: list, online: ok }) => {
   if (mine) { if (ok && (!mine.id || mine.pending)) retryLay(); else bake(mine); }
   if (ok) { refreshNames(); forgetGone([...list.map((h) => h.id), mine?.id].filter(Boolean), chart, pins); } // Hands washed while you were away
 
-  if (ok) roomLink = net.openRoom({ name: mine?.name ?? null, onHello: (id) => (me = id), onNames: (m) => others.setNames(m), onSnapshot: (s) => others.apply(s, me, glide.pos), onLaid: applyLaid, onLeft: removeHand, onState: (st) => (roomState = st), onCommunity: (m) => { if (m.donated) community.add(m.donated); if (m.sealed) { stamp(`Community Hand ${m.sealed}`, 'all 22 handbits given · the next one begins'); net.community().then((c) => community.set(c)); } } });
+  if (ok) bloom.load();
+  if (ok) roomLink = net.openRoom({ name: mine?.name ?? null, deco: bloom.pouch.deco(), onGarden: bloom.onGarden, onDecos: (m) => Object.assign(decos, m), onHello: (id) => (me = id), onNames: (m) => others.setNames(m), onSnapshot: (s) => others.apply(s, me, glide.pos), onLaid: applyLaid, onLeft: removeHand, onState: (st) => (roomState = st), onCommunity: (m) => { if (m.donated) community.add(m.donated); if (m.sealed) { stamp(`Community Hand ${m.sealed}`, 'all 22 handbits given · the next one begins'); net.community().then((c) => community.set(c)); } } });
   else panel.say('Playing alone: the map could not be reached', 6);
 });
 const others = createOthers({ max: 60 }); // the other players in your room, as lighter creatures
@@ -239,8 +243,15 @@ function hudContents() {
   let near = null, nd = Infinity;
   others.each((c, id, pos) => { const d = Math.hypot(pos[0] - glide.pos[0], pos[2] - glide.pos[2]); if (d < nd) { nd = d; near = { label: others.nameOf(id) ?? 'traveller', x: pos[0], z: pos[2], color: '#16100e' }; } });
   if (near) marks.push(near);
+  const gold = bloom.gold();
+  if (gold) marks.push({ label: 'Golden seed', x: gold.x, z: gold.z, color: '#c9a35a' });
   const pl = place && !place.handbit ? { code: 'WATER', name: 'on the rivers', hand: place.hand.name, owner: !place.hand.founder, charted: true, count: chart.count(place.hand.id), total: place.hand.data.handbits.length } : place && { code: place.handbit.code, name: summitOf(place.hand, place.handbit) ?? nameOf(place.hand, place.handbit), hand: place.hand.name, owner: !place.hand.founder, charted: chart.has(place.hand.id, place.index), count: chart.count(place.hand.id), total: place.hand.data.handbits.length };
-  return { show: false, yaw: glide.yaw, pos: glide.pos, altitude: glide.pos[1] - groundAt(glide.pos[0], glide.pos[2]), place: pl, markers: marks, active: false };
+  const g = bloom.hud(place), radar = { range: 6000, others: [], hands: [], clouds: [], blooms: bloom.plots(), gold };
+  others.each((c, id, pos) => radar.others.push({ x: pos[0], z: pos[2], name: others.nameOf(id) }));
+  for (const h of hands) { const [x, z] = toWorld(h.pose, 0, 230); radar.hands.push({ x, z, name: h.name }); }
+  for (const c of bloom.clouds()) if (!bloom.taken(c.id)) radar.clouds.push({ x: c.x, z: c.z, color: bloom.species[c.sp].color });
+  return { show: false, yaw: glide.yaw, pos: glide.pos, altitude: glide.pos[1] - groundAt(glide.pos[0], glide.pos[2]), place: pl, markers: marks, active: false, garden: g, radar,
+    world: { flying: others.count + 1, hands: hands.length, plants: g.plants, planted: g.planted, top: g.top } };
 }
 function updateTags() { // no allocation per frame: one set, one callback
   camera.getWorldPosition(eyeW);
@@ -268,19 +279,45 @@ const hatch = (f) => f.prints.map(unpackPrint).map((p, j) => {
 const knots = []; // filled as Hands bake
 // faster the higher you fly (30 m/s skimming the ridges, 220 m/s high over the wilderness), and diving adds half again
 // fast, and faster the lower you dare: 170 m/s level, 560 m/s out of a full dive, and skimming the land keeps you well above cruise
-const CRUISE = 170, TERMINAL = 560;
-const glide = createGlide({ pos: params.get('at')?.split(',').map(Number) ?? [0, 650, 15000], speed: CRUISE, cruise: CRUISE, terminal: TERMINAL, minSpeed: 70, gravity: 55, groundBoost: 30, groundBand: 150, turnRate: 0.9, clearance: 25, ceiling: 1500 });
+const CRUISE = 340, TERMINAL = 1100; // Bloom: twice as fast as before; hold the plant key and you slow down to sow
+const glide = createGlide({ pos: params.get('at')?.split(',').map(Number) ?? [0, 650, 15000], speed: CRUISE, cruise: CRUISE, terminal: TERMINAL, minSpeed: 80, gravity: 75, groundBoost: 60, groundBand: 180, turnRate: 1.0, clearance: 25, ceiling: 1500 });
 const rush = () => Math.max(0, Math.min(1, (glide.speed - CRUISE) / (TERMINAL - CRUISE))); // 0 level .. 1 flat out // ?at=x,y,z to start elsewhere
 // you: the Whorl, ink strands winding round your own flight path; the camera chases it
-const creature = createCreature({ strands: 9, points: 70, spacing: 2, radius: 13 });
+const creature = createCreature({ strands: 24, points: 70, spacing: 2, radius: 13 }); // five strands young, all 24 as a master gardener
 const CHASE = { back: 190, up: 40 }; // further back than the creature is long, so all of it is in front of you
 const chase = { pos: new THREE.Vector3(glide.pos[0], glide.pos[1] + CHASE.up, glide.pos[2] + CHASE.back), yaw: glide.yaw };
 const ink = createInk(MAX_LAYERS * 5 * (LINE.points + 1) + creature.strands * 71 + 60 * 5 * 41, { width: 1.1, color: '#16100e' }); // every Hand's five, you, and up to 60 others
 // speed lines: ink streaks hanging in the air that rush past when you are fast
-const streaks = Array.from({ length: 160 }, () => new THREE.Vector3(Infinity, 0, 0));
+const streaks = Array.from({ length: 320 }, () => new THREE.Vector3(Infinity, 0, 0));
 const streakInk = createInk(streaks.length, { width: 0.7, color: '#16100e' });
 scene.add(streakInk.mesh);
 scene.add(ink.mesh);
+
+// ---------- Bloom: the garden game (src/garden/game.js) ----------
+const decos = {}; // room id -> what that player planted most, on their whorl
+const bloom = createBloom({ scene, shared: world.shared, storage, net, hands, groundAt, say: (text, s) => panel.say(text, s), stamp: (a, b) => stamp(a, b), online: () => online, onDeco: (d) => roomLink?.deco(d) });
+const fauna = createFauna(bloom.species);
+scene.add(fauna.group);
+bloom.setFauna(fauna);
+const goldBeam = new THREE.Mesh(new THREE.CylinderGeometry(7, 7, 2400, 8, 1, true), new THREE.MeshBasicMaterial({ color: 0xe9c46a, transparent: true, opacity: 0.55, depthWrite: false, fog: false }));
+goldBeam.visible = false;
+scene.add(goldBeam);
+let invite = null; // when to offer a new player a Hand of their own
+let sowing = false; // the plant key or a right-hand pinch is held
+const bloomCtx = { pos: glide.pos, place: null, flying: false, braiding: null, burst: () => creature.burst(), near: (x, z, r) => Math.hypot(x - glide.pos[0], z - glide.pos[2]) < r };
+const gardenAct = (what) => { if (started && mode === 'fly') { bloomCtx.place = place; bloomCtx.braiding = braiding; bloom.act(what, bloomCtx); if (what === 'plant') creature.burst(); } };
+addEventListener('keydown', (e) => {
+  if (e.key === ' ' && mode === 'fly' && started) e.preventDefault(); // the plant key never scrolls or presses a button
+  if (e.repeat || mode !== 'fly' || !started) return;
+  if (e.key === 'e' || e.key === 'E') gardenAct('next');
+  else if (e.key === 'q' || e.key === 'Q') gardenAct('prev');
+  else if (e.key === 'x' || e.key === 'X') gardenAct('uproot');
+});
+[0, 1].forEach((i) => { // in the headset: hold a right-hand pinch to sow, a left-hand pinch picks the next seed
+  const c = renderer.xr.getController(i);
+  c.addEventListener('selectstart', (e) => { if (mode !== 'fly') return; if (e.data?.handedness === 'left') gardenAct('next'); else sowing = true; });
+  c.addEventListener('selectend', () => { sowing = false; });
+});
 
 // ---------- hands and head (read live for steering, never kept) ----------
 
@@ -698,7 +735,15 @@ function frame() {
   const steeringNow = !!best?.q.engaged;
   // shown while hands can steer (webcam or headset), even before a hand is seen
   card.update(dt, started && mode !== 'atelier' && mode !== 'atlas' && (webcam || renderer.xr.isPresenting) ? { checks: best?.c ?? null, progress: best?.q.hold.progress ?? 0, steering: steeringNow, turn: steer.turn, climb: steer.climb } : null);
+  const sow = started && mode === 'fly' && (sowing || keys.has(' '));
+  steer.brake = sow ? 1 : 0; // you slow down to sow
   if (mode !== 'atelier' && mode !== 'atlas') glide.update(dt, steer, groundAt); // the world waits while you read your hand or your atlas
+  if (sow) gardenAct('plant');
+  bloomCtx.place = place; bloomCtx.braiding = braiding; bloomCtx.flying = started && mode === 'fly';
+  bloom.frame(dt, bloomCtx);
+  if (invite && mode === 'fly' && (t > invite.at || bloom.pouch.plantedTotal >= invite.planted)) { invite = null; openAtelier(); }
+  fauna.update(dt, t, glide.pos, groundAt);
+  creature.grow(Math.min(1, (bloom.pouch.level - 1) / 8 + bloom.pouch.plantedTotal / 500));
   roomLink?.send({ x: glide.pos[0], y: glide.pos[1], z: glide.pos[2], yaw: glide.yaw, pitch: glide.pitch, mode: Math.max(0, ['fly', 'atelier', 'merge', 'rise'].indexOf(mode)) }); // at most 5 a second
   creature.update(dt, glide.pos, { speed: 70 + 200 * rush(), pitch: glide.pitch, turn: steer.turn }); // the creature's own scale: 70 calm .. 270 a spear
   others.update(dt);
@@ -706,6 +751,7 @@ function frame() {
   seal.update(dt);
   // charting and the HUD's contents ten times a second (the HUD still fades every frame)
   if ((hudTick += dt) >= 0.1) { hudTick = 0; charting(); hudState = hudContents(); }
+  { const k = renderer.xr.isPresenting ? 1 : 1.9 * Math.tan(camera.fov * Math.PI / 360) / Math.tan(65 * Math.PI / 360); hud.group.scale.set(k, k, 1); } // on a screen: larger, and the same size however wide the view gets
   if (hudState) { hudState.show = started && mode === 'fly'; hudState.yaw = glide.yaw; hudState.active = Math.abs(want.turn) + Math.abs(want.climb) > 0.1 || !!braiding; hud.update(dt, hudState); }
   // the greeting: near another player your swarms braid for a few seconds
   braidN = 0;
@@ -729,7 +775,7 @@ function frame() {
     // flat out (never in the headset: comfort; there the land and the streaks rushing past do it)
     const r = rush(), shake = 0.004 * r * r;
     camera.rotation.set(look.pitch + shake * Math.sin(t * 71), look.yaw + shake * Math.sin(t * 53 + 1), -0.14 * steer.turn * (0.5 + 0.5 * r), 'YXZ');
-    const fov = 65 + 30 * r;
+    const fov = 68 + 36 * r + 14 * Math.min(1, glide.speed / CRUISE); // wider the faster: cruise already feels quick
     if (Math.abs(camera.fov - fov) > 0.05) {
       camera.fov += (fov - camera.fov) * (1 - Math.exp(-dt * 2.5));
       camera.updateProjectionMatrix();
@@ -744,12 +790,25 @@ function frame() {
     const l = k.line.polyline();
     ink.stroke(l.xyz, l.count, TAPER);
   }
-  for (let k = 0; k < creature.strands; k++) {
+  for (let k = 0; k < creature.active; k++) {
     const l = creature.strand(k), w = creature.weight(k);
     ink.stroke(l.xyz, l.count, (s) => TAPER(s) * w); // a few bold strands, many fine ones
   }
   others.each((c) => { for (let k = 0; k < c.strands; k++) { const l = c.strand(k), w = c.weight(k); ink.stroke(l.xyz, l.count, (s) => TAPER(s) * 0.7 * w); } }); // other players, a little lighter than you
   ink.end();
+  // what gardeners planted flowers on their whorls; seed clouds are swirls of their own flower
+  const fl = bloom.flora, mineDeco = bloom.pouch.deco();
+  fl.decoBegin();
+  if (mineDeco.length) for (let i = 0, n = Math.min(110, 3 + bloom.pouch.plantedTotal); i < n; i++) {
+    const l = creature.strand(i % creature.active), j = (5 + ((i * 7) % Math.max(1, l.count - 10))) * 3;
+    fl.deco(l.xyz[j], l.xyz[j + 1], l.xyz[j + 2], 9 + 5 * (i % 3), mineDeco[i % mineDeco.length]);
+  }
+  others.each((c, id) => { const d = decos[id]; if (d?.length) for (let i = 0; i < 14; i++) { const l = c.strand(i % c.strands), j = (4 + ((i * 5) % Math.max(1, l.count - 8))) * 3; fl.deco(l.xyz[j], l.xyz[j + 1], l.xyz[j + 2], 11, d[i % d.length]); } });
+  for (const c of bloom.clouds()) if (!bloom.taken(c.id)) for (let i = 0; i < 10; i++) { const a = t * (0.5 + 0.07 * i) + i * 0.63, r = 30 + 50 * ((i * 0.618) % 1); fl.deco(c.x + Math.cos(a) * r, c.y + Math.sin(a * 1.3 + i) * 25, c.z + Math.sin(a) * r, 30, c.sp); }
+  const gold = bloom.gold();
+  goldBeam.visible = !!gold;
+  if (gold) { goldBeam.position.set(gold.x, gold.y, gold.z); for (let i = 0; i < 16; i++) { const a = t * 1.4 + i * 0.3927, r = 60 + 20 * Math.sin(t * 2 + i); fl.deco(gold.x + Math.cos(a) * r, gold.y + Math.sin(a * 2) * 30, gold.z + Math.sin(a) * r, 40, gold.sp); } }
+  fl.decoEnd();
   // speed lines: streaks fixed in the air round you, drawn along your motion; there from cruise on, and
   // longer and bolder the faster you go, so the air itself rushes past (this is what a headset shows of speed)
   const fast = 0.3 + 0.7 * rush(), vel = tmpChase.set(f[0] * Math.cos(glide.pitch), Math.sin(glide.pitch), f[2] * Math.cos(glide.pitch)).multiplyScalar(glide.speed);
@@ -813,7 +872,9 @@ function start() {
   started = true;
   banner.classList.add('hidden');
   panel.say('Palm Whorl Cities', 4);
-  setTimeout(() => (mine ? panel.say(renderer.xr.isPresenting ? 'Raise a hand, point where you want to fly' : 'A D turn · W S climb · drag to look', 6) : openAtelier()), 4200);
+  // fly and garden first; the invitation to lay a Hand of your own comes once you have planted a little (or after a while)
+  setTimeout(() => panel.say(renderer.xr.isPresenting ? 'Point where you want to fly · hold a pinch over a Hand to sow' : 'A D turn · W S climb · hold SPACE over a Hand to sow · Q E choose a seed', 8), 4200);
+  invite = mine || params.has('noatelier') ? null : { at: t + 90, planted: bloom.pouch.plantedTotal + 6 };
 }
 async function enterHeadset() {
   const kind = (await navigator.xr.isSessionSupported('immersive-ar').catch(() => false)) ? 'immersive-ar' : 'immersive-vr';
@@ -858,7 +919,7 @@ const fmt = (n) => n.toLocaleString('en');
 async function showStats() {
   if (!banner.classList.contains('hidden')) {
     const st = await net.stats();
-    live.textContent = st ? `${fmt(st.hands)} Hands · ${fmt(st.flying)} flying now` : '';
+    live.textContent = st ? `${fmt(st.hands)} Hands · ${fmt(st.plants ?? 0)} groves planted · ${fmt(st.flying)} flying now` : '';
   }
   setTimeout(showStats, 15000);
 }
@@ -866,8 +927,9 @@ showStats();
 
 // read-only peek for tests and curious players
 window.__pwc = {
+  bloom, fauna, glide, hands,
   get state() {
-    return { hands: hands.length, pos: glide.pos.map(Math.round), yaw: +glide.yaw.toFixed(2), fps: Math.round(fps), scribbles: knots.length + creature.strands, started, webcam: webcam ? webcam.update().map((q) => q.handedness) : null, steering: xrHands.some((q) => q.engaged), palm: xrHands.map((q) => q.frame && q.frame.normal.map((v) => +v.toFixed(2))), hand: xrHands.map((q) => q.frame && { point: q.frame.forward.map((v) => +v.toFixed(2)), open: +q.frame.extension.toFixed(2), height: +q.frame.center[1].toFixed(2) }), speed: Math.round(glide.speed), calls: renderer.info.render.calls, xr: renderer.xr.isPresenting, lod: surface.centre.map(Math.round), patches: surface.patches, mode, mine: mine?.name ?? null, braid: braiding, atlas: { tab: atlas.tab, selected: selected?.name ?? null }, pairCode: atelier.route?.code ?? null, flowStep: flow?.step ?? null, online, others: others.count, pending: !!mine?.pending, room: roomState };
+    return { hands: hands.length, pos: glide.pos.map(Math.round), yaw: +glide.yaw.toFixed(2), fps: Math.round(fps), scribbles: knots.length + 9, /* the Hands' knots and a constant: tests wait on knots hatching */ started, webcam: webcam ? webcam.update().map((q) => q.handedness) : null, steering: xrHands.some((q) => q.engaged), palm: xrHands.map((q) => q.frame && q.frame.normal.map((v) => +v.toFixed(2))), hand: xrHands.map((q) => q.frame && { point: q.frame.forward.map((v) => +v.toFixed(2)), open: +q.frame.extension.toFixed(2), height: +q.frame.center[1].toFixed(2) }), speed: Math.round(glide.speed), calls: renderer.info.render.calls, xr: renderer.xr.isPresenting, lod: surface.centre.map(Math.round), patches: surface.patches, mode, mine: mine?.name ?? null, braid: braiding, atlas: { tab: atlas.tab, selected: selected?.name ?? null }, pairCode: atelier.route?.code ?? null, flowStep: flow?.step ?? null, online, others: others.count, pending: !!mine?.pending, room: roomState };
   },
   atelier: { act: (a) => act(a), get flow() { return flow; }, choose: (i) => choose(i) },
   // where things are in your own space (the rig's), for the film script (tools/film.mjs)

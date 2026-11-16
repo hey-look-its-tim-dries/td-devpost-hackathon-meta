@@ -1,0 +1,155 @@
+<!doctype html>
+<!-- tools/fauna-demo.html: a throwaway stage for src/garden/fauna.js. Sand, a strip of river, the game's haze and
+     two lights, one species of every form, three plots of bloom level 1, 2 and 4, and a camera going round.
+     http://localhost:8130/tools/fauna-demo.html
+       ?plot=0|1|2          circle one plot closely (default: all three from afar)
+       ?follow=animals:3    ride beside the first individual of a mesh (birds|insects|fish|animals) and form index
+       ?dist=40&up=0.4      how far and how high the follow camera sits
+       ?hills=1             rolling ground instead of flat (tests groundAt)
+       ?warp=20             run 20 s of the world before the first frame; ?freeze=1 stops time after that
+       ?max=20              cap every kind at 20 (tests the caps)
+       ?only=fox,hare       only these species (ids below) live on the plots; ?hud=0 hides the numbers
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>fauna demo</title>
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #efdcc4; }
+      #hud { position: fixed; left: 8px; top: 8px; font: 12px/1.5 monospace; background: rgba(22, 16, 14, 0.75); color: #f3e4d2; padding: 6px 8px; border-radius: 6px; white-space: pre; pointer-events: none; }
+    </style>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div id="hud"></div>
+    <script type="module">
+      import * as THREE from 'three';
+      import { createFauna } from '../src/garden/fauna.js';
+
+      const q = new URLSearchParams(location.search);
+      const HORIZON = '#efdcc4', FOG_DENSITY = Math.sqrt(Math.log(100)) / 30000; // the game's own haze (src/view.js, src/world/scene.js)
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setPixelRatio(1);
+      renderer.setSize(innerWidth, innerHeight);
+      document.body.prepend(renderer.domElement);
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(HORIZON);
+      scene.fog = new THREE.FogExp2(HORIZON, FOG_DENSITY);
+      const sun = new THREE.DirectionalLight(0xfff1e0, 2.2);
+      sun.position.set(400, 800, 300);
+      scene.add(sun, new THREE.HemisphereLight(0xc9d6e2, 0x9a6a50, 1.1));
+      const camera = new THREE.PerspectiveCamera(65, innerWidth / innerHeight, 0.5, 40000);
+
+      // the land: flat sand (or rolling, ?hills=1) with a river along z
+      const hills = q.has('hills');
+      const groundAt = (x, z) => (hills && Math.abs(x) > 60 ? 28 * Math.sin(x / 190) * Math.cos(z / 240) * Math.min(1, (Math.abs(x) - 60) / 200) : 0);
+      const land = new THREE.PlaneGeometry(16000, 16000, 320, 320).rotateX(-Math.PI / 2);
+      for (let i = 0, p = land.attributes.position; i < p.count; i++) p.setY(i, groundAt(p.getX(i), p.getZ(i)));
+      scene.add(new THREE.Mesh(land, new THREE.MeshLambertMaterial({ color: '#e2c08f', flatShading: hills })));
+      const river = new THREE.Mesh(new THREE.PlaneGeometry(70, 16000).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ color: '#3f8fc4' }));
+      river.position.y = 0.4;
+      scene.add(river);
+
+      const species = [
+        { id: 'lark', name: 'Sand lark', kind: 'bird', form: 'songbird', color: '#e4572e', color2: '#ffd23f', size: 1 },
+        { id: 'kite', name: 'Dune kite', kind: 'bird', form: 'raptor', color: '#7b4b2a', color2: '#1d1a17', size: 1 },
+        { id: 'stilt', name: 'Rose stilt', kind: 'bird', form: 'wader', color: '#f7a1b5', color2: '#2b2b2b', size: 1 },
+        { id: 'jewel', name: 'Jewel hummer', kind: 'bird', form: 'hummer', color: '#17a398', color2: '#d81e5b', size: 1 },
+        { id: 'azure', name: 'Azure wing', kind: 'insect', form: 'butterfly', color: '#2e86de', color2: '#101820', size: 1 },
+        { id: 'darter', name: 'Red darter', kind: 'insect', form: 'dragonfly', color: '#c81d25', color2: '#bfe6f5', size: 1 },
+        { id: 'bee', name: 'Sand bee', kind: 'insect', form: 'bee', color: '#f6c026', color2: '#241c12', size: 1 },
+        { id: 'dart', name: 'River dart', kind: 'fish', form: 'fish', color: '#1f9e89', color2: '#f2e86d', size: 1 },
+        { id: 'buck', name: 'Dune buck', kind: 'animal', form: 'antelope', color: '#c98a4b', color2: '#fbf1dc', size: 1 },
+        { id: 'fox', name: 'Ember fox', kind: 'animal', form: 'fox', color: '#e2622a', color2: '#fff4e0', size: 1 },
+        { id: 'camel', name: 'Camel', kind: 'animal', form: 'camel', color: '#b98552', color2: '#6b4526', size: 1 },
+        { id: 'giraffe', name: 'Giraffe', kind: 'animal', form: 'giraffe', color: '#f0c05a', color2: '#8a4b20', size: 1 },
+        { id: 'tortoise', name: 'Tortoise', kind: 'animal', form: 'tortoise', color: '#5f8f3e', color2: '#c9b458', size: 1 },
+        { id: 'hare', name: 'Hare', kind: 'animal', form: 'hare', color: '#a58a70', color2: '#f7efe2', size: 1 },
+        { id: 'rose', name: 'Desert rose', kind: 'flower', form: 'daisy', color: '#ff0000', color2: '#00ff00', size: 1 }, // not wildlife: ignored
+      ];
+      const water = (z, r) => { const out = []; for (let w = z - r; w <= z + r; w += 80) out.push([0, w]); return out; };
+      const all = q.get('only')?.split(',') ?? species.map((s) => s.id);
+      const plots = [
+        { x: -330, z: -1100, r: 300, level: 1, fauna: all, water: water(-1100, 300) },
+        { x: 400, z: 0, r: 380, level: 2, fauna: all, water: water(0, 380) },
+        { x: -480, z: 1200, r: 450, level: 4, fauna: all, water: water(1200, 450) },
+      ];
+      for (const p of plots) { // the bloom, so you can see where a plot is
+        const disc = new THREE.Mesh(new THREE.CircleGeometry(p.r, 48).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ color: ['#d6c48a', '#c2c479', '#a9c26b', '#8fbf5f'][p.level - 1] }));
+        disc.position.set(p.x, hills ? 30 : 0.2, p.z);
+        if (!hills) scene.add(disc);
+      }
+
+      const cap = +q.get('max');
+      const fauna = createFauna(species, cap ? { max: { birds: cap, insects: cap, fish: cap, animals: cap } } : {});
+      scene.add(fauna.group);
+      fauna.set(plots);
+
+      const hud = document.getElementById('hud');
+      if (q.get('hud') === '0') hud.style.display = 'none';
+      const follow = q.get('follow')?.split(':'), dist = +q.get('dist') || 45, up = +q.get('up') || 0.45;
+      const focus = q.has('plot') ? plots[+q.get('plot')] : null;
+      const eye = [0, 0, 0], at = new THREE.Vector3(), m = new THREE.Matrix4(), fwd = new THREE.Vector3(), side = new THREE.Vector3();
+      const stats = { frame: 0, update: 0, calls: 0, faunaCalls: 0, triangles: 0, count: 0, drawn: {}, frames: 0 };
+      let t = 0, last = performance.now();
+
+      function aim(time) {
+        if (follow) { // beside the first individual of that mesh and form, a little ahead and above
+          const mesh = fauna.group.getObjectByName(`fauna-${follow[0]}`), anim = mesh.geometry.attributes.iAnim.array;
+          for (let i = 0; i < mesh.count; i++) if (anim[i * 4 + 2] === +follow[1]) {
+            m.fromArray(mesh.instanceMatrix.array, i * 16);
+            at.setFromMatrixPosition(m).add(fauna.group.position);
+            fwd.setFromMatrixColumn(m, 2).normalize(); side.set(fwd.z, 0, -fwd.x).normalize();
+            at.y += +q.get('lift') || 0;
+            camera.position.copy(at).addScaledVector(side, dist * 0.85).addScaledVector(fwd, dist * 0.5).add(new THREE.Vector3(0, dist * up, 0));
+            camera.lookAt(at);
+            return;
+          }
+        }
+        const a = time * 0.12 + (+q.get('a') || 0), c = focus ?? { x: 0, z: 0, r: 1700 }, r = +q.get('r') || c.r * 1.25, h = +q.get('h') || (focus ? 150 : 520);
+        camera.position.set(c.x + Math.cos(a) * r, h, c.z + Math.sin(a) * r);
+        camera.lookAt(c.x, focus ? 40 : 60, c.z);
+      }
+      function step(dt) {
+        t += dt;
+        aim(t);
+        camera.getWorldPosition(at);
+        eye[0] = at.x; eye[1] = at.y; eye[2] = at.z;
+        const t0 = performance.now();
+        fauna.update(dt, t, eye, groundAt);
+        return performance.now() - t0;
+      }
+      for (let w = +q.get('warp') || 0; w > 0; w -= 1 / 30) step(1 / 30);
+      aim(t);
+      const frozen = q.has('freeze');
+
+      renderer.setAnimationLoop(() => {
+        const now = performance.now(), dt = Math.min(0.1, (now - last) / 1000);
+        last = now;
+        const ms = frozen ? step(0) : step(dt);
+        aim(t); // the follow camera looks at where its animal is now
+        renderer.render(scene, camera);
+        stats.frames++;
+        stats.frame += (dt * 1000 - stats.frame) * 0.05;
+        stats.update += (ms - stats.update) * 0.05;
+        stats.calls = renderer.info.render.calls;
+        stats.triangles = renderer.info.render.triangles;
+        stats.count = fauna.count;
+        stats.faunaCalls = 0;
+        for (const mesh of fauna.group.children) { stats.drawn[mesh.name] = mesh.visible ? mesh.count : 0; if (mesh.visible) stats.faunaCalls++; }
+        hud.textContent = `alive ${stats.count}   drawn ${Object.entries(stats.drawn).map(([k, v]) => `${k.slice(6)} ${v}`).join('  ')}\n`
+          + `draw calls ${stats.calls} (fauna ${stats.faunaCalls})   triangles ${stats.triangles}\n`
+          + `update ${stats.update.toFixed(3)} ms   frame ${stats.frame.toFixed(1)} ms   t ${t.toFixed(1)} s`;
+      });
+      addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); });
+      window.__demo = { fauna, stats, plots, species, scene, camera, renderer, set: (list) => fauna.set(list) };
+    </script>
+  </body>
+</html>

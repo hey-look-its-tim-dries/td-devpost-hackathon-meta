@@ -56,3 +56,11 @@ test('minutes of wild flying stay finite, above the ground and under the ceiling
   assert.ok(g.pos[1] >= 8 && g.pos[1] <= 1500);
   assert.ok(g.speed >= 22);
 });
+
+test('braking to sow: holding the brake slows you well below cruise, letting go brings cruise back', () => {
+  const g = createGlide({ pos: [0, 500, 0], speed: 340, cruise: 340, terminal: 1100, minSpeed: 80, gravity: 55 });
+  for (let i = 0; i < 80; i++) g.update(0.05, { brake: 1 });
+  assert.ok(g.speed < 130, `braked to ${g.speed}`);
+  for (let i = 0; i < 400; i++) g.update(0.05, {});
+  assert.ok(Math.abs(g.speed - 340) < 25, `back at ${g.speed}`);
+});

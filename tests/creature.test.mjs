@@ -91,3 +91,34 @@ test('pull: a braiding creature reaches its strands toward the other player, and
   b.pull(null, 0); b.update(1 / 60, [0, 500, -603], { speed: 120 });
   assert.ok(Math.abs(d(mid(b)) - d(mid(a))) < 15, 'let go');
 });
+
+test('the whorl grows: more strands wake as you garden, and it gets larger', () => {
+  const c = createCreature({ strands: 24, points: 30, spacing: 2, radius: 13 });
+  assert.equal(c.active, 5, 'a young whorl has five strands');
+  const fly = (n) => { for (let i = 0; i < n; i++) c.update(0.05, [i * 5, 100, 0], { speed: 70 }); };
+  fly(40);
+  const reach = () => { let m = 0; for (let k = 0; k < c.active; k++) { const { xyz, count } = c.strand(k), sp = c.spine().xyz; for (let i = 0; i < count; i++) m = Math.max(m, Math.hypot(xyz[i * 3] - sp[i * 3], xyz[i * 3 + 1] - sp[i * 3 + 1], xyz[i * 3 + 2] - sp[i * 3 + 2])); } return m; };
+  const small = reach();
+  c.grow(1);
+  fly(80);
+  assert.equal(c.active, 24);
+  assert.ok(reach() > small * 1.3, 'a grown whorl reaches further');
+  c.grow(0.5);
+  assert.equal(c.active, 14);
+});
+test('the whorl splits in two at full speed and merges again; a burst flares it', () => {
+  const c = createCreature({ strands: 12, points: 30, spacing: 2, radius: 13 });
+  c.grow(1);
+  const fly = (n, speed) => { for (let i = 0; i < n; i++) c.update(0.05, [0, 100, -i * 5], { speed }); };
+  fly(60, 70);
+  assert.ok(c.split < 0.05);
+  fly(60, 270);
+  assert.ok(c.split > 0.8, 'flat out: two bodies');
+  fly(80, 70);
+  assert.ok(c.split < 0.1, 'merged again');
+  c.burst();
+  c.update(0.05, [0, 100, -999], { speed: 70 });
+  assert.ok(c.flare > 0.5);
+  fly(60, 70);
+  assert.ok(c.flare < 0.05);
+});
