@@ -27,7 +27,7 @@ export function createHud() {
   const ribbon = card(1024, 128, 0.34, 0.0425, [0, 0.19, -0.65]);
   const place = card(640, 290, 0.2, 0.0906, [-0.15, -0.141, -0.65]); /* the place, and under it the territory: whose Hand, what grows there */ // (clear of the steering card under it)
   const garden = card(640, 200, 0.2, 0.0625, [0.15, -0.155, -0.65]); // your pouch and the plot under you
-  const radar = card(360, 360, 0.1, 0.1, [0.215, -0.03, -0.65]); // who and what is around you (on the right, under Grandfather Tuft's window)
+  const radar = card(360, 360, 0.1, 0.1, [-0.302, -0.136, -0.65]); /* bottom left, beside the place card */ // who and what is around you (on the right, under Grandfather Tuft's window)
   const stats = card(560, 300, 0.14, 0.075, [-0.215, 0.085, -0.65]); // the world in numbers (its far edge 23.7 degrees out: inside the glasses' view, clear of a stamp)
   const keys = card(300, 150, 0.094, 0.047, [0, -0.163, -0.65]); /* always there, in every mode: how to pause, how to open your inventory */
   const cards = [ribbon, place, garden, radar, stats, keys];
