@@ -361,6 +361,6 @@ button:focus-visible, input:focus-visible { outline: 2px solid #3ff3ff; outline-
 
 /* the opening's centrepiece: a round window of the title film, over the world; it goes with the title when you start */
 .banner-inner .gap { display: grid; place-items: center; }
-.title-video { position: static; width: min(40vh, 46vw); height: min(40vh, 46vw); border-radius: 50%; object-fit: cover; border: 3px solid rgba(255, 255, 255, 0.85); box-shadow: 0 0 0 6px rgba(255, 79, 224, 0.35), 0 0 60px rgba(63, 243, 255, 0.55), 0 18px 60px rgba(0, 0, 0, 0.5); animation: titleFloat 6s ease-in-out infinite; }
+.title-video { position: static; border: 0; filter: drop-shadow(0 0 3px #fff) drop-shadow(0 0 18px rgba(255, 79, 224, 0.75)) drop-shadow(0 0 44px rgba(63, 243, 255, 0.55)); --unused: 0 0 0 6px rgba(255, 79, 224, 0.35), 0 0 60px rgba(63, 243, 255, 0.55), 0 18px 60px rgba(0, 0, 0, 0.5); animation: titleFloat 6s ease-in-out infinite; }
 @keyframes titleFloat { 50% { transform: translateY(-8px) scale(1.015); } }
 @media (max-height: 520px) { .title-video { display: none; } }

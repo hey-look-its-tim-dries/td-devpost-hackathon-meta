@@ -269,7 +269,9 @@ function material(deform, key, side) {
 
 // rotation (heading from its sine and cosine, nose up by pitch, rolled about the nose), scale and place, written
 // straight into an instance matrix
+let GROW = 1; // in the foxfire every animal and bird stands five times as tall (main.js sets it)
 function put(m, o, x, y, z, sy, cy, sp, cp, sr, cr, s) {
+  s *= GROW;
   m[o] = (cy * cr - sy * sp * sr) * s; m[o + 1] = cp * sr * s; m[o + 2] = (-sy * cr - cy * sp * sr) * s; m[o + 3] = 0;
   m[o + 4] = (-cy * sr - sy * sp * cr) * s; m[o + 5] = cp * cr * s; m[o + 6] = (sy * sr - cy * sp * cr) * s; m[o + 7] = 0;
   m[o + 8] = sy * cp * s; m[o + 9] = sp * s; m[o + 10] = cy * cp * s; m[o + 11] = 0;
@@ -684,6 +686,6 @@ export function createFauna(species, { max = DEFAULT_MAX } = {}) {
     animals(dt, t, groundAt);
   }
 
-  return { group, set, update, setLand(fn) { land = fn; }, seats: seat, // the first sixteen birds and animals in sight, as x, y, z, heading, size: gnomes ride them
+  return { group, set, update, set grow(k) { GROW = k; }, setLand(fn) { land = fn; }, seats: seat, // the first sixteen birds and animals in sight, as x, y, z, heading, size: gnomes ride them
     get count() { return B.n + I.n + F.n + A.n; } };
 }

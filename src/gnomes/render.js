@@ -7,7 +7,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { pose } from './pose.js';
 import { HATS } from './gnomes.js';
 
-const MAX = 48, PARTS = ['body', 'belt', 'buckle', 'buttons', 'legL', 'legR', 'shinL', 'shinR', 'armL', 'armR', 'foreL', 'foreR', 'handL', 'handR', 'head', 'nose', 'cheeks', 'eyes', 'brows', 'beard', 'hat', 'bell', 'scarf'];
+const MAX = 48, PARTS = ['body', 'belt', 'buckle', 'buttons', 'legL', 'legR', 'shinL', 'shinR', 'armL', 'armR', 'foreL', 'foreR', 'handL', 'handR', 'head', 'nose', 'cheeks', 'eyes', 'brows', 'beard', 'hat', 'bell', 'scarf', 'ropes'];
 const COATS = ['#3b5fa8', '#2f7d5a', '#7a4a2a', '#8a3a6a', '#3a7a8a', '#a8652a', '#55606e'], BEARDS = ['#f5f1e6', '#e8e2d2', '#cfc8b8', '#f0d8a8'];
 const SKIN = new THREE.Color('#f0c39c'), NOSE = new THREE.Color('#e89a7c'), BOOT = new THREE.Color('#3d2a1c'), GOLD = new THREE.Color('#f2c230'), CHEEK = new THREE.Color('#f29a8a'), EYE = new THREE.Color('#1a1210');
 
@@ -37,7 +37,7 @@ export function createGnomeRenderer() {
     M.multiplyMatrices(root, T).multiply(J);
     meshes[name].setMatrixAt(n, M);
   };
-  const K = new THREE.Matrix4(), off = new THREE.Vector3();
+  const K = new THREE.Matrix4(), off = new THREE.Vector3(), ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
   const limb = (upper, lowers, rx, rz, bend) => { // a limb of two parts: the upper one at its joint, the lower ones hanging from it and bent at theirs (elbow, knee)
     joint(upper, rx, 0, rz);
     off.copy(rest[lowers[0]]).sub(rest[upper]);
@@ -57,6 +57,7 @@ export function createGnomeRenderer() {
       e.set(p.tilt, yaw + (p.spin ?? 0), p.roll, 'YXZ'); q.setFromEuler(e);
       root.compose(v.set(x, y + p.y * s, z), q, one.set(s, s, s));
       if (grip) root.multiply(T.makeTranslation(0, -grip, 0));
+      if (grip) { joint('ropes', 0, 0, 0); meshes.ropes.setColorAt(n, EYE); } else meshes.ropes.setMatrixAt(n, ZERO); /* its lines, only while it hangs */
       joint('body', 0, 0, 0); joint('belt', 0, 0, 0); joint('buckle', 0, 0, 0); joint('buttons', 0, 0, 0);
       limb('legL', ['shinL'], p.legL, 0, p.kneeL ?? 0); limb('legR', ['shinR'], p.legR, 0, p.kneeR ?? 0);
       limb('armL', ['foreL', 'handL'], p.armLx, p.armLz, p.elbowL ?? 0); limb('armR', ['foreR', 'handR'], p.armRx, p.armRz, p.elbowR ?? 0);

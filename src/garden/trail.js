@@ -35,7 +35,7 @@ export function createTrail() {
       since += dt;
       const got = [];
       for (let i = 0; i < pts.length; i++) {
-        if (taken.has(i) || Math.hypot(pts[i][0] - pos[0], pts[i][1] - pos[1], pts[i][2] - pos[2]) > REACH) continue;
+        if (taken.has(i) || Math.hypot(pts[i][0] - pos[0], pts[i][2] - pos[2]) > REACH || Math.abs(pts[i][1] - pos[1]) > 2 * REACH) continue; // height is hard to judge: twice the slack up and down
         if (since > GAP) streak = 0;
         taken.add(i); since = 0;
         got.push({ i, streak: streak++, last: taken.size === pts.length });

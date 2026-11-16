@@ -351,8 +351,9 @@ if (shroom) {
   await wait(4200);
   // the foxfire's row of seeds: fly the line (the film logs each seed caught, for the bells on the sound track)
   await film(() => { window.__tings = []; let last = 0; setInterval(() => { const tr = window.__pwc.trail, taken = tr.points().length - tr.left; if (taken < last) last = 0; for (let k = last; k < taken; k++) window.__tings.push([Date.now(), Math.max(0, tr.streak - (taken - k))]); last = taken; }, 40); });
+  await film(() => { const p = window.__pwc; p.trail.begin(p.state.pos, p.glide.yaw, 7); p.trail.lift(p.groundAt); }); // a fresh row, laid out ahead of where the camera is flying now
   await caption('Rows of seeds appear. Fly the line, and every seed rings one note higher.');
-  await film(() => __film.fly([() => { const tr = window.__pwc.trail, pts = tr.points(); let far = -1; for (let i = 0; i < pts.length; i++) if (tr.isTaken(i)) far = i; return pts[Math.min(pts.length - 1, far + 2)] ?? window.__pwc.state.pos; }]));
+  await film(() => __film.fly([() => { const tr = window.__pwc.trail, pts = tr.points(); let far = -1; for (let i = 0; i < pts.length; i++) if (tr.isTaken(i)) far = i; return pts[Math.min(pts.length - 1, far + 3)] ?? window.__pwc.state.pos; }]));
   await wait(7000);
   log(`tings ${await film(() => window.__tings.length)}`);
   await caption('And a glimpse of what is coming: the gnome folk, giants, watching you fly over.');
@@ -369,7 +370,7 @@ await film(() => __film.fly([() => __film.friend() ?? [500, 420, 2900]]));
 log(`friend ${JSON.stringify(await film(() => __film.friend()))}`);
 await wait(3000);
 await caption('Meet another player and your whorls braid. You swap seeds. That is the greeting.');
-for (let i = 0; i < 40 && !(await film(() => window.__pwc.state.braid)); i++) await wait(250);
+for (let i = 0; i < 72 && !(await film(() => window.__pwc.state.braid)); i++) await wait(250); // up to 18 s to reach them
 log(`braid ${JSON.stringify(await film(() => window.__pwc.state.braid))}`);
 await wait(3500);
 await mark('gnome');

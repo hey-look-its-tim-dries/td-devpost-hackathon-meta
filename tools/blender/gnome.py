@@ -70,6 +70,13 @@ for side, x in (('L', -1), ('R', 1)):
         ball(bm, (0.235 * x, 0, 0.262), 0.058, (1, 1, 1.1), 12, 8)                 # a mitten
         ball(bm, (0.235 * x - 0.03 * x, -0.045, 0.275), 0.026, (1, 1, 1.3), 8, 6)  # and its thumb
     part('hand' + side, EL, hand)
+def ropes(bm):  # the lines a hanging gnome holds: from each raised mitten up to one point over its hat, where the whorl is
+    for x in (-1, 1):
+        a, b = Vector((0.215 * x, 0, 0.8)), Vector((0.02 * x, 0, 1.55)); d = b - a
+        v = bmesh.ops.create_cone(bm, cap_ends=True, segments=6, radius1=0.009, radius2=0.009, depth=d.length)['verts']
+        bmesh.ops.rotate(bm, cent=(0, 0, 0), matrix=Matrix.Rotation(math.atan2(d.x, d.z), 3, 'Y'), verts=v)
+        bmesh.ops.translate(bm, vec=(a + b) / 2, verts=v)
+part('ropes', HIP, ropes)
 part('buttons', HIP, lambda bm: [ball(bm, (0, -0.19 - 0.012 * i, 0.5 - 0.055 * i), 0.018, (1, 0.6, 1), 8, 6) for i in range(3)])  # three gold buttons down the coat
 def scarf(bm):
     cone(bm, (0, 0), 0.545, 0.6, 0.165, 0.15, 20)                                  # wound round the neck

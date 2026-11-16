@@ -8,7 +8,7 @@ import { GNOME, gnomeAt, activity, shout, questFor, advance, questEvents, seedOf
 import { DANCES } from './pose.js';
 import { createGnomeRenderer } from './render.js';
 
-const SIZE = 20, RIDER = 184, CAP = 27; // metres per gnome unit at home and on a whorl (a passenger is a big, proud thing to carry: you see it from across a Hand); how high a mushroom's cap sits
+const SIZE = 20, RIDER = 129, CAP = 27; // metres per gnome unit at home and on a whorl (a passenger is a big, proud thing to carry: you see it from across a Hand); how high a mushroom's cap sits
 
 export function createGnomes({ scene, bloom, net, say, stamp, groundAt, creature, others, fauna, online, makeLabel, hands, onRiders, ridersOf, quest = null, onMet = null, onRival = null, sfx = () => {}, squeal = () => {} }) { // squeal(n): a gnome's cry of joy, clip n (assets/voice/joy-n) // quest: a kind to ask for (?quest=, for the film and the checks)
   const draw = createGnomeRenderer();
@@ -123,7 +123,7 @@ export function createGnomes({ scene, bloom, net, say, stamp, groundAt, creature
       const dg = dangle(r.d ?? { swing: 0, vel: 0, joy: 0, quiet: 2 }, { turn: ctx.turn ?? 0, speed, climb: climbing }, Math.min(dt, 0.05));
       r.d = dg.state;
       if (dg.squeal) { const k = (r.gn.seed + (r.n = (r.n ?? 0) + 1)) % JOYS.length; speak(JOYS[k], l.xyz[j], l.xyz[j + 1] + RIDER * 0.6, l.xyz[j + 2]); squeal(k); }
-      draw.add({ x: l.xyz[j], y: l.xyz[j + 1], z: l.xyz[j + 2], yaw, s: RIDER, grip: r.doneAt && t - r.doneAt < 3 ? 0 : 0.8, clip: r.doneAt && t - r.doneAt < 3 ? 'cheer' : t - r.grabbed < 0.5 ? 'jump' : 'hang', t: r.doneAt ? t : t - r.grabbed < 0.5 ? (t - r.grabbed) * 2 : t + i, hat: r.gn.hat, seed: r.gn.seed, motion: { swing: r.d.swing, lift: Math.min(1, speed / 700), joy: r.d.joy } });
+      draw.add({ x: l.xyz[j], y: l.xyz[j + 1], z: l.xyz[j + 2], yaw, s: RIDER, grip: 1.55, /* it hangs wholly under the whorl, hat and all, on two lines: a parachutist steering */ clip: t - r.grabbed < 0.5 ? 'jump' : 'hang', t: r.doneAt ? t : t - r.grabbed < 0.5 ? (t - r.grabbed) * 2 : t + i, hat: r.gn.hat, seed: r.gn.seed, motion: { swing: r.d.swing, lift: Math.min(1, speed / 700), joy: r.d.joy } });
     }
     // ---- gnomes other gardeners carry ----
     carried.clear(); // found again every frame: whoever leaves the room lets its gnomes go home
@@ -132,7 +132,7 @@ export function createGnomes({ scene, bloom, net, say, stamp, groundAt, creature
       for (let i = 0; i < on.length; i++) {
         if (on[i].id) carried.add(on[i].id);
         const l = oc.strand((i * 2 + 1) % oc.strands), j = Math.min(l.count - 1, Math.max(1, Math.round(l.count * (0.25 + 0.2 * i)))) * 3;
-        draw.add({ x: l.xyz[j], y: l.xyz[j + 1], z: l.xyz[j + 2], yaw: 0, s: RIDER * 0.7, grip: 0.8, clip: 'hang', t: t + i * 1.7, hat: on[i].hat, seed: on[i].id ? seedOf(on[i].id) : id * 31 + i });
+        draw.add({ x: l.xyz[j], y: l.xyz[j + 1], z: l.xyz[j + 2], yaw: 0, s: RIDER * 0.7, grip: 1.55, clip: 'hang', t: t + i * 1.7, hat: on[i].hat, seed: on[i].id ? seedOf(on[i].id) : id * 31 + i });
       }
     });
     // The foxfire shows what is to come: giants of the gnome folk standing all over the desert, turning to look up
