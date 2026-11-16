@@ -57,6 +57,21 @@ On top of the flying, everyone gardens the desert together.
 - Not done yet: all writes still go through one Durable Object (the World). Past a few hundred plantings a second
   that needs one object per Hand.
 
+### Putting this version live
+
+The live map needs the garden's tables before the new Worker runs (both commands in `server/`; the schema only adds
+tables, it changes nothing that is there):
+
+```bash
+npx wrangler d1 execute pwc --remote --file=schema.sql
+```
+
+```bash
+npx wrangler deploy
+```
+
+Then merge `m7-bloom` into `main` and push, so Pages serves the game that talks to it.
+
 ### Signing in with Facebook (optional; guests keep playing by device)
 
 The code is in place and off until an App ID is set. The owner does this once:
