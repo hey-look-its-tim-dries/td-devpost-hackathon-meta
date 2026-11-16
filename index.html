@@ -18,6 +18,7 @@
   </head>
   <body>
     <div class="banner loading" id="banner">
+      <div class="title-art" aria-hidden="true"></div>
       <canvas id="garland" aria-hidden="true"></canvas>
       <div class="banner-inner">
         <p class="eyebrow">Sow the desert into bloom, together</p>
@@ -25,12 +26,15 @@
         <ul class="features"><li data-icon="fly">Fly</li><li data-icon="sow">Sow</li><li data-icon="water">Water</li><li data-icon="player">Meet</li><li data-icon="mushroom">Foxfire</li><li data-icon="gnome">Gnomes</li></ul>
         <p id="status" class="small">Loading the world…</p>
         <p id="live" class="live"></p>
-        <button id="xrButton" class="hidden" data-icon="headset">Enter in headset</button>
-        <button id="previewButton" class="quiet" data-icon="dive">Play in the browser</button>
-        <button id="webcamButton" class="quiet" data-icon="camera">Use my webcam as hands</button>
-        <button id="explainButton" class="quiet" data-icon="explain">Explain this game to me</button>
-        <button id="fbButton" class="quiet hidden">Continue with Facebook</button>
-        <button id="gButton" class="quiet hidden" data-icon="sign">Continue with Google</button>
+        <div class="gap"></div>
+        <div class="menu">
+          <button id="xrButton" class="hidden" data-icon="headset">Enter in headset</button>
+          <button id="previewButton" class="quiet" data-icon="dive">Play in the browser</button>
+          <button id="webcamButton" class="quiet" data-icon="camera">Use my webcam as hands</button>
+          <button id="explainButton" class="quiet" data-icon="explain">Explain this game to me</button>
+          <button id="fbButton" class="quiet hidden">Continue with Facebook</button>
+          <button id="gButton" class="quiet hidden" data-icon="sign">Continue with Google</button>
+        </div>
         <p class="small">
           Hands only, no controller needed. Only your Hand's map DNA, its place on the shared map and a
           random device token are kept: never images or tracking data. <a href="privacy.html">Privacy and deleting your data</a> Credits: <a href="assets/flora/CREDITS.md">flowers</a>, <a href="assets/fungi/CREDITS.md">mushrooms</a>, <a href="assets/music/CREDITS.md">music</a>. <a href="#" id="export" class="hidden">Export my data</a> <a href="#" id="forget" class="hidden">Forget my Hand and garden</a>

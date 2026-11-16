@@ -240,3 +240,25 @@ svg.icon { vertical-align: -0.2em; margin-right: 0.4em; flex: none; filter: drop
 /* a player's whorl as a small sign beside their name */
 .lobby img.whorl { width: 26px; height: 26px; vertical-align: middle; margin-right: 6px; }
 .lobby .me img.whorl { width: 46px; height: 46px; float: left; margin-right: 8px; }
+
+/* the opening screen's frame: the neon garden round the edges, the middle cut out so the living world shows through */
+.title-art { position: absolute; inset: -2%; background: url(assets/title/frame.jpg) center / cover no-repeat; pointer-events: none;
+  -webkit-mask-image: linear-gradient(to right, #000 0, #000 5%, transparent 15%, transparent 85%, #000 95%, #000 100%), linear-gradient(to bottom, transparent 0, transparent 80%, #000 96%);
+  mask-image: linear-gradient(to right, #000 0, #000 5%, transparent 15%, transparent 85%, #000 95%, #000 100%), linear-gradient(to bottom, transparent 0, transparent 80%, #000 96%);
+  animation: title-glow 7s ease-in-out infinite alternate; }
+@keyframes title-glow { from { filter: brightness(0.9) saturate(1); transform: scale(1); } to { filter: brightness(1.2) saturate(1.25); transform: scale(1.025); } }
+.banner .banner-inner { position: relative; }
+.banner h1 { background: linear-gradient(180deg, #ffffff 0%, #e9d6ff 42%, #ff4fe0 58%, #b21fd6 100%); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 0 2px #3ff3ff) drop-shadow(0 0 14px rgba(255, 79, 224, 0.75)); }
+.banner .eyebrow { color: #ff7de9; text-shadow: 0 0 10px rgba(255, 79, 224, 0.9); }
+@media (prefers-reduced-motion: reduce) { .title-art { animation: none; } }
+
+/* the opening screen keeps its middle free: the title up top, the menu low, your whorl flying in between */
+.banner { align-items: start; overflow: auto; }
+.banner-inner { display: flex; flex-direction: column; align-items: center; min-height: calc(100vh / 1.1 - 40px); }
+.banner-inner .features { margin-top: 12px; }
+.banner-inner .gap { flex: 1; min-height: 34vh; } /* where your whorl flies */
+.banner-inner .menu { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 12px; margin-bottom: 8px; }
+.banner-inner .menu button { margin: 0; }
+/* the title on one line, as wide as the screen allows */
+.banner-inner { max-width: min(1100px, 94vw); }
+.banner h1 { white-space: nowrap; font-size: clamp(1.9rem, 7.2vw, 5.4rem); }
