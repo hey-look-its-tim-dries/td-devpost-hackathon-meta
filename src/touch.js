@@ -15,7 +15,7 @@ export function tilt(o, angle, neutral) {
 }
 
 const BUTTONS = [ // [key, label, class, hold]
-  [' ', 'SOW', 'sow', true], ['q', '◀', 'prev'], ['e', '▶', 'next'], ['f', 'HYPER', 'hyper'], ['t', 'POUR', 'pour'], ['z', 'SCATTER', 'scatter'], ['m', 'MAP', 'map'], ['v', '⟲', 'centre'],
+  [' ', 'SOW', 'sow', true], ['q', '◀', 'prev'], ['e', '▶', 'next'], ['f', 'HYPER', 'hyper'], ['t', 'POUR', 'pour'], ['z', 'SCATTER', 'scatter'], ['m', 'MAP', 'map'], ['v', '⟲', 'centre'], ['p', '❚❚', 'pause'], ['i', 'BAG', 'bag'],
 ];
 export function createTouch(root, canvas) {
   const on = globalThis.matchMedia?.('(pointer: coarse)').matches;

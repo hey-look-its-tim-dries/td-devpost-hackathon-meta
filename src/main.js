@@ -63,6 +63,7 @@ import { FB_APP_ID, GOOGLE_CLIENT_ID } from './config.js';
 import { googleUrl, idFromFragment, cleanPicture, accountTag } from './net/google.js';
 import { cleanName } from './world/names.js';
 import { createTouch } from './touch.js';
+import { createInventory } from './inventory.js';
 import { look as hudLook } from './ui/themed.js';
 import { createMusic } from './music.js';
 import { createSound } from './sound.js';
@@ -268,7 +269,8 @@ function charting() {
 }
 const braid = createBraid({ radius: 450, hold: 2 }), braidList = [], CALM = params.has('calm'); // the greeting, within 450 m (at this speed you turn in a 340 m circle: any closer and you could not circle a friend); ?calm: reduced motion, no braiding
 const flybys = []; /* what others just sowed, drifting past you: { sp, t0, seed, dir } */
-let metAt = -99, livePill = '', missionKey = '';
+let metAt = -99, livePill = '', missionKey = '', invTick = 0;
+const inventory = createInventory(document.getElementById('inventory'), { onPick: (id) => { bloom.pouch.select(id); invTick = 0; sfx('seed'); } }); /* the right side of a screen: all you carry and know */
 let braiding = null; // { id, k } while two swarms braid
 let braidN = 0;
 const braidPool = [];
@@ -277,6 +279,9 @@ const tags = new Map(); // id -> name tag over that player
 const greeted = new Set(); // players you have been told about
 const eyeW = new THREE.Vector3();
 const seenTags = new Set();
+/* a signed-in player's picture by their name, loaded once (null until it is there) */
+const faceImgs = new Map();
+function faceOf(name) { const url = cleanPicture(pics[name]); if (!url) return null; let im = faceImgs.get(url); if (!im) { im = new Image(); im.crossOrigin = 'anonymous'; im.referrerPolicy = 'no-referrer'; im.src = url; faceImgs.set(url, im); } return im.complete && im.naturalWidth ? im : null; }
 /* the first seconds you are near a player their picture floats over their whorl (their initial when they have none) */
 const faces = new Map(); /* id -> { sprite, tex, at, near } */
 let avatarsAt = -99;
@@ -339,9 +344,10 @@ function hudContents() {
   const sandNow = bloom.storm();
   if (sandNow) marks.push({ label: 'Sandstorm', x: sandNow.x, z: sandNow.z, color: '#8a6a44' });
   const pl = place && !place.handbit ? { code: 'WATER', name: 'on the rivers', hand: place.hand.name, owner: !place.hand.founder, charted: true, count: chart.count(place.hand.id), total: place.hand.data.handbits.length } : place && { code: place.handbit.code, name: summitOf(place.hand, place.handbit) ?? nameOf(place.hand, place.handbit), hand: place.hand.name, owner: !place.hand.founder, charted: chart.has(place.hand.id, place.index), count: chart.count(place.hand.id), total: place.hand.data.handbits.length };
+  if (pl) { pl.yours = !!mine && place.hand.id === mine.id; pl.land = bloom.territory(place.hand.id); pl.face = faceOf(place.hand.name); } /* the territory under you: whose, what grows there, its owner's picture */
   const g = bloom.hud(place), gn = gnomes.hud();
   g.gnome = gn.quest;
-  g.hands = renderer.xr.isPresenting; // the card's hints: hand movements in the headset, keys on a screen
+  g.hands = renderer.xr.isPresenting; g.touch = touch.on; // the card's hints: hand movements in the headset, keys on a screen
   const radar = { range: 6000, others: [], hands: [], clouds: [], blooms: bloom.plots(), gold, storm: sandNow };
   others.each((c, id, pos) => radar.others.push({ x: pos[0], z: pos[2], name: others.nameOf(id) }));
   for (const h of hands) { if (!h.pose) continue; const [x, z] = toWorld(h.pose, 0, 230); radar.hands.push({ x, z, name: h.name, ...lobbyShape(h) }); } // each Hand with its real outline, fingers and rivers
@@ -554,8 +560,8 @@ const lesson = createTutorialCard(), acts = { next: 0, scatter: 0, pour: 0, hype
 const WISH_ICON = { source: 'compass', hand: 'hand', cousin: 'gnome', foxfire: 'mushroom', sow: 'sow', water: 'water', speed: 'fly', high: 'climb', cloud: 'seed', river: 'river' };
 const endTutorial = (done) => { tutorial.stop(); try { storage?.setItem('pwc.tutorial.v1', '1'); } catch {} if (done) stamp('You can fly and garden', 'mushrooms and gnomes are yours to find', 'TUTORIAL DONE'); else panel.say('Tutorial skipped: the atlas has a How page', 4); };
 addEventListener('keydown', (e) => { if (e.key === 'Escape' && tutorial.active && mode === 'fly') endTutorial(false); });
-camera.add(seal.mesh);
 const hud = createHud();
+hud.group.add(seal.mesh); /* with the other cards: the same size and place on a screen and in the headset */
 camera.add(hud.group);
 hud.group.add(lesson.mesh); // the tutorial's card, with the HUD: on a screen it grows with it
 // "what is what" (src/garden/firsts.js): the first time you meet each thing, a note says what it is; each once, then never again
@@ -693,6 +699,9 @@ function atlasFrame(dt) {
 }
 addEventListener('keydown', (e) => {
   if (e.key === 'm' || e.key === 'M') mode === 'atlas' ? closeAtlas() : openAtlas(false);
+  /* P: pause (the world waits while the atlas is open). I: your inventory (the atlas at its Garden page) */
+  if ((e.key === 'p' || e.key === 'P') && !e.repeat) { if (mode === 'atlas') closeAtlas(); else { openAtlas(false); panel.say('Paused: press P to fly on', 4); } }
+  if ((e.key === 'i' || e.key === 'I') && !e.repeat) { if (mode === 'atlas' && atlas.tab === 'garden') closeAtlas(); else { atlas.setTab('garden'); if (mode !== 'atlas') openAtlas(false); atlasPaint = 0; } }
   else if (e.key === 'Escape') closeAtlas();
 });
 renderer.domElement.addEventListener('wheel', (e) => { if (mode === 'atlas') { atlas.zoom(Math.exp(-e.deltaY * 0.0015)); atlasPaint = 0; e.preventDefault(); } }, { passive: false });
@@ -1063,6 +1072,7 @@ function frame() {
     if (missFor > 5) tuft(/river/.test(miss) && tutorial.step.id !== 'water' ? 'need-sand' : /Too high|Lower/.test(miss) ? 'need-low' : /Hand/.test(miss) ? 'need-hand' : 'need-water', 18); // stuck for a while: he says what is missing
     lesson.update(dt, { index: tutorial.index, step: tutorial.step, progress: tutorial.progress, hands: renderer.xr.isPresenting, coach: miss, ready: !miss && ['sow', 'scatter', 'pour', 'hyper', 'water'].includes(tutorial.step.id) });
   }
+  if ((invTick -= dt) <= 0) { invTick = 0.5; const on = started && mode === 'fly' && !renderer.xr.isPresenting; inventory.show(on); if (on) { const d = bloom.pouch.dump(); inventory.update({ species: bloom.species, seeds: d.seeds, planted: d.planted ?? {}, found: bloom.pouch.found, selected: bloom.pouch.selected }, bloom.flora.icon, (id) => bloom.flora.styleOf?.(id) === 'pixel'); } }
   { /* the gnome's wish is always on screen while one rides: CURRENT MISSION, how far along, how long is left */
     const q = started && mode === 'fly' ? gnomes.hud().quest : null, el = document.getElementById('mission');
     const key = q && !q.done ? `${q.name}|${q.text}|${q.have}/${q.need}|${q.left}` : '';
@@ -1085,6 +1095,7 @@ function frame() {
   others.update(dt);
   updateTags();
   seal.update(dt);
+  if (mode === 'atlas') seal.mesh.visible = false; /* never over the atlas */
   // charting and the HUD's contents ten times a second (the HUD still fades every frame)
   if ((hudTick += dt) >= 0.1) { hudTick = 0; charting(); hudState = hudContents(); }
   { const k = renderer.xr.isPresenting ? 1 : 1.9 * Math.tan(camera.fov * Math.PI / 360) / Math.tan(65 * Math.PI / 360); hud.group.scale.set(k, k, 1); } // on a screen: larger, and the same size however wide the view gets

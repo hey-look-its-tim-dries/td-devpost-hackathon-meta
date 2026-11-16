@@ -11,7 +11,7 @@ export function createStamp() {
   tex.colorSpace = THREE.SRGBColorSpace;
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.29, 0.145), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false, opacity: 0 }));
   mesh.renderOrder = 35;
-  mesh.position.set(0, 0.06, -0.65);
+  mesh.position.set(-0.211, -0.022, -0.65); /* left of your view, between the stats and the place card: never over your whorl or the lesson */
   mesh.visible = false;
   let t = Infinity;
   return {
@@ -38,7 +38,7 @@ export function createStamp() {
     update(dt) {
       t += dt;
       const k = Math.min(1, t / 0.08);
-      mesh.scale.setScalar(1.15 - 0.15 * k);
+      mesh.scale.setScalar((1.15 - 0.15 * k) * 0.62); /* a small card among the others */
       mesh.material.opacity = t < 3.5 ? Math.min(1, t / 0.05) : Math.max(0, 1 - (t - 3.5) / 0.6);
       mesh.visible = mesh.material.opacity > 0;
     },

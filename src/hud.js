@@ -25,13 +25,22 @@ const card = (w, h, mw, mh, pos) => {
 export function createHud() {
   const group = new THREE.Group();
   const ribbon = card(1024, 128, 0.34, 0.0425, [0, 0.19, -0.65]);
-  const place = card(640, 200, 0.2, 0.0625, [-0.15, -0.155, -0.65]); // (clear of the steering card under it)
+  const place = card(640, 290, 0.2, 0.0906, [-0.15, -0.141, -0.65]); /* the place, and under it the territory: whose Hand, what grows there */ // (clear of the steering card under it)
   const garden = card(640, 200, 0.2, 0.0625, [0.15, -0.155, -0.65]); // your pouch and the plot under you
   const radar = card(360, 360, 0.1, 0.1, [0.215, -0.03, -0.65]); // who and what is around you (on the right, under Grandfather Tuft's window)
   const stats = card(560, 300, 0.14, 0.075, [-0.215, 0.085, -0.65]); // the world in numbers (its far edge 23.7 degrees out: inside the glasses' view, clear of a stamp)
-  const cards = [ribbon, place, garden, radar, stats];
+  const keys = card(300, 150, 0.094, 0.047, [0, -0.163, -0.65]); /* always there, in every mode: how to pause, how to open your inventory */
+  const cards = [ribbon, place, garden, radar, stats, keys];
   group.add(...cards.map((c) => c.mesh));
-  let alpha = 0, since = 0, lastKey = '', clock = 0, gardenKey = '', statsKey = '', neon = false;
+  let alpha = 0, since = 0, lastKey = '', clock = 0, gardenKey = '', statsKey = '', neon = false, keysKey = '';
+  function paintKeys(hands, touch) {
+    const { g, canvas: c } = keys, rows = hands ? [['PALM UP', 'pause · inventory'], ['PALM DOWN', 'fly on']] : touch ? [['❚❚', 'pause'], ['BAG', 'inventory']] : [['P', 'pause'], ['I', 'inventory']];
+    g.clearRect(0, 0, c.width, c.height);
+    g.fillStyle = PAPER; g.beginPath(); g.roundRect(4, 4, c.width - 8, c.height - 8, 24); g.fill();
+    g.strokeStyle = 'rgba(22,16,14,0.5)'; g.lineWidth = 2; g.stroke();
+    rows.forEach(([k, what], i) => { const y = 58 + i * 56; g.textBaseline = 'alphabetic'; g.textAlign = 'left'; g.fillStyle = SEAL; g.font = `800 ${hands ? 22 : 30}px Inter, system-ui, sans-serif`; g.fillText(k, 24, y); g.fillStyle = INK; g.font = `600 ${hands ? 22 : 28}px Inter, system-ui, sans-serif`; g.textAlign = 'right'; g.fillText(what, c.width - 24, y); });
+    keys.tex.needsUpdate = true;
+  }
   const GILT = '#c9a35a', RIVER = '#2f5d7c', LEAF = '#3f7d3a';
   const INK = '#16100e', SEAL = '#b8442e', PAPER = 'rgba(243, 228, 210, 0.9)';
 
@@ -73,6 +82,15 @@ export function createHud() {
       g.fillStyle = INK; g.font = '600 46px Georgia, serif'; g.fillText(p.name, 28, 104, 460);
       g.fillStyle = 'rgba(22,16,14,0.7)'; g.font = '400 26px Inter, system-ui, sans-serif';
       g.fillText(`${p.hand}${p.owner ? '' : ' · founder'} · ${p.count} of ${p.total} charted`, 28, 150, 460);
+      /* the territory: its owner's picture (or the Hand's initial), whose it is, and its garden */
+      g.strokeStyle = 'rgba(22,16,14,0.25)'; g.lineWidth = 2; g.beginPath(); g.moveTo(28, 176); g.lineTo(c.width - 28, 176); g.stroke();
+      g.save(); g.beginPath(); g.arc(66, 230, 38, 0, Math.PI * 2); g.clip();
+      if (p.face) g.drawImage(p.face, 28, 192, 76, 76); else { g.fillStyle = SEAL; g.fillRect(28, 192, 76, 76); g.fillStyle = '#f7eedf'; g.font = '700 44px Georgia, serif'; g.textAlign = 'center'; g.fillText(p.hand.slice(0, 1).toUpperCase(), 66, 246); g.textAlign = 'left'; }
+      g.restore();
+      g.strokeStyle = INK; g.lineWidth = 3; g.beginPath(); g.arc(66, 230, 38, 0, Math.PI * 2); g.stroke();
+      g.fillStyle = INK; g.font = '700 26px Inter, system-ui, sans-serif'; g.fillText(p.owner ? `${p.hand}'s territory${p.yours ? ' · yours' : ''}` : `${p.hand} · a founder's Hand`, 122, 222, 490);
+      g.fillStyle = 'rgba(22,16,14,0.7)'; g.font = '400 23px Inter, system-ui, sans-serif';
+      g.fillText(p.land ? `${p.land.groves} groves · ${p.land.kinds} kinds · ${p.land.blooms} plots in bloom` : 'nothing sown here yet', 122, 256, 490);
     } else {
       g.fillStyle = 'rgba(22,16,14,0.6)'; g.font = 'italic 400 34px Georgia, serif'; g.fillText('the wilderness', 28, 110);
     }
@@ -179,11 +197,12 @@ export function createHud() {
       for (const { mesh: m } of cards) { m.material.opacity = alpha; m.visible = alpha > 0.02 && !m.userData.away; }
       if (alpha <= 0.02 || clock < 0.1) return;
       clock = 0; // repaint at most 10 times a second
-      if (neon !== look.neon) { neon = look.neon; lastKey = gardenKey = statsKey = ''; } // the look changed (foxfire): paint everything again
+      if (neon !== look.neon) { neon = look.neon; lastKey = gardenKey = statsKey = keysKey = ''; } // the look changed (foxfire): paint everything again
       paintRibbon(yaw, bearings(pos, yaw, markers));
-      const key = JSON.stringify([p, spans(altitude)]);
+      const key = JSON.stringify([p, !!p?.face, spans(altitude)]);
       if (key !== lastKey) { lastKey = key; paintPlace(p, altitude); }
       if (gd) { const k = JSON.stringify([gd.selected?.id, gd.selected?.n, gd.seeds, gd.water, gd.wet, gd.level, gd.found, gd.plot, gd.hyper, Math.round(gd.charge * 20), gd.fox, gd.gnome, gd.hands]); if (k !== gardenKey) { gardenKey = k; paintGarden(gd); } }
+      { const k = `${!!gd?.hands}|${!!gd?.touch}`; if (k !== keysKey) { keysKey = k; paintKeys(!!gd?.hands, !!gd?.touch); } }
       if (rd) paintRadar(rd, yaw, pos);
       if (wd) { const k = JSON.stringify(wd); if (k !== statsKey) { statsKey = k; paintStats(wd); } }
     },

@@ -323,7 +323,7 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
       if (before !== undefined && pl.level > before) { sfx('bloom'); if (pl.level === 4) stamp(`${hb.name} is in full bloom`, `${h.name} · ${pl.kinds.size} kinds`, 'FULL BLOOM'); else say(`${hb.name} of ${h.name}: ${BLOOM[pl.level]}`, 3.5); credit('bloom'); }
       if (!pl.level) continue;
       const [x, z] = toWorld(h.pose, hb.cx, hb.cy);
-      every.push({ x, z, level: pl.level });
+      every.push({ x, z, level: pl.level, hand });
       if (Math.hypot(x - ctx.pos[0], z - ctx.pos[2]) > 6000) continue;
       const hab = /^[TIMRL]1$/.test(hb.code) ? 'ridge' : pl.bank * 3 >= pl.n ? 'bank' : 'dune';
       const water = garden.groves(hand, bit).filter((p) => p.water).slice(0, 6).map((p) => p.water);
@@ -344,6 +344,8 @@ export function createBloom({ scene, shared, storage, net, hands, groundAt, say,
     gift() { const pool = FLORA.filter((id) => SPECIES[id].rarity <= 3), id = pool[Math.floor(Math.random() * pool.length)]; pouch.gather(id, 3); credit('bloom'); fill(0.5); return { id, name: SPECIES[id].name }; },
     foxfire: fox, // the glowing state mushrooms bring: main.js turns the world by foxfire.level(Date.now())
     garden, pouch, flora, species: SPECIES, onGarden, load, signIn, handsRead: () => loaded.size, plots: () => near, allPlots: () => every,
+    /* a Hand as a territory: how much grows on it */
+    territory: (hand) => { let groves = 0; const kinds = new Set(); for (const p of garden.all()) if (p.hand === hand && !p.wild) { groves++; kinds.add(p.sp); } return groves ? { groves, kinds: kinds.size, blooms: every.filter((q) => q.hand === hand).length } : null; },
     sowings: () => [...garden.all()].filter((p) => !p.wild && p.wx !== undefined).map((p) => [p.wx, p.wz, SPECIES[p.sp]?.color ?? '#ffffff']),
     readAll: () => { if (online()) for (const h of hands) if (h.pose && h.data?.cells && Date.now() - (loaded.get(h.id) ?? 0) > 60000) readHand(h); }, storm: () => sand,
     // the atlas's Garden tab: the herbarium; taps choose a kind, a page, or the seed to sow
