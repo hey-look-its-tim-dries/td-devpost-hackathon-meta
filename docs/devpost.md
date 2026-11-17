@@ -120,8 +120,10 @@ not a fist, and held for 0.4 seconds, and a card fixed in view shows which condi
 and the other is free to garden: pinch and hold to sow (seed is thrown ahead of you), sweep an open hand to the
 side to scatter, a flat palm pressed down to pour water, a short left pinch for the next seed and a long one for
 the hyper sow, a fist pulled up to clear a grove, and an open hand tossed up to set a gnome down. Turn your left
-palm up and the atlas opens above it and follows it; your right fingertip taps it. Hand data is used live only
-and is never stored or sent.
+palm up and the atlas opens above it and follows it; your right fingertip taps it. Your hands themselves are a
+gardener's: stems, a leaf for a palm, a gnome's hat on your thumb, and on your fingertips the flowers you grew most
+on your own Hand, with blossoms climbing your fingers as it fills. Pinch and the index flower closes into a bud and
+sheds pollen. Hand data is used live only and is never stored or sent.
 
 ## How the real room matters
 
