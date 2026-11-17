@@ -3,6 +3,7 @@
 // checked one after the other (spec 6.3). It also remembers which Rooms exist, to tell them of a lay.
 import { DurableObject } from 'cloudflare:workers';
 import { checkHand } from '../../src/world/mine.js';
+import { mergePouch } from '../../src/garden/pouchmerge.js';
 
 const PAIR_ABC = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789', PAIR_TTL = 10 * 60 * 1000, SUMMITS_EACH = 5;
 const TOKEN = /^[A-Za-z0-9_-]{32,64}$/, HABS = ['dune', 'bank', 'ridge'], PLOT_UNITS = 400, TEND_MS = 1000, DEAD_MS = 96 * 3600e3; // ponytail: TEND_MS is short so a garden grows in one sitting; raise it when gardens should take days
@@ -354,10 +355,13 @@ export class World extends DurableObject {
     if (path === '/profile') {
       const d = b.data;
       if (!d || typeof d !== 'object' || Array.isArray(d) || typeof d.seeds !== 'object' || !Array.isArray(d.found) || !Array.isArray(d.log) || !Number.isFinite(d.xp)) return Response.json({ error: 'not a pouch' }, { status: 400 });
-      const text = JSON.stringify({ seeds: d.seeds, sel: d.sel, water: d.water, xp: d.xp, planted: d.planted, found: d.found, log: d.log });
+      // merged with what the map holds, never written over it: a device that could not read the map (or a second
+      // device on the same account) must not wipe a richer pouch (src/garden/pouchmerge.js)
+      const m = mergePouch(await read(id), { seeds: d.seeds, sel: d.sel, water: d.water, xp: d.xp, planted: d.planted, found: d.found, log: d.log });
+      const text = JSON.stringify(m);
       if (text.length > 24000) return Response.json({ error: 'too big' }, { status: 413 });
       await this.env.DB.prepare('insert into profile (id, data, updated) values (?, ?, ?) on conflict (id) do update set data = excluded.data, updated = excluded.updated').bind(id, text, Date.now()).run();
-      return new Response(null, { status: 204 });
+      return Response.json({ data: m });
     }
     if (path === '/login/facebook' || path === '/login/google') { // only a hash of the provider's own user id is kept: no name, no e-mail
       const g = path === '/login/google', who = g ? 'Google' : 'Facebook';

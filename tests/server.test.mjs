@@ -369,10 +369,16 @@ test('profiles: a gardener\'s pouch is kept on the map by device, read back, ref
   await post('/profile/delete', { token: tok });
   assert.deepEqual(await (await post('/profile/get', { token: tok })).json(), { data: null, linked: false });
   const data = { seeds: { 3: 5 }, sel: 3, water: 2, xp: 120, planted: { 3: 9 }, found: [0, 1, 2, 3], log: [[3, 9, 20000]] };
-  assert.equal((await post('/profile', { token: tok, data })).status, 204);
+  assert.equal((await post('/profile', { token: tok, data })).status, 200);
   const back = await (await post('/profile/get', { token: tok })).json();
   assert.deepEqual(back.data, data);
   assert.equal(back.linked, false);
+  // a device that could not read the map sends a nearly empty pouch: merged in, it wipes nothing
+  const poor = await (await post('/profile', { token: tok, data: { seeds: { 0: 10 }, sel: 0, water: 0, xp: 5, planted: { 0: 1 }, found: [0, 4], log: [[0, 1, 20001]] } })).json();
+  assert.equal(poor.data.xp, 120);
+  assert.deepEqual(poor.data.log, data.log);
+  assert.deepEqual(poor.data.found, [0, 1, 2, 3, 4]);
+  await post('/profile/delete', { token: tok }); await post('/profile', { token: tok, data });
   assert.equal((await post('/profile', { token: tok, data: 'junk' })).status, 400);
   assert.equal((await post('/profile', { token: 'short', data })).status, 400);
   assert.equal((await post('/profile', { token: tok, data: { ...data, log: Array.from({ length: 9000 }, () => [1, 1, 1]) } })).status, 413, 'a pouch is small');

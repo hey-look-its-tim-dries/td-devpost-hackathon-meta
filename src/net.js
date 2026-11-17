@@ -189,7 +189,7 @@ export function createNet({ api = API, storage = null, fetchFn = globalThis.fetc
     async gnomeDo(id, what) { try { const { status, body } = await call(`/gnomes/${id}/${what}`, { method: 'POST', body: JSON.stringify({ token }) }); return status === 200 ? body : { error: body?.error ?? String(status) }; } catch { return { error: 'offline' }; } },
     // ---- the pouch on the map, and signing in ----
     async profileGet() { try { const { status, body } = await call('/profile/get', { method: 'POST', body: JSON.stringify({ token }) }); return status === 200 ? body : null; } catch { return null; } },
-    async profilePut(data) { try { return (await call('/profile', { method: 'POST', body: JSON.stringify({ token, data }) })).status === 204; } catch { return false; } },
+    async profilePut(data) { try { const { status, body } = await call('/profile', { method: 'POST', body: JSON.stringify({ token, data }) }); return status === 200 ? body : null; } catch { return null; } }, // the pouch as the map now holds it (merged), or null
     async profileDelete() { try { return (await call('/profile/delete', { method: 'POST', body: JSON.stringify({ token }) })).status === 204; } catch { return false; } },
     // { ok, data } or { error }: the map checks the token with Facebook itself
     async avatars() { try { const { status, body } = await call('/avatars'); return status === 200 && Array.isArray(body?.avatars) ? Object.fromEntries(body.avatars) : null; } catch { return null; } }, // { name: picture address }

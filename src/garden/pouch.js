@@ -3,6 +3,7 @@
 // they have found (the herbarium), what they planted (it decorates their whorl) and experience. Kept
 // on this device under pwc.garden.v1. Pure.
 import { logPlanting, signature } from './bouquet.js';
+import { mergePouch } from './pouchmerge.js';
 
 const KEY = 'pwc.garden.v1';
 const XP = { sprig: 1, plant: 5, tend: 3, gather: 1, discover: 15, bloom: 40, golden: 60, clear: 2 };
@@ -46,13 +47,15 @@ export function createPouch(storage, species, starters) {
     deco: (n = 12) => Object.keys(s.planted).map(Number).filter((id) => species[id]).sort((a, b) => s.planted[b] - s.planted[a] || a - b).slice(0, n),
     fill() { s.water = 5; save(); },
     pour() { if (s.water <= 0) return false; s.water--; save(); return true; },
-    // the whole pouch, to keep on the map; and taking one in from the map, when it holds more than this one
+    // the whole pouch, to keep on the map; and taking in the map's copy: merged, so nothing earned here is lost
+    // (true when it changed anything)
     dump: () => ({ ...s, found: [...found] }),
     adopt(d) {
-      if (!d || typeof d !== 'object' || typeof d.seeds !== 'object' || !d.seeds || !Array.isArray(d.found) || !Array.isArray(d.log) || !(d.xp > s.xp)) return false;
-      s = { seeds: d.seeds, sel: d.sel, water: Math.max(0, Math.min(5, d.water | 0)), xp: d.xp, planted: d.planted ?? {}, found: d.found, log: d.log };
+      const here = { ...s, found: [...found] }, m = mergePouch(here, d);
+      if (JSON.stringify(m) === JSON.stringify(here)) return false;
+      s = { seeds: m.seeds, sel: m.sel, water: Math.max(0, Math.min(5, m.water | 0)), xp: m.xp, planted: m.planted ?? {}, found: m.found, log: m.log };
       found.clear();
-      for (const id of d.found) if (species[id]) found.add(id);
+      for (const id of m.found) if (species[id]) found.add(id);
       save();
       return true;
     },
