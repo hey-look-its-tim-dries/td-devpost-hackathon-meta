@@ -88,8 +88,9 @@ It feels alive with one player and better with many: bouquets on whorls, gnomes 
 drifting past when someone sows elsewhere, and a Community Hand that shows the whole world at a glance.
 
 It is built for a seat. Every gesture works within two feet of you (a pinch, a point, a flat palm, a palm turned
-up), a first flight starts in under a minute, and opening the atlas pauses the world. Every card sits in a narrow
-cone round your gaze, checked on the Meta VR Glasses profile as well as the Quest 3.
+up), a first flight starts in under a minute, and opening the atlas pauses the world. The cards are laid out
+from the field of view the headset itself reports: inside the 58 by 54 degree design area on the Meta VR Glasses,
+spread wider on a Quest 3, always leaving the middle of your view to your whorl and the land.
 
 It is private by design. No camera image is ever kept, and the hand you lay is a coarse map, not a biometric.
 
@@ -109,8 +110,10 @@ more real rooms.
 ## How hand interactions are implemented
 
 Everything is hands first, and no hint in the headset ever names a key. On a card you touch with your index
-fingertip (a press is the fingertip crossing the card's plane; a drag draws a palm line), or look and pinch. You
-place your Hand by looking at an outline and pinching, or by pressing it down 8 cm with your palm.
+fingertip (a press is the fingertip crossing the card's plane; a drag draws a palm line), or look and pinch. On
+a headset that tracks your eyes (the Meta VR Glasses, Quest Pro) "look" means your eyes, through WebXR gaze
+tracking; elsewhere your head stands in. You place your Hand by looking at an outline and pinching, or by pressing
+it down 8 cm with your palm.
 
 You steer by pointing: the direction from wrist to middle knuckle is the arrow. A hand engages only when raised,
 not a fist, and held for 0.4 seconds, and a card fixed in view shows which condition is missing. One hand steers
@@ -130,7 +133,7 @@ desk on your next visit. Without passthrough (a desktop, a phone) the scene stan
 
 ## Built With
 
-three.js, WebXR, WebXR Hand Input, WebXR passthrough, WebXR Plane Detection, WebXR Anchors, JavaScript, GLSL, Cloudflare Workers, Durable
+three.js, WebXR, WebXR Hand Input, WebXR Gaze Tracking, WebXR passthrough, WebXR Plane Detection, WebXR Anchors, JavaScript, GLSL, Cloudflare Workers, Durable
 Objects, Cloudflare D1, WebSockets, Google Identity, Blender, glTF, Kokoro TTS, ffmpeg, MediaPipe, IWER (Immersive
 Web Emulation Runtime), Meta Quest, Meta Quest Browser, GitHub Pages, Node.js, Claude Code
 

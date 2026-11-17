@@ -377,7 +377,7 @@ garden for each take, so the take is the same every time.
 | `?auto` | A slow circle with nobody steering (`?auto=dive` dives), for screenshots |
 | `?at=0,600,7000&pitch=-0.3` | Start somewhere else, looking up or down |
 | `?api=http://localhost:8787` | Use this server for the shared map |
-| `?emulate` | Quest 3 emulation with IWER (`&device=glasses` for the Meta VR Glasses, `&nodevui` hides its panel, `&room=` another scanned room) |
+| `?emulate` | Quest 3 emulation with IWER (`&device=glasses` for the Meta VR Glasses, with eye tracking, `&nodevui` hides its panel, `&room=` another scanned room) |
 | `?go=<handId>.<code>` | Open flying to a place (the atlas's addresses) |
 | `?calm` | Reduced motion: no braiding |
 | `?perf` | Frame rate, draw calls and terrain patches in a corner |
@@ -392,8 +392,11 @@ garden for each take, so the take is the same every time.
 - **Purposeful passthrough:** you read your hand in your own room: the palm is laid on your real table
   (plane detection, anchors, a persistent anchor for next time), with your real hand next to its map.
   The world itself is immersive.
-- **Seated and FoV-aware:** every gesture works within two feet; every card sits in a narrow cone round
-  your gaze, checked on the Meta VR Glasses profile as well as the Quest 3.
+- **Seated and FoV-aware:** every gesture works within two feet. The cards are laid out from the field of
+  view the headset reports ([src/ui/fov.js](src/ui/fov.js)): inside the Meta VR Glasses' 58 x 54 degree design
+  area, spread wider on a Quest 3, the middle of the view left free.
+- **Eyes and hands:** look and pinch uses your eyes where the headset tracks them (WebXR `gaze-tracking`:
+  the Meta VR Glasses, Quest Pro), your head elsewhere.
 - **Headset only:** no phone, no camera and no account are needed; the phone is an optional extra.
 - **Multiplayer:** live rooms of up to 200, names, the greeting, a shared world map and a Community Hand.
 - **Boldest original concept:** a world map made of nothing but its players' hands.

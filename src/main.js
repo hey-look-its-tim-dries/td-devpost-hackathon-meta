@@ -66,6 +66,7 @@ import { createTouch } from './touch.js';
 import { createInventory } from './inventory.js';
 import { createPickup } from './pickup.js';
 import { createTable } from './atelier/table.js';
+import { fovOf, spreadOf, placeCard } from './ui/fov.js';
 import { createAtelierRoom } from './atelier/room.js';
 import { createTrail, tingHz } from './garden/trail.js';
 import { look as hudLook } from './ui/themed.js';
@@ -88,7 +89,8 @@ const AUTO = params.has('auto'); // a slow circle, for screenshots and headless 
 // the Meta VR Glasses profile; &nodevui hides the emulator's controls
 if (params.has('emulate')) {
   const { XRDevice, metaQuest3, metaVRGlasses } = await import('https://esm.sh/iwer@2.5.0');
-  const device = new XRDevice(params.get('device') === 'glasses' ? metaVRGlasses : metaQuest3);
+  // the glasses track your eyes (Meta: eyes and hands are their input); IWER 2.5's profile leaves that out, so it is added here
+  const device = new XRDevice(params.get('device') === 'glasses' ? { ...metaVRGlasses, supportedFeatures: [...metaVRGlasses.supportedFeatures, 'gaze-tracking'] } : metaQuest3);
   device.installRuntime({ forceInstall: true });
   window.__device = device;
   // a scanned sample room stands in for yours, so passthrough shows something (&room=office_small for another)
@@ -768,7 +770,15 @@ function readHead() {
   const cam = renderer.xr.isPresenting ? renderer.xr.getCamera() : camera;
   headLocal.copy(cam.position);
   headQuat.copy(cam.quaternion);
+  // your eyes, where the headset tracks them (Meta VR Glasses, Quest Pro: WebXR 'gaze-tracking'): look and pinch
+  // then means where you look, not where your nose points. Without it, the head stands in.
+  eyes = false;
+  const f = renderer.xr.isPresenting && renderer.xr.getFrame(), src = f && [...f.session.inputSources].find((s) => s.targetRayMode === 'gaze');
+  const pose = src && f.getPose(src.targetRaySpace, renderer.xr.getReferenceSpace());
+  if (pose) { eyes = true; eyeAt.copy(pose.transform.position); eyeQuat.copy(pose.transform.orientation); }
 }
+const eyeAt = new THREE.Vector3(), eyeQuat = new THREE.Quaternion();
+let eyes = false;
 
 // ---------- steering ----------
 
@@ -950,8 +960,8 @@ function mouseRay(e) {
   return raycaster.ray;
 }
 function gazeRay() {
-  raycaster.ray.origin.copy(headLocal).applyMatrix4(rig.matrixWorld);
-  raycaster.ray.direction.set(0, 0, -1).applyQuaternion(headQuat).applyQuaternion(rig.quaternion);
+  raycaster.ray.origin.copy(eyes ? eyeAt : headLocal).applyMatrix4(rig.matrixWorld);
+  raycaster.ray.direction.set(0, 0, -1).applyQuaternion(eyes ? eyeQuat : headQuat).applyQuaternion(rig.quaternion);
   return raycaster.ray;
 }
 const cardUV = () => (atelier.isOpen ? raycaster.intersectObject(atelier.mesh, false)[0]?.uv ?? null : null); // after a ray is set; the card only: the dim backdrop behind it is its child
@@ -1159,6 +1169,15 @@ function frame() {
     const left = lesson.mesh.visible && lesson.mesh.parent === tuftCard.mesh.parent ? lesson.mesh.position.x + 0.15 + 0.008 : -Infinity, edge = Math.min(0.225 + 0.095, room + 0.095);
     const sc = renderer.xr.isPresenting ? 1 : Math.max(0.6, Math.min(1, (edge - Math.max(left, 0.13)) / 0.19));
     tuftCard.mesh.scale.setScalar(sc); tuftCard.mesh.position.x = renderer.xr.isPresenting ? 0.225 : edge - 0.095 * sc; } // on a screen: larger, and the same size however wide the view gets
+  { /* in the headset: the cards laid out from the view the runtime reports (src/ui/fov.js): inside the glasses' design area, spread wider on a Quest, the middle left to your whorl */
+    const m = renderer.xr.isPresenting ? renderer.xr.getCamera().cameras[0]?.projectionMatrix.elements : null, sp = spreadOf(fovOf(m));
+    for (const o of [...hud.group.children, card.mesh]) {
+      if (o === hud.meshes[5]) continue; // the pause card stays just above the steering card, which moves down instead
+      const b = (o.userData.base ??= { x: o.position.x, y: o.position.y });
+      if (o === tuftCard.mesh) b.x = o.position.x; // placed afresh every frame, just above
+      const q = placeCard(b, { w: o.geometry.parameters.width * o.scale.x, h: o.geometry.parameters.height * o.scale.y }, -o.position.z, sp);
+      o.position.x = q.x; o.position.y = q.y;
+    } }
   { const s = started ? `${others.count + 1} flying now` : ''; if (s !== livePill) { livePill = s; const el = document.getElementById('livePill'); el.textContent = s; el.classList.toggle('hidden', !s); } }
   if (hudState) { hudState.show = started && mode === 'fly'; hudState.yaw = glide.yaw; hudState.active = Math.abs(want.turn) + Math.abs(want.climb) > 0.1 || !!braiding; hud.update(dt, hudState); }
   // the greeting: near another player your swarms braid for a few seconds
@@ -1347,7 +1366,7 @@ function start() {
 }
 async function enterHeadset() {
   const kind = (await navigator.xr.isSessionSupported('immersive-ar').catch(() => false)) ? 'immersive-ar' : 'immersive-vr';
-  const session = await navigator.xr.requestSession(kind, { optionalFeatures: ['hand-tracking', 'plane-detection', 'anchors'] }); // your room's surfaces (table mode) and anchors to pin the palm to them
+  const session = await navigator.xr.requestSession(kind, { optionalFeatures: ['hand-tracking', 'gaze-tracking', 'plane-detection', 'anchors'] }); // your eyes (look and pinch), your room's surfaces (table mode) and anchors to pin the palm to them
   await renderer.xr.setSession(session);
   inRoom = session.environmentBlendMode !== undefined && session.environmentBlendMode !== 'opaque'; // your real room shows through
   webcam?.stop(); // the headset tracks your hands now: the laptop camera goes off
@@ -1453,7 +1472,7 @@ async function showStats() {
 showStats();
 
 // read-only peek for tests and curious players
-window.__pwc = { atelierRoom,
+window.__pwc = { atelierRoom, renderer, hud, get eyes() { return eyes; },
   trail, bloom, fauna, gnomes, gnomeDraw: gnomes.draw, glide, hands, groundAt, atlasTab: (tab) => { atlas.setTab(tab); atlasPaint = 0; },
   get state() {
     return { hands: hands.length, pos: glide.pos.map(Math.round), yaw: +glide.yaw.toFixed(2), fps: Math.round(fps), scribbles: knots.length + 9, /* the Hands' knots and a constant: tests wait on knots hatching */ started, webcam: webcam ? webcam.update().map((q) => q.handedness) : null, steering: xrHands.some((q) => q.engaged), palm: xrHands.map((q) => q.frame && q.frame.normal.map((v) => +v.toFixed(2))), hand: xrHands.map((q) => q.frame && { point: q.frame.forward.map((v) => +v.toFixed(2)), open: +q.frame.extension.toFixed(2), height: +q.frame.center[1].toFixed(2) }), speed: Math.round(glide.speed), calls: renderer.info.render.calls, xr: renderer.xr.isPresenting, lod: surface.centre.map(Math.round), patches: surface.patches, mode, mine: mine?.name ?? null, braid: braiding, atlas: { tab: atlas.tab, selected: selected?.name ?? null }, pairCode: atelier.route?.code ?? null, flowStep: flow?.step ?? null, online, others: others.count, pending: !!mine?.pending, room: roomState };
