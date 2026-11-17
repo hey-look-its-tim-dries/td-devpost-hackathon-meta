@@ -246,6 +246,7 @@ async function retryLay() {
 }
 net.fetchWorld().then(({ hands: list, online: ok }) => {
   online = ok;
+  if (!ok) setTimeout(() => panel.say('The shared map cannot be reached right now: you fly on the founders\' Hands, and your garden is kept on this device', 8), 6000);
   for (const h of list) if (h.id !== mine?.id) bake(h);
   if (mine) { if (ok && (!mine.id || mine.pending)) retryLay(); else bake(mine); }
   if (ok) { refreshNames(); forgetGone([...list.map((h) => h.id), mine?.id].filter(Boolean), chart, pins); } // Hands washed while you were away
@@ -1418,12 +1419,12 @@ function openLobby() {
   banner.classList.add('hidden');
   document.getElementById('lobbyXr').classList.toggle('hidden', document.getElementById('xrButton').classList.contains('hidden'));
   lobby.show();
-  const ask = () => { net.avatars().then((a) => { if (a) pics = a; }); refreshNames(); bloom.refreshTop(); net.stats().then((s) => { if (s) worldFlying = s.flying; }); }; // the news, the boards, how many fly in all rooms
+  const ask = () => { net.avatars().then((a) => { if (a) pics = a; }); refreshNames(); bloom.refreshTop(); net.stats().then((s) => { if (s) worldFlying = s.flying; }); }; // the news, the boards, how many fly in all rooms (every minute while the lobby is in view: each ask is six calls on the map's daily allowance)
   ask();
   bloom.readAll();
   let n = 0;
   clearInterval(lobbyTimer);
-  lobbyTimer = setInterval(() => { if (!lobby.open) return clearInterval(lobbyTimer); if (++n % 25 === 0) ask(); lobby.update(lobbyData()); }, 400);
+  lobbyTimer = setInterval(() => { if (!lobby.open) return clearInterval(lobbyTimer); if (++n % 150 === 0 && !document.hidden) ask(); lobby.update(lobbyData()); }, 400);
   lobby.update(lobbyData());
 }
 document.getElementById('previewButton').addEventListener('click', openLobby);
