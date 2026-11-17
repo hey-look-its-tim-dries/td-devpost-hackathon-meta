@@ -20,7 +20,7 @@ export function createInventory(el, { onPick } = {}) {
   let key = '';
   const cell = (r, icon, pixel) => {
     const d = document.createElement('button'), c = Object.assign(document.createElement('canvas'), { width: 80, height: 80 }), g = c.getContext('2d');
-    d.type = 'button'; d.className = `inv ${r.status}`; d.title = `${r.name} · ${r.status}${r.n ? ` · ${r.n} seeds` : ''}${r.sown ? ` · sown ${r.sown}` : ''}`;
+    d.type = 'button'; d.dataset.sp = r.id; d.className = `inv ${r.status}`; d.title = `${r.name} · ${r.status}${r.n ? ` · ${r.n} seeds` : ''}${r.sown ? ` · sown ${r.sown}` : ''}`;
     const ic = icon?.(r.id);
     if (ic) { g.imageSmoothingEnabled = !pixel?.(r.id); g.drawImage(ic.canvas, ic.x, ic.y, ic.s, ic.s, 4, 4, 72, 72); }
     else { g.fillStyle = r.color ?? '#c9a27a'; g.beginPath(); g.arc(40, 40, 30, 0, Math.PI * 2); g.fill(); g.fillStyle = '#16100e'; g.font = '700 34px Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(r.name.slice(0, 1), 40, 43); }

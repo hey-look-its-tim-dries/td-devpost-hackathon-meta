@@ -64,6 +64,7 @@ import { googleUrl, idFromFragment, cleanPicture, accountTag } from './net/googl
 import { cleanName } from './world/names.js';
 import { createTouch } from './touch.js';
 import { createInventory } from './inventory.js';
+import { createPickup } from './pickup.js';
 import { createAtelierRoom } from './atelier/room.js';
 import { createTrail, tingHz } from './garden/trail.js';
 import { look as hudLook } from './ui/themed.js';
@@ -421,6 +422,9 @@ const theirGnomes = new Map(); // room id -> the gnomes on that player's whorl: 
 let myGnomes = []; // the gnomes on yours
 const sendDeco = (sig) => roomLink?.deco(withRiders(sig, myGnomes)); // your bouquet and your gnomes, in one signature
 const bloom = createBloom({ scene, shared: world.shared, storage, net, hands, groundAt, say: (text, s) => panel.say(text, s), stamp: (a, b, k) => stamp(a, b, k), online: () => online, onDeco: (d) => sendDeco(d), byHand: () => renderer.xr.isPresenting, sfx });
+/* seeds you pick up fly from your whorl to their cell in the inventory, with a quiet tally (src/pickup.js) */
+{ const pickup = createPickup(document.getElementById('inventory'), { icon: (id) => bloom.flora.icon?.(id), name: (id) => bloom.species[id]?.name ?? 'seeds' }), gather = bloom.pouch.gather, v = new THREE.Vector3();
+  bloom.pouch.gather = (id, n = 1) => { const fresh = gather(id, n); try { v.set(glide.pos[0], glide.pos[1], glide.pos[2]).project(camera); if (v.z < 1) pickup.fly(id, n, (v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight); } catch {} return fresh; }; }
 const fauna = createFauna(bloom.species);
 scene.add(fauna.group);
 bloom.setFauna(fauna);

@@ -378,3 +378,9 @@ button:focus-visible, input:focus-visible { outline: 2px solid #3ff3ff; outline-
 @keyframes sowTwinkle { 0%, 100% { opacity: 0.25; transform: scale(0.6) rotate(0deg); } 50% { opacity: 1; transform: scale(1.25) rotate(28deg); } }
 .sow-cue.go { background: linear-gradient(135deg, #7dffb0, #3ff3ff 55%, #ff9ad5); animation: sowBob 0.55s ease-in-out infinite; }
 @media (max-height: 520px) { .sow-cue { bottom: 40%; padding: 5px 16px 7px; } .sow-cue b { font-size: 13px; } }
+
+/* seeds you pick up fly to their cell (src/pickup.js); a quiet tally counts up beside the rail */
+canvas.pickup-seed { position: fixed; inset: auto; left: 0; top: 0; width: 22px; height: 22px; z-index: 6; pointer-events: none; filter: drop-shadow(0 0 4px rgba(255, 220, 160, 0.8)); }
+#pickupTally { position: fixed; right: 132px; z-index: 6; pointer-events: none; font: 700 12px Inter, system-ui, sans-serif; color: #fff4dc; text-shadow: 0 1px 4px #000; opacity: 0; white-space: nowrap; }
+#pickupTally.on { animation: tally 1.9s ease-out forwards; }
+@keyframes tally { 0% { opacity: 0; transform: translateX(8px); } 12% { opacity: 0.92; transform: none; } 70% { opacity: 0.92; } 100% { opacity: 0; transform: translateY(-6px); } }
