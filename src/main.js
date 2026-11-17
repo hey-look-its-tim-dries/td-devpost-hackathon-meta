@@ -1152,7 +1152,13 @@ function frame() {
   if (mode === 'atlas') seal.mesh.visible = false; /* never over the atlas */
   // charting and the HUD's contents ten times a second (the HUD still fades every frame)
   if ((hudTick += dt) >= 0.1) { hudTick = 0; charting(); hudState = hudContents(); }
-  { const k = renderer.xr.isPresenting ? 1 : 1.9 * Math.tan(camera.fov * Math.PI / 360) / Math.tan(65 * Math.PI / 360); hud.group.scale.set(k, k, 1); } // on a screen: larger, and the same size however wide the view gets
+  { const k = renderer.xr.isPresenting ? 1 : 1.9 * Math.tan(camera.fov * Math.PI / 360) / Math.tan(65 * Math.PI / 360); hud.group.scale.set(k, k, 1); }
+  { /* on a screen, Grandfather Tuft keeps clear of the inventory rail on the right (124 px wide) */
+    const k = hud.group.scale.x, perUnit = innerHeight / (2 * 0.65 * Math.tan(camera.fov * Math.PI / 360)) * k, room = (innerWidth / 2 - 134) / perUnit - 0.095;
+    // and clear of the tutorial card in the middle: on a narrow screen he is drawn a little smaller in the gap
+    const left = lesson.mesh.visible && lesson.mesh.parent === tuftCard.mesh.parent ? lesson.mesh.position.x + 0.15 + 0.008 : -Infinity, edge = Math.min(0.225 + 0.095, room + 0.095);
+    const sc = renderer.xr.isPresenting ? 1 : Math.max(0.6, Math.min(1, (edge - Math.max(left, 0.13)) / 0.19));
+    tuftCard.mesh.scale.setScalar(sc); tuftCard.mesh.position.x = renderer.xr.isPresenting ? 0.225 : edge - 0.095 * sc; } // on a screen: larger, and the same size however wide the view gets
   { const s = started ? `${others.count + 1} flying now` : ''; if (s !== livePill) { livePill = s; const el = document.getElementById('livePill'); el.textContent = s; el.classList.toggle('hidden', !s); } }
   if (hudState) { hudState.show = started && mode === 'fly'; hudState.yaw = glide.yaw; hudState.active = Math.abs(want.turn) + Math.abs(want.climb) > 0.1 || !!braiding; hud.update(dt, hudState); }
   // the greeting: near another player your swarms braid for a few seconds
