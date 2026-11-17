@@ -33,6 +33,15 @@ export function activity(id, now) {
 // suddenly is joy; joy squeals, a few seconds apart. Returns { state, squeal (true the moment it squeals) }
 // what a gnome screams when it is dropped (the same words, in the same order, as SCREAM_LINES in src/garden/voice.js)
 export const SCREAMS = ['Aaaaaaaaah!', 'Noooooooo!', 'Waaaaaaaah!', 'Eeeeeeeeek!', 'Help meeeee!', 'Not like thiiiis!', 'Yaaaaaargh!', 'Mummyyyyyy!'];
+// what a gnome yells while you drag it over the sand (src/garden/voice.js speaks them: DRAG_LINES)
+export { DRAG_LINES as DRAGS } from '../garden/voice.js';
+// flown too low, a hanging gnome's feet would go into the ground: the height to hang it from instead, so that it
+// leans back (pose.js: 'drag') with its heels just in the sand. null while its feet are clear.
+import { DRAG_TILT } from './pose.js';
+export function dragLift(hangY, groundY, s, grip) {
+  if (hangY - grip * s >= groundY) return null;
+  return groundY + grip * s * Math.cos(DRAG_TILT) - 0.12 * s;
+}
 export const JOYS = ['Wheee!', 'Woohoo!', 'Yippee!', 'Again! Again!', 'Hee hee hee!', 'Faster! Faster!', 'Whoa-ho-ho!', 'Eeeee!', 'Best. Day. Ever!', 'Loop it! Loop it!'];
 export function dangle(state, input, dt) {
   const want = -Math.max(-1, Math.min(1, input.turn)) * 0.95;

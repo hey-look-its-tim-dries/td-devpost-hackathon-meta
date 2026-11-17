@@ -4,7 +4,9 @@
 // angle lifts an arm sideways (left arm: negative lifts it; right arm: positive). headX nods forward,
 // headY turns. y is a bob in gnome heights, tilt leans the whole gnome forward, roll leans it sideways.
 // Pure: the renderer turns a pose into matrices (render.js).
-export const CLIPS = ['sit', 'sleep', 'potter', 'wave', 'shout', 'hang', 'cheer', 'ride', 'sulk', 'swim', 'jump', 'gaze', 'twist', 'disco', 'cancan', 'whirl', 'stomp', 'fall'];
+export const CLIPS = ['sit', 'sleep', 'potter', 'wave', 'shout', 'hang', 'cheer', 'ride', 'sulk', 'swim', 'jump', 'gaze', 'twist', 'disco', 'cancan', 'whirl', 'stomp', 'fall', 'drag'];
+// how far a dragged gnome leans back (rad): gnomes.js lifts it by this so its heels stay in the sand
+export const DRAG_TILT = -0.95;
 // elbowL/R bend the forearm forward (negative, like an arm's x), kneeL/R bend the shin back (positive); spin turns the whole gnome
 const rest = () => ({ y: 0, tilt: 0, roll: 0, spin: 0, headX: 0, headY: 0, armLx: 0, armLz: -0.12, armRx: 0, armRz: 0.12, elbowL: 0, elbowR: 0, legL: 0, legR: 0, kneeL: 0, kneeR: 0 });
 export const DANCES = ['twist', 'disco', 'cancan', 'whirl', 'stomp'];
@@ -70,6 +72,15 @@ export function pose(clip, t, seed = 0, m = null) {
       const b = t * BEAT / 2, l = Math.max(0, s(b)), r = Math.max(0, -s(b));
       p.legL = -1.2 * l; p.kneeL = 1.4 * l; p.legR = -1.2 * r; p.kneeR = 1.4 * r; p.roll = 0.22 * (r - l); p.y = 0.04 * Math.abs(Math.cos(b)); p.tilt = 0.12;
       p.armLx = -1.0 + 0.9 * r; p.armRx = -1.0 + 0.9 * l; p.elbowL = -1.7 + 0.8 * r; p.elbowR = -1.7 + 0.8 * l; p.armLz = -0.3; p.armRz = 0.3; p.headX = 0.1 - 0.35 * Math.abs(s(b)); p.headY = 0.3 * s(b);
+      break; }
+    case 'drag': { // flown too low: dragged over the sand like a water-skier without skis. Leaning far back, heels
+      // ploughing, hands up on the lines; it bumps over every dune, kicks, flails one arm, shakes its head in despair
+      const b = t * 13 + ph, bump = Math.abs(s(b)) * Math.abs(s(b * 0.37 + 1)), kick = Math.max(0, s(t * 2.3 + ph)) ** 3;
+      p.tilt = DRAG_TILT + 0.12 * s(b * 0.5) + 0.15 * bump; p.roll = 0.22 * s(t * 3.1 + ph) + 0.1 * s(b);
+      p.y = 0.07 * bump;
+      p.legL = -1.0 + 0.25 * s(b) - 0.6 * kick; p.legR = -1.0 + 0.25 * s(b + 1.3); p.kneeL = 0.5 + 0.4 * Math.abs(s(b)); p.kneeR = 0.5 + 0.4 * Math.abs(s(b + 1.3)) + 0.9 * kick;
+      p.armLz = -2.75 - 0.2 * s(b); p.armRz = 2.75 + 0.35 * Math.max(0, s(t * 4.7 + ph)) ** 2; p.armLx = -0.5; p.armRx = -0.5 + 0.9 * kick; p.elbowR = -0.8 * kick;
+      p.headX = -0.45 + 0.3 * bump; p.headY = 0.55 * s(t * 6.5 + ph);
       break; }
     case 'fall': { // dropped: arms windmilling over its head, legs bicycling, the whole gnome tumbling head over heels (m.tumble, rad)
       const w = t * 19;

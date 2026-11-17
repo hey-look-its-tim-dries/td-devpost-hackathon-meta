@@ -5,7 +5,7 @@
 //   KOKORO=<path to the kokoro command> (default: the one in ~/projects/td-assistant-jarvis-1/backtalk/.venv/bin)
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { LINES, JOY_LINES, SCREAM_LINES } from '../src/garden/voice.js';
+import { LINES, JOY_LINES, SCREAM_LINES, DRAG_LINES } from '../src/garden/voice.js';
 
 import os from 'node:os';
 const OUT = new URL('../assets/voice/', import.meta.url).pathname, only = process.argv.slice(2);
@@ -13,14 +13,14 @@ const kPath = process.env.KOKORO ?? `${os.homedir()}/projects/td-assistant-jarvi
 console.log(KOKORO ? 'voice: Kokoro' : 'voice: espeak-ng (Kokoro not found)');
 fs.mkdirSync(OUT, { recursive: true });
 const seconds = {};
-const ALL = { ...LINES, ...Object.fromEntries(JOY_LINES.map((t, i) => [`joy-${i}`, t])), ...Object.fromEntries(SCREAM_LINES.map((t, i) => [`scream-${i}`, t])) }; // Tuft's lines, and the squeals of a gnome on your whorl
+const ALL = { ...LINES, ...Object.fromEntries(JOY_LINES.map((t, i) => [`joy-${i}`, t])), ...Object.fromEntries(SCREAM_LINES.map((t, i) => [`scream-${i}`, t])), ...Object.fromEntries(DRAG_LINES.map((t, i) => [`drag-${i}`, t])) }; // Tuft's lines, and the squeals of a gnome on your whorl
 for (const [id, text] of Object.entries(ALL)) {
   if (only.length && !only.includes(id)) continue;
   const wav = `${OUT}${id}.wav`, mp3 = `${OUT}${id}.mp3`;
   if (process.env.SKIP && fs.existsSync(mp3)) { seconds[id] = +execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', mp3]).toString().trim(); continue; } /* SKIP=1: only the clips that are missing */
   if (KOKORO) {
     execFileSync(KOKORO, ['-m', process.env.VOICE ?? 'bm_george', '-s', '0.9', '-t', text, '-o', wav], { stdio: 'ignore' });
-    const age = id.startsWith('scream-') ? `asetrate=24000*${(1.45 + 0.07 * (+id.slice(7) % 4)).toFixed(2)},aresample=44100,vibrato=f=${6 + (+id.slice(7) % 3)}:d=0.45,volume=1.6,afade=t=out:st=0.6:d=0.9,aecho=0.7:0.4:60:0.25,loudnorm=I=-15:TP=-1.5` /* small, high, wobbling with terror, fading as it falls away */ : id.startsWith('joy-') ? 'asetrate=24000*1.5,aresample=44100,atempo=0.92,highpass=f=200,loudnorm=I=-18:TP=-2' : 'asetrate=24000*0.93,aresample=44100,atempo=1.03,highpass=f=90,aecho=0.8:0.5:32:0.16,loudnorm=I=-17:TP=-2'; // a squeal is small and high; Tuft is old and low
+    const age = id.startsWith('drag-') ? `asetrate=24000*${(1.4 + 0.06 * (+id.slice(5) % 5)).toFixed(2)},aresample=44100,atempo=1.12,tremolo=f=${7 + (+id.slice(5) % 4)}:d=0.55,volume=1.5,loudnorm=I=-15:TP=-1.5` /* small, high and shaken by every bump in the sand */ : id.startsWith('scream-') ? `asetrate=24000*${(1.45 + 0.07 * (+id.slice(7) % 4)).toFixed(2)},aresample=44100,vibrato=f=${6 + (+id.slice(7) % 3)}:d=0.45,volume=1.6,afade=t=out:st=0.6:d=0.9,aecho=0.7:0.4:60:0.25,loudnorm=I=-15:TP=-1.5` /* small, high, wobbling with terror, fading as it falls away */ : id.startsWith('joy-') ? 'asetrate=24000*1.5,aresample=44100,atempo=0.92,highpass=f=200,loudnorm=I=-18:TP=-2' : 'asetrate=24000*0.93,aresample=44100,atempo=1.03,highpass=f=90,aecho=0.8:0.5:32:0.16,loudnorm=I=-17:TP=-2'; // a squeal is small and high; Tuft is old and low
     execFileSync('ffmpeg', ['-y', '-v', 'error', '-i', wav, '-af', age, '-ac', '1', '-b:a', '64k', mp3]);
   } else {
     execFileSync('espeak-ng', ['-v', 'en-gb+grandpa', '-s', '158', '-p', '30', '-g', '4', '-a', '170', '-w', wav, text]);
