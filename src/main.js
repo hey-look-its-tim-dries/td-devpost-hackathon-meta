@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js';
+import { createGardenHand } from './hands/gardenhand.js';
+import { decorOf } from './hands/bones.js';
 import { headSteer, steeringHand } from './steer.js';
 import { JOINTS, palmFrame, OneEuro, createSteer, steerChecks, pointSteer } from './gesture.js';
 import { createGestureCard } from './gesturecard.js';
@@ -502,7 +503,7 @@ function foxfire(dt) {
   scene.fog.color.lerpColors(DAY.fog, NIGHT.fog, trip);
   ink.mesh.material.uniforms.uColor.value.lerpColors(DAY.ink, NIGHT.ink, trip);
   streakInk.mesh.material.uniforms.uColor.value.lerpColors(DAY.ink, NIGHT.streak, trip);
-  INK_HAND.color.lerpColors(DAY.ink, NIGHT.hand, trip);
+  INK_HAND.lerpColors(DAY.ink, NIGHT.hand, trip); for (const h of xrHands) h.look.tint(INK_HAND);
   air.sun.color.lerpColors(DAY.sun, NIGHT.sun, trip);
   air.hemi.color.lerpColors(DAY.sky, NIGHT.sky, trip);
   air.hemi.groundColor.lerpColors(DAY.ground, NIGHT.ground, trip);
@@ -546,18 +547,14 @@ addEventListener('keydown', (e) => {
 
 // ---------- hands and head (read live for steering, never kept) ----------
 
-const handFactory = new XRHandModelFactory();
-// your hands are ink silhouettes (the hand models are lit standard materials; the Source's lights would turn them grey)
-const inkHands = [], INK_HAND = new THREE.MeshBasicMaterial({ color: 0x16100e });
-setInterval(() => { for (const m of inkHands) m.traverse((o) => { if (o.isMesh && o.material !== INK_HAND) o.material = INK_HAND; }); }, 1000);
+// your hands are a gardener's (src/hands/gardenhand.js): stems, a leaf palm, fingertip flowers, a gnome's hat and sleeve
+const INK_HAND = new THREE.Color(0x16100e); // their ink line, lit up by the foxfire
 let steerer = null; // the hand that steers now (src/steer.js steeringHand)
 const xrHands = [0, 1].map((i) => {
   const hand = renderer.xr.getHand(i);
-  const model = handFactory.createHandModel(hand, 'mesh');
-  hand.add(model);
-  inkHands.push(model);
-  rig.add(hand);
-  const h = { hand, handedness: i ? 'right' : 'left', frame: null, hold: createSteer(), engaged: false, store: Object.fromEntries(JOINTS.map((n) => [n, [0, 0, 0]])) };
+  const look = createGardenHand();
+  rig.add(hand, look.group);
+  const h = { hand, look, handedness: i ? 'right' : 'left', frame: null, hold: createSteer(), engaged: false, store: Object.fromEntries(JOINTS.map((n) => [n, [0, 0, 0]])) };
   hand.addEventListener('connected', (e) => { h.handedness = e.data.handedness || h.handedness; });
   return h;
 });
@@ -741,7 +738,9 @@ async function useWebcam() {
 // hands lower than this don't steer (a hand resting on your lap): 60 cm below your eyes, in the
 // frame the joints are in (the rig for headset hands, your eyes for webcam hands)
 const handFloor = () => (!renderer.xr.isPresenting && webcam ? -0.6 : headLocal.y - 0.6);
+let handDecor = null, decorAt = 0; // what your hands wear: your own Hand's garden (src/hands/bones.js)
 function readHands(dt) {
+  if (renderer.xr.isPresenting && (decorAt -= dt) <= 0) { decorAt = 2; handDecor = decorOf(bloom.garden.all(), mine?.id ?? null, bloom.species, bloom.pouch.selected); }
   const cams = !renderer.xr.isPresenting && webcam ? webcam.update() : null;
   for (const h of xrHands) {
     let ok = false;
@@ -760,6 +759,7 @@ function readHands(dt) {
       if (ok) for (const n of JOINTS) j[n].position.toArray(h.store[n]);
     }
     h.frame = ok ? palmFrame(h.store, h.handedness) : null;
+    h.look.update(renderer.xr.isPresenting && h.frame ? h.store : null, h.frame?.normal, handDecor);
     h.engaged = h.hold.update(h.frame, handFloor(), dt) && !!h.frame; // a raised open hand, held a moment
   }
   steerer = steeringHand(steerer, xrHands); // one hand steers; the other is free to sow, pour and toss
