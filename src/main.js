@@ -362,7 +362,7 @@ function hudContents() {
   return { show: false, yaw: glide.yaw, pos: glide.pos, altitude: glide.pos[1] - groundAt(glide.pos[0], glide.pos[2]), place: pl, markers: marks, active: false, garden: g, radar,
     // the board on the stats card: the top gardeners, taking turns with the top gnome converters once there are any
     world: { flying: others.count + 1, hands: hands.length, plants: g.plants, team: gn.team, converted: gn.converted,
-      board: gn.top.length && Math.floor(performance.now() / 8000) % 2 ? { title: 'TOP GNOME CONVERTERS', you: gn.converted, rows: gn.top, empty: '' } : { title: 'TOP GARDENERS', you: g.planted, rows: g.top, empty: 'nobody has planted yet: be the first' } } };
+      board: gn.top.length && Math.floor(performance.now() / 8000) % 2 ? { title: 'TOP GNOME CONVERTERS', you: gn.converted, rows: gn.top.slice(0, 4).map((r) => ({ ...r, face: faceOf(r.name) })), empty: '' } : { title: 'TOP GARDENERS', you: g.planted, rows: g.top.slice(0, 4).map((r) => ({ ...r, face: faceOf(r.name) })), empty: 'nobody has planted yet: be the first' } } };
 }
 function updateTags() { // no allocation per frame: one set, one callback
   camera.getWorldPosition(eyeW);
