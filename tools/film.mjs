@@ -15,7 +15,7 @@ import puppeteer from '/Users/timdries/Desktop/Projects/TD-GAME-LINKSAWAKENING/t
 const OUT = process.argv[2] ?? 'media/palm-whorl-cities-demo.mp4', SHOTS = process.env.SHOTS;
 const [W, H] = (process.env.SIZE ?? '1280x720').split('x').map(Number);
 const API = process.env.API ?? 'http://localhost:8787';
-const URL_ = process.env.URL_ ?? `http://localhost:8130/?emulate&nodevui&atelier&notutorial&tuft&dome&quest=sow&at=0,1100,11800&api=${API}`; // ?atelier: the hand card at once
+const URL_ = process.env.URL_ ?? `http://localhost:8130/?emulate&nodevui&atelier&notutorial&tuft&quest=sow&at=0,1100,11800&api=${API}`; // ?atelier: the hand card at once
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const browser = await puppeteer.launch({ headless: 'new', executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', args: ['--use-angle=metal', '--enable-gpu', `--window-size=${W},${H}`] });
@@ -227,7 +227,14 @@ await page.click('#lobbyXr');
 await until((s) => s.xr, 'in the headset');
 await caption('The whole map is made of hands. Ten founders, and then every player adds one.');
 await until((s) => s.mode === 'atelier', 'the card opens');
-await caption('First, in your own room: read your hand by eye.');
+// table mode: the headset found the room's table (IWER's scanned living room stands in for yours); the palm lies on it
+await wait(1500);
+await film(() => { __film.T.lookRate = 2; __film.T.look = () => { const g = __pwc.atelierRoom.group.position; return [g.x, g.y, g.z]; }; });
+await caption('In your own room: the headset finds your table and lays a glowing palm on it.');
+await wait(4000);
+await film(() => __film.lookAhead(-0.05));
+await wait(1200);
+await caption('Read your hand by eye.');
 log(`tip ${JSON.stringify(await film(() => __film.ready()))}`);
 await film(() => __film.lean(-0.27)); // lean in to the card
 await wait(1600);
@@ -363,6 +370,8 @@ if (shroom) {
     await film(() => __film.cruise()); await go(1000, 5200, 190);
     await film(() => __film.sow(true)); await wait(5000); await film(() => __film.sow(false));
     await mark('wish');
+    await caption('Fly too low and your gnome gets dragged through the sand. It has opinions about that.');
+    await go(1000, 3800, 35); await wait(5000); await go(1000, 3600, 200);
   }
 }
 // on north to the other player

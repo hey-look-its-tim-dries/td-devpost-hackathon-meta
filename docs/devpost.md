@@ -19,8 +19,9 @@ stays for everybody.
 
 ## What it does
 
-You start by reading your own hand, in your own room. In the headset a glowing palm is laid on your floor with
-a ring of flowers round you, and you touch the pattern that matches each fingertip and trace your palm lines
+You start by reading your own hand, in your own room. In passthrough the headset finds the surfaces of your
+room and lays a glowing palm on your real table, ringed with flowers, pinned there by an anchor that is still
+there next time (no table in reach: your floor). You touch the pattern that matches each fingertip and trace your palm lines
 with a finger. (A phone can read the photos instead, and deletes them.) That makes a Hand: a few hundred bytes
 of map, never a picture. The world offers three places where it fits, you pinch one, and your Hand rises out of
 the wilderness for every player at once.
@@ -35,7 +36,7 @@ on the desert with flowers. Your whorl wears everything you have sown as a bouqu
 What dies feeds mushrooms. Fly through one and the world turns to foxfire: a neon night with a striped sun,
 double rewards, rows of seeds that ring up a musical scale as you thread them, every animal ten times as big,
 and visions of giant gnome folk dancing on the dunes. Gnomes live in the mushrooms. One grabs your whorl and
-hangs under it like a parachutist with a wish ("FASTER! I want my beard to flap!"). Grant it and it joins your
+hangs under it like a parachutist with a wish ("FASTER! I want my beard to flap!"). Fly too low and it is dragged through the sand, begging "Up, please, sir!". Grant it and it joins your
 team, or switches sides from a rival's. Drop it and it falls, screaming.
 
 You are never alone or lost. A grumpy old gnome, Grandfather Tuft, calls in with a voice and a face and talks you
@@ -62,7 +63,7 @@ that runs locally, aged and pitched with ffmpeg. The 15 synthwave tracks and the
 credited in the repo.
 
 We tested without a headset in Meta's Quest emulator (IWER), driving virtual hands through every gesture, and
-filmed the demo the same way. 340 unit tests and two-player browser checks cover the rules, the server and the
+filmed the demo the same way. 350 unit tests and two-player browser checks cover the rules, the server and the
 protocol.
 
 ## Challenges we ran into
@@ -85,6 +86,10 @@ The world is made of its players. There is no level designer, only hands, and ev
 
 It feels alive with one player and better with many: bouquets on whorls, gnomes riding animals, petals
 drifting past when someone sows elsewhere, and a Community Hand that shows the whole world at a glance.
+
+It is built for a seat. Every gesture works within two feet of you (a pinch, a point, a flat palm, a palm turned
+up), a first flight starts in under a minute, and opening the atlas pauses the world. Every card sits in a narrow
+cone round your gaze, checked on the Meta VR Glasses profile as well as the Quest 3.
 
 It is private by design. No camera image is ever kept, and the hand you lay is a coarse map, not a biometric.
 
@@ -117,14 +122,15 @@ and is never stored or sent.
 
 ## How the real room matters
 
-You read your hand in your own room. In passthrough the card floats in front of you, a glowing palm is laid on
-your real floor with a ring of flowers round you and seeds drifting up, and your Hand is made from your own
-fingertips and lines. Where there is no passthrough (the emulator, a desktop), the same scene stands under a
-dusk sky instead.
+Your Hand is made in your own room, from your own fingertips and lines. The headset reads the room (WebXR plane
+detection: the surfaces of your Quest room setup) and lays the glowing palm, its ring of flowers and the seeds
+drifting up from it on your real table when one is within a seated arm's reach, sized to the table, or on your
+floor when there is none. An anchor pins it there, and a persistent anchor puts it back on the same spot of your
+desk on your next visit. Without passthrough (a desktop, a phone) the scene stands under a dusk sky instead.
 
 ## Built With
 
-three.js, WebXR, WebXR Hand Input, WebXR passthrough, JavaScript, GLSL, HTML, CSS, Cloudflare Workers, Durable
+three.js, WebXR, WebXR Hand Input, WebXR passthrough, WebXR Plane Detection, WebXR Anchors, JavaScript, GLSL, Cloudflare Workers, Durable
 Objects, Cloudflare D1, WebSockets, Google Identity, Blender, glTF, Kokoro TTS, ffmpeg, MediaPipe, IWER (Immersive
 Web Emulation Runtime), Meta Quest, Meta Quest Browser, GitHub Pages, Node.js, Claude Code
 

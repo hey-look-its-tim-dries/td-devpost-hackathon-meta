@@ -177,8 +177,9 @@ Cities takes that literally, and makes one shared world out of it.
 The world starts as the **First Ten**: ten founding Hands lying in a ring around the Source. There is
 no other designed land. The world only grows when a player joins.
 
-- **Read your hand.** In your own room, in passthrough, a card floats in front of you next to your
-  real hand. Read it by eye (look at each fingertip and touch the pattern that matches, trace your
+- **Read your hand.** In your own room, in passthrough. The headset finds your room's surfaces (WebXR
+  plane detection) and lays a glowing palm with a ring of flowers on your real table, or your floor, pinned
+  by an anchor that persists to your next visit; a card floats in front of you next to your real hand. Read it by eye (look at each fingertip and touch the pattern that matches, trace your
   heart, head and life lines on a drawn palm), or let your phone read it: it photographs your palm
   and fingertips, reads the lines and patterns, deletes the photos and sends only the map DNA.
 - **Lay your Hand.** The game finds three places on the frontier where your Hand fits against the
@@ -388,8 +389,11 @@ garden for each take, so the take is the same every time.
 
 - **Track:** Gaming. **Division:** New Experience, conceived and built from 24 September 2026.
 - **Hands first:** the whole game runs without ever pairing a controller.
-- **Purposeful passthrough:** you read your hand in your own room, with your real hand next to its
-  map. Comparing the two is the point of that step. The world itself is immersive.
+- **Purposeful passthrough:** you read your hand in your own room: the palm is laid on your real table
+  (plane detection, anchors, a persistent anchor for next time), with your real hand next to its map.
+  The world itself is immersive.
+- **Seated and FoV-aware:** every gesture works within two feet; every card sits in a narrow cone round
+  your gaze, checked on the Meta VR Glasses profile as well as the Quest 3.
 - **Headset only:** no phone, no camera and no account are needed; the phone is an optional extra.
 - **Multiplayer:** live rooms of up to 200, names, the greeting, a shared world map and a Community Hand.
 - **Boldest original concept:** a world map made of nothing but its players' hands.
