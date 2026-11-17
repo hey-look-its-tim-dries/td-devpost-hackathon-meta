@@ -138,7 +138,7 @@ Web Emulation Runtime), Meta Quest, Meta Quest Browser, GitHub Pages, Node.js, C
 
 - Live: https://hey-look-its-tim-dries.github.io/td-devpost-hackathon-meta/
 - Code: https://github.com/hey-look-its-tim-dries/td-devpost-hackathon-meta
-- Video: VIDEO LINK (upload `media/palm-whorl-cities-pitch.mp4`, 2:33, filmed in the Quest 3 emulator)
+- Video: VIDEO LINK (upload `media/palm-whorl-cities-pitch.mp4`, 2:41, filmed in the Quest 3 emulator)
 - Deck: `docs/deck/palm-whorl-cities-pitch.pdf` · Manual: `docs/manual/palm-whorl-cities-manual.pdf`
 
 ## Track, division, launch

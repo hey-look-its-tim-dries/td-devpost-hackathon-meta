@@ -215,7 +215,7 @@ const caption = (t) => { if (t) caps.push([Date.now(), t]); return film((h) => _
 const poke = (x, y, drag) => film((x, y, drag) => __film.poke(x, y, drag), x, y, drag ?? []);
 
 // ---------- the film ----------
-await wait(3500); // the title, over the drifting world
+await wait(2500); // the title, over the drifting world
 // the lobby: the world right now, with the second player on the live map
 await page.click('#previewButton');
 await wait(600);
@@ -231,7 +231,7 @@ await until((s) => s.mode === 'atelier', 'the card opens');
 await wait(1500);
 await film(() => { __film.T.lookRate = 2; __film.T.look = () => { const g = __pwc.atelierRoom.group.position; return [g.x, g.y, g.z]; }; });
 await caption('In your own room: the headset finds your table and lays a glowing palm on it.');
-await wait(4000);
+await wait(3600);
 await film(() => __film.lookAhead(-0.05));
 await wait(1200);
 await caption('Read your hand by eye.');
@@ -370,8 +370,6 @@ if (shroom) {
     await film(() => __film.cruise()); await go(1000, 5200, 190);
     await film(() => __film.sow(true)); await wait(5000); await film(() => __film.sow(false));
     await mark('wish');
-    await caption('Fly too low and your gnome gets dragged through the sand. It has opinions about that.');
-    await go(1000, 3800, 35); await wait(5000); await go(1000, 3600, 200);
   }
 }
 // on north to the other player

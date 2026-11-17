@@ -5,7 +5,7 @@ Everything that is done, and the few steps only Tim can do.
 ## Done
 
 - [x] Game live at https://hey-look-its-tim-dries.github.io/td-devpost-hackathon-meta/ (the submission URL)
-- [x] Demo video recorded: `media/palm-whorl-cities-pitch.mp4` (2:33, Quest 3 emulator, narration + music)
+- [x] Demo video recorded: `media/palm-whorl-cities-pitch.mp4` (2:41, Quest 3 emulator, narration + music, table mode in a scanned room)
 - [x] Devpost copy, paste-ready: `docs/devpost.md`
 - [x] README with gallery and video slot
 - [x] Manual: `docs/manual/palm-whorl-cities-manual.pdf` (17 pages, Veo slot on the cover)
