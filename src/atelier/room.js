@@ -66,10 +66,10 @@ export function createAtelierRoom() {
   for (let i = 0; i < N; i++) { const a = Math.random() * Math.PI * 2, r = 0.8 + Math.random() * 3.5; pos.set([Math.cos(a) * r, Math.random() * 3, Math.sin(a) * r], i * 3); seed[i] = Math.random(); }
   const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.BufferAttribute(pos, 3)); pg.setAttribute('seed', new THREE.BufferAttribute(seed, 1));
   const motes = new THREE.Points(pg, new THREE.ShaderMaterial({
-    uniforms: { uTime }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
-    vertexShader: `attribute float seed; uniform float uTime; varying float vS;
+    uniforms: { uTime, uSize: { value: 1 } }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    vertexShader: `attribute float seed; uniform float uTime, uSize; varying float vS;
       void main() { vec3 p = position; p.y = mod(p.y + uTime * (0.08 + 0.12 * seed), 3.2); p.x += 0.15 * sin(uTime * 0.5 + seed * 30.0); p.z += 0.15 * cos(uTime * 0.4 + seed * 20.0);
-        vS = seed; vec4 mv = modelViewMatrix * vec4(p, 1.0); gl_PointSize = clamp(18.0 / -mv.z, 1.5, 9.0); gl_Position = projectionMatrix * mv; }`,
+        vS = seed; vec4 mv = modelViewMatrix * vec4(p, 1.0); gl_PointSize = clamp(18.0 * uSize / -mv.z, 1.0, 9.0); gl_Position = projectionMatrix * mv; }`,
     fragmentShader: `varying float vS; void main() { float d = length(gl_PointCoord - 0.5); if (d > 0.5) discard; vec3 c = mix(vec3(0.25, 0.95, 1.0), vec3(1.0, 0.45, 0.9), vS); gl_FragColor = vec4(c, (1.0 - d * 2.0) * 0.85); }`,
   }));
   motes.frustumCulled = false;
@@ -79,11 +79,16 @@ export function createAtelierRoom() {
     // headY: your head's height in the rig; the floor goes 1.55 m under it unless the room already knows where its floor is
     // sky: false in passthrough, where your own room is the sky and walls; the palm floor, the flowers and the seeds
     // are then laid into your real room
-    update(dt, on, headY = 1.6, sky = true) {
+    // surface: a real table or floor the headset found ({ x, y, z, r }: src/atelier/table.js): the palm is laid on it,
+    // sized to it, flowers and seeds and all
+    update(dt, on, headY = 1.6, sky = true, surface = null) {
       group.visible = on;
       if (!on) return;
-      dome.visible = sky;
-      group.position.y = headY > 1 ? 0 : headY - 1.55;
+      dome.visible = sky && !surface;
+      // on a surface each part is sized to it: the palm fills it, the flowers ring its edge, the seeds rise from it
+      const r = surface?.r, k = surface ? r / 2.5 : 1;
+      if (surface) group.position.set(surface.x, surface.y + 0.004, surface.z); else group.position.set(0, headY > 1 ? 0 : headY - 1.55, 0);
+      floor.scale.setScalar(surface ? r / 9 : 1); ring.scale.setScalar(surface ? (r * 1.1) / 2.6 : 1); motes.scale.setScalar(k); motes.material.uniforms.uSize.value = k;
       uTime.value += dt;
       for (const f of ring.children) f.rotation.z = 0.06 * Math.sin(uTime.value * 1.3 + f.userData.ph);
     },

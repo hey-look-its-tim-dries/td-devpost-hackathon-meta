@@ -65,6 +65,7 @@ import { cleanName } from './world/names.js';
 import { createTouch } from './touch.js';
 import { createInventory } from './inventory.js';
 import { createPickup } from './pickup.js';
+import { createTable } from './atelier/table.js';
 import { createAtelierRoom } from './atelier/room.js';
 import { createTrail, tingHz } from './garden/trail.js';
 import { look as hudLook } from './ui/themed.js';
@@ -819,6 +820,7 @@ function steering() {
 const atelier = createAtelierPanel();
 rig.add(atelier.mesh);
 const atelierRoom = createAtelierRoom(); /* the palm reader's dome: where you read your hand in the headset */
+const desk = createTable(storage); /* in passthrough: the real table (or floor) the palm is laid on, anchored there */
 rig.add(atelierRoom.group);
 const dim = new THREE.Mesh(new THREE.PlaneGeometry(6, 4.5), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.55, depthTest: false, depthWrite: false }));
 dim.position.z = -0.01;
@@ -1269,7 +1271,8 @@ function frame() {
   surface.meshes.forEach((m) => (m.visible = !room));
   ink.mesh.visible = streakInk.mesh.visible = !room;
   dim.visible = !inRoom;
-  atelierRoom.update(dt, room || (mode === 'atelier' && renderer.xr.isPresenting), renderer.xr.isPresenting ? renderer.xr.getCamera().position.y : 1.6, !inRoom || params.has('dome')); /* in passthrough your real room stays: the competition asks that the room matters (?dome: the full sky anyway, for the film) */
+  const deskAt = room ? desk.update(renderer.xr.getFrame(), renderer.xr.getReferenceSpace(), renderer.xr.getCamera().position, dt) : null;
+  atelierRoom.update(dt, room || (mode === 'atelier' && renderer.xr.isPresenting), renderer.xr.isPresenting ? renderer.xr.getCamera().position.y : 1.6, !inRoom || params.has('dome'), deskAt); /* in passthrough your real room stays: the competition asks that the room matters (?dome: the full sky anyway, for the film) */
   if (mode === 'merge') {
     ghosts.update(camera.getWorldPosition(tmpChase));
     // by hand: a palm held down holds the ghost it points at; push it 8 cm lower to lay your Hand there
@@ -1338,7 +1341,7 @@ function start() {
 }
 async function enterHeadset() {
   const kind = (await navigator.xr.isSessionSupported('immersive-ar').catch(() => false)) ? 'immersive-ar' : 'immersive-vr';
-  const session = await navigator.xr.requestSession(kind, { optionalFeatures: ['hand-tracking'] });
+  const session = await navigator.xr.requestSession(kind, { optionalFeatures: ['hand-tracking', 'plane-detection', 'anchors'] }); // your room's surfaces (table mode) and anchors to pin the palm to them
   await renderer.xr.setSession(session);
   inRoom = session.environmentBlendMode !== undefined && session.environmentBlendMode !== 'opaque'; // your real room shows through
   webcam?.stop(); // the headset tracks your hands now: the laptop camera goes off
@@ -1348,6 +1351,7 @@ async function enterHeadset() {
   session.addEventListener('end', () => {
     if (mode === 'atelier') { pairing?.abort(); atelier.close(); flow = null; mode = 'fly'; } // so the next start opens the card at the new head pose
     inRoom = false;
+    desk.reset();
     started = false;
     banner.classList.remove('hidden');
   });
@@ -1443,7 +1447,7 @@ async function showStats() {
 showStats();
 
 // read-only peek for tests and curious players
-window.__pwc = {
+window.__pwc = { atelierRoom,
   trail, bloom, fauna, gnomes, gnomeDraw: gnomes.draw, glide, hands, groundAt, atlasTab: (tab) => { atlas.setTab(tab); atlasPaint = 0; },
   get state() {
     return { hands: hands.length, pos: glide.pos.map(Math.round), yaw: +glide.yaw.toFixed(2), fps: Math.round(fps), scribbles: knots.length + 9, /* the Hands' knots and a constant: tests wait on knots hatching */ started, webcam: webcam ? webcam.update().map((q) => q.handedness) : null, steering: xrHands.some((q) => q.engaged), palm: xrHands.map((q) => q.frame && q.frame.normal.map((v) => +v.toFixed(2))), hand: xrHands.map((q) => q.frame && { point: q.frame.forward.map((v) => +v.toFixed(2)), open: +q.frame.extension.toFixed(2), height: +q.frame.center[1].toFixed(2) }), speed: Math.round(glide.speed), calls: renderer.info.render.calls, xr: renderer.xr.isPresenting, lod: surface.centre.map(Math.round), patches: surface.patches, mode, mine: mine?.name ?? null, braid: braiding, atlas: { tab: atlas.tab, selected: selected?.name ?? null }, pairCode: atelier.route?.code ?? null, flowStep: flow?.step ?? null, online, others: others.count, pending: !!mine?.pending, room: roomState };
