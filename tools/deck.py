@@ -285,7 +285,7 @@ header(s, "Late game", "Foxfire and gnomes")
 cols = [
     ("25-foxfire-seed-trail.jpg", "Foxfire", MAGENTA,
      "Eat a mushroom and the world turns neon synthwave. Rows of seeds ring up a musical scale as you fly "
-     "through them. Giant gnome folk dance in visions, and wildlife grows five times as tall."),
+     "through them. Giant gnome folk dance in visions, and wildlife grows ten times as big."),
     ("27-gnome-mission.jpg", "Gnomes", CYAN,
      "Gnomes live in mushrooms. One grabs your whorl and hangs under it like a parachutist with a wish. "
      "Grant it and it joins your team, or converts from a rival's. Drop it and it falls screaming."),

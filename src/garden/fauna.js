@@ -264,7 +264,7 @@ function material(deform, key, side) {
 
 // rotation (heading from its sine and cosine, nose up by pitch, rolled about the nose), scale and place, written
 // straight into an instance matrix
-let GROW = 1; // in the foxfire every animal and bird stands five times as tall (main.js sets it)
+let GROW = 1; // in the foxfire every bird, insect, fish and animal is ten times as big (main.js sets it)
 function put(m, o, x, y, z, sy, cy, sp, cp, sr, cr, s) {
   s *= GROW;
   m[o] = (cy * cr - sy * sp * sr) * s; m[o + 1] = cp * sr * s; m[o + 2] = (-sy * cr - cy * sp * sr) * s; m[o + 3] = 0;
@@ -521,7 +521,7 @@ export function createFauna(species, { max = DEFAULT_MAX } = {}) {
           }
         }
         const g = ground(S, i * GS, i, p, x, z, t, dt, f === HUMMER ? 0.4 : 1, groundAt);
-        if (n < 16) { const q = n * 5; seat.birds[q] = x; seat.birds[q + 1] = g + h + 1.2 * P[o + 13] * k; seat.birds[q + 2] = z; seat.birds[q + 3] = Math.atan2(sy, cy); seat.birds[q + 4] = P[o + 13] * k; } // a place for a gnome
+        if (n < 16) { const q = n * 5; seat.birds[q] = x; seat.birds[q + 1] = g + h + 1.2 * P[o + 13] * k * GROW; seat.birds[q + 2] = z; seat.birds[q + 3] = Math.atan2(sy, cy); seat.birds[q + 4] = P[o + 13] * k; } // a place for a gnome
         put(M, n * 16, x - ox, g + h, z - oz, sy, cy, sp, cp, Math.sin(roll), Math.cos(roll), P[o + 13] * k);
         AN[n * 4] = a; AN[n * 4 + 1] = b; AN[n * 4 + 2] = f;
         tint(B, n++, B.sp[i]);
@@ -655,7 +655,7 @@ export function createFauna(species, { max = DEFAULT_MAX } = {}) {
         const go = Math.min(1, v / (0.35 * P[o + 3]));
         let y = S[so + 5] + (S[so + 6] - S[so + 5]) * Math.min(1, (t - S[so + 7]) / 0.25), pitch = S[so + 8];
         if (K.hop) { y += K.hop * sc * go * Math.max(0, Math.sin(S[so + 4])); pitch += 0.28 * go * Math.cos(S[so + 4]); }
-        if (n < 16) { const q = n * 5; seat.animals[q] = S[so]; seat.animals[q + 1] = y + SEAT[f] * sc * k; seat.animals[q + 2] = S[so + 1]; seat.animals[q + 3] = Math.atan2(sy, cy); seat.animals[q + 4] = sc * k; } // a place for a gnome, on its back
+        if (n < 16) { const q = n * 5; seat.animals[q] = S[so]; seat.animals[q + 1] = y + SEAT[f] * sc * k * GROW; seat.animals[q + 2] = S[so + 1]; seat.animals[q + 3] = Math.atan2(sy, cy); seat.animals[q + 4] = sc * k; } // a place for a gnome, on its back
         put(M, n * 16, S[so] - ox, y, S[so + 1] - oz, sy, cy, Math.sin(pitch), Math.cos(pitch), 0, 1, sc * k);
         AN[n * 4] = K.amp * go; AN[n * 4 + 1] = S[so + 4]; AN[n * 4 + 2] = f;
         tint(A, n++, A.sp[i]);

@@ -1135,7 +1135,7 @@ function frame() {
     lesson.update(dt, q && !q.done && renderer.xr.isPresenting ? { note: { id: `wish:${q.kind}:${q.have}`, kicker: "A GNOME'S WISH", title: q.name, icon: WISH_ICON[q.kind] ?? 'gnome', text: q.text, corner: `${q.need > 1 ? `${q.have}/${q.need} · ` : ''}${Math.floor(q.left / 60)}:${String(q.left % 60).padStart(2, '0')}` }, progress: 1 - q.left / 180, hands: renderer.xr.isPresenting } : null);
   }
   if (invite && mode === 'fly' && !tutorial.active && (t > invite.at || bloom.pouch.plantedTotal >= invite.planted)) { invite = null; openAtelier(); }
-  fauna.grow = 1 + 4 * trip; /* the foxfire: all wildlife five times as tall */
+  fauna.grow = 1 + 9 * trip; /* the foxfire: all wildlife ten times as big (gnome seats follow) */
   fauna.update(dt, t, glide.pos, groundAt);
   creature.grow(Math.min(1, (bloom.pouch.level - 1) / 8 + bloom.pouch.plantedTotal / 500));
   roomLink?.send({ x: glide.pos[0], y: glide.pos[1], z: glide.pos[2], yaw: glide.yaw, pitch: glide.pitch, mode: Math.max(0, ['fly', 'atelier', 'merge', 'rise'].indexOf(mode)) }); // at most 5 a second

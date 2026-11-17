@@ -33,7 +33,7 @@ Sandstorms dry what they cross, a golden seed sets off a race every few minutes,
 on the desert with flowers. Your whorl wears everything you have sown as a bouquet.
 
 What dies feeds mushrooms. Fly through one and the world turns to foxfire: a neon night with a striped sun,
-double rewards, rows of seeds that ring up a musical scale as you thread them, every animal five times as tall,
+double rewards, rows of seeds that ring up a musical scale as you thread them, every animal ten times as big,
 and visions of giant gnome folk dancing on the dunes. Gnomes live in the mushrooms. One grabs your whorl and
 hangs under it like a parachutist with a wish ("FASTER! I want my beard to flap!"). Grant it and it joins your
 team, or switches sides from a rival's. Drop it and it falls, screaming.
