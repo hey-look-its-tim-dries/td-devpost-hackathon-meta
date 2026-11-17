@@ -30,6 +30,7 @@ export class World extends DurableObject {
     super(ctx, env);
     this.lastByIp = new Map();
     this.cache = null; // { etag, body }
+    this.recent = null; // the latest 100 events, kept here: /events is polled every few seconds by every player, a query each time cost a million row reads a day
     this.memos = new Map(); // key -> { at, v }: boards and counts every player asks for, computed once a little while, not once a call
     this.rooms = new Set();
     this.counts = new Map(); // room name -> { n, at }: how many fly there, as the Room last said
@@ -60,7 +61,8 @@ export class World extends DurableObject {
     if (pairM) return this.pair(req, pairM[1]);
     if (url.pathname === '/events' && req.method === 'GET') {
       const since = Math.max(0, Number.parseInt(url.searchParams.get('since') ?? '0', 10) || 0);
-      const { results } = await this.env.DB.prepare('select id, at, kind, hand_id, data from event where id > ? order by id desc limit 100').bind(since).all();
+      this.recent ??= (await this.env.DB.prepare('select id, at, kind, hand_id, data from event order by id desc limit 100').all()).results;
+      const results = this.recent.filter((e) => e.id > since);
       return Response.json({ events: results.map((e) => ({ ...e, data: JSON.parse(e.data ?? 'null') })) });
     }
     if (url.pathname === '/watersheds' && req.method === 'GET') {
@@ -83,7 +85,7 @@ export class World extends DurableObject {
       const one = url.searchParams.get('hand'), cols = 'select id, hand_id, bit, x, y, sp, stage, tended, big, hab from plant';
       const { results } = url.searchParams.has('top') ? { results: [] } : one ? await this.env.DB.prepare(`${cols} where hand_id = ? order by id`).bind(one.slice(0, 64)).all() : await this.env.DB.prepare(`${cols} order by id limit 60000`).all();
       if (one) return Response.json({ plants: results.map((r) => [r.id, r.hand_id, r.bit, r.x, r.y, r.sp, r.stage, r.tended, r.big, r.hab]) });
-      const top = await this.memo('top-gardeners', 20000, () => this.env.DB.prepare("select coalesce(p.name, 'A traveller') as name, count(*) as n from plant q left join player p on p.token_hash = q.by_hash group by q.by_hash order by n desc limit 5").all());
+      const top = await this.memo('top-gardeners', 300000, () => this.env.DB.prepare("select coalesce(p.name, 'A traveller') as name, count(*) as n from plant q left join player p on p.token_hash = q.by_hash group by q.by_hash order by n desc limit 5").all());
       return Response.json({ plants: results.map((r) => [r.id, r.hand_id, r.bit, r.x, r.y, r.sp, r.stage, r.tended, r.big, r.hab]), top: top.results });
     }
     const plantM = url.pathname.match(/^\/plants(?:\/(\d{1,12})(\/tend)?)?$/);
@@ -107,7 +109,7 @@ export class World extends DurableObject {
       let flying = 0;
       for (const [k, c] of this.counts) { if (now - c.at > 30000) this.counts.delete(k); else flying += c.n; }
       const hands = this.cache ? this.cache.n : (await this.env.DB.prepare('select count(*) as n from hand where placed_at is not null').first()).n;
-      const plants = (await this.memo('plant-count', 10000, () => this.env.DB.prepare('select count(*) as n from plant').first())).n;
+      const plants = (await this.memo('plant-count', 600000, () => this.env.DB.prepare('select count(*) as n from plant').first())).n;
       return Response.json({ hands, flying, plants });
     }
     if (url.pathname === '/rooms/count' && req.method === 'POST') {
@@ -373,7 +375,11 @@ export class World extends DurableObject {
     return Response.json({ error: 'not found' }, { status: 404 });
   }
 
-  async event(kind, handId, data) { await this.env.DB.prepare('insert into event (at, kind, hand_id, data) values (?, ?, ?, ?)').bind(Date.now(), kind, handId, JSON.stringify(data ?? null)).run(); }
+  async event(kind, handId, data) {
+    const at = Date.now(), json = JSON.stringify(data ?? null);
+    const r = await this.env.DB.prepare('insert into event (at, kind, hand_id, data) values (?, ?, ?, ?)').bind(at, kind, handId, json).run();
+    if (this.recent) this.recent = [{ id: r.meta.last_row_id, at, kind, hand_id: handId, data: json }, ...this.recent].slice(0, 100);
+  }
 
   // a name for a place: handbits by the Hand's owner, summits by anyone with a Hand, first come (spec 6.4)
   async nameIt(req) {
@@ -411,6 +417,7 @@ export class World extends DurableObject {
     this.cache = null;
     // the journal keeps only that someone left: their name goes from every line that carried it (spec 8.5, review finding 5)
     if (who.name) await this.env.DB.prepare('update event set data = replace(data, ?, ?) where instr(data, ?) > 0').bind(JSON.stringify(who.name), JSON.stringify('a Hand that left'), JSON.stringify(who.name)).run();
+    this.recent = null; // names in the news changed: read them again
     await this.event('washed', null, { name: 'Someone' });
     this.ctx.waitUntil(this.tell({ left: id }));
     return new Response(null, { status: 204 });
