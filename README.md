@@ -17,8 +17,9 @@ creature of black ink.</p>
 
 ## Watch it
 
-<!-- VIDEO: replace VIDEO_ID with the YouTube id once media/palm-whorl-cities-pitch.mp4 is uploaded -->
-[![Watch the 2:33 demo, filmed in the Meta Quest 3 emulator](docs/screenshots/26-foxfire-gnome-folk.jpg)](https://youtu.be/VIDEO_ID)
+[![Watch the 2:41 demo, filmed in the Meta Quest 3 emulator](docs/screenshots/26-foxfire-gnome-folk.jpg)](https://youtu.be/F4ylZCxakrs)
+
+Devpost: https://devpost.com/software/palm-whorl-cities
 
 Early game, mid game and late game in two and a half minutes: reading your hand, sowing a garden with other
 players, the foxfire, gnomes and the Community Hand. Pitch deck: [docs/deck/palm-whorl-cities-pitch.pdf](docs/deck/palm-whorl-cities-pitch.pdf).
